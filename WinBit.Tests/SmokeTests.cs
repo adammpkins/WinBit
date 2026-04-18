@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using WinBit.Core.BitTorrent;
+using WinBit.Core.Common;
 using WinBit.Core.Hosting;
 using WinBit.Core.Logging;
 using WinBit.Core.Persistence;
@@ -63,6 +65,47 @@ public sealed class SmokeTests
         Directory.Exists(paths.RssDir).Should().BeTrue();
         Directory.Exists(paths.LogsDir).Should().BeTrue();
         paths.Root.Should().Be(root);
+    }
+
+    [Fact]
+    public async Task TransfersGridLayout_round_trips_through_JsonSettingsStore()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var settings = provider.GetRequiredService<ISettingsService>();
+        await settings.UpdateAsync(s =>
+        {
+            s.UiState.TransfersGrid.Columns["name"] = new TransferColumnState
+            {
+                Width = 317,
+                Order = 0,
+                SortDirection = "Ascending",
+            };
+            s.UiState.TransfersGrid.Columns["size"] = new TransferColumnState
+            {
+                Width = 88,
+                Order = 2,
+                SortDirection = null,
+            };
+        });
+        await settings.SaveAsync();
+
+        await using var provider2 = new ServiceCollection()
+            .AddWinBitCore(opts => opts.DataRoot = temp.Path)
+            .BuildServiceProvider();
+        var reloaded = await provider2.GetRequiredService<ISettingsService>().LoadAsync();
+
+        reloaded.UiState.TransfersGrid.Columns.Should().HaveCount(2);
+        reloaded.UiState.TransfersGrid.Columns["name"].Width.Should().Be(317);
+        reloaded.UiState.TransfersGrid.Columns["name"].Order.Should().Be(0);
+        reloaded.UiState.TransfersGrid.Columns["name"].SortDirection.Should().Be("Ascending");
+        reloaded.UiState.TransfersGrid.Columns["size"].Width.Should().Be(88);
+        reloaded.UiState.TransfersGrid.Columns["size"].Order.Should().Be(2);
+        reloaded.UiState.TransfersGrid.Columns["size"].SortDirection.Should().BeNull();
     }
 
     [Fact]
@@ -138,6 +181,227 @@ public sealed class SmokeTests
         }
 
         File.Exists(paths.SettingsFile + ".tmp").Should().BeFalse("successful save must replace any stale tmp file");
+    }
+
+    [Fact]
+    public void BitTorrent_wire_types_compose_with_required_members()
+    {
+        var id = TorrentId.FromInfoHash("a".PadRight(40, '0'));
+
+        var handle = new TorrentHandle
+        {
+            Id = id,
+            Name = "example.iso",
+            SavePath = @"D:\downloads",
+            TotalSize = 1024 * 1024 * 1024,
+            Category = "linux",
+            Tags = new[] { "iso", "archive" },
+            AddedUtc = DateTime.UtcNow,
+        };
+        handle.Tags.Should().HaveCount(2);
+
+        var snapshot = new TorrentSnapshot
+        {
+            Id = id,
+            State = TorrentState.Downloading,
+            Progress = 0.42,
+            BytesDownloaded = 100,
+            DownloadSpeedBps = 1_000_000,
+            Seeds = 5,
+            Peers = 12,
+            Eta = TimeSpan.FromMinutes(3),
+        };
+        snapshot.State.Should().Be(TorrentState.Downloading);
+
+        var add = new AddTorrentParams
+        {
+            Source = "magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            SavePath = @"D:\downloads",
+        };
+        add.Tags.Should().BeEmpty();
+        add.StartImmediately.Should().BeTrue();
+
+        var peer = new PeerInfo { Address = "203.0.113.5:51413", Client = "qBittorrent 4.6.0", Progress = 1.0, IsSeeder = true };
+        peer.IsSeeder.Should().BeTrue();
+
+        var tracker = new TrackerInfo { Url = new Uri("http://tracker.example/announce"), Status = TrackerStatus.Working, Seeds = 1 };
+        tracker.Status.Should().Be(TrackerStatus.Working);
+    }
+
+    [Fact]
+    public async Task TorrentSessionService_starts_and_stops_a_real_engine()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var session = provider.GetRequiredService<ITorrentSessionService>();
+        session.IsRunning.Should().BeFalse();
+
+        await session.StartAsync();
+        session.IsRunning.Should().BeTrue();
+        Directory.Exists(Path.Combine(temp.Path, "engine")).Should().BeTrue();
+        session.Torrents.Should().BeEmpty("no torrents added yet");
+
+        await session.StopAsync();
+        session.IsRunning.Should().BeTrue("engine still alive after StopAllAsync; DisposeAsync tears it down");
+
+        await session.DisposeAsync();
+        session.IsRunning.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Session_adds_and_removes_a_magnet_uri()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var session = provider.GetRequiredService<ITorrentSessionService>();
+        await session.StartAsync();
+
+        const string magnet = "magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&dn=winbit-test";
+        var add = await session.AddAsync(new AddTorrentParams
+        {
+            Source = magnet,
+            SavePath = temp.Path,
+            StartImmediately = false,
+        });
+
+        add.IsSuccess.Should().BeTrue(add.Error ?? string.Empty);
+        session.Torrents.Should().ContainSingle().Which.Value.Should().Be(add.Value.Value);
+
+        var remove = await session.RemoveAsync(add.Value);
+        remove.IsSuccess.Should().BeTrue();
+        session.Torrents.Should().BeEmpty();
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Session_add_failure_returns_Result_Failure()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var session = provider.GetRequiredService<ITorrentSessionService>();
+        await session.StartAsync();
+
+        var add = await session.AddAsync(new AddTorrentParams
+        {
+            Source = "/does/not/exist.torrent",
+            SavePath = temp.Path,
+        });
+
+        add.IsSuccess.Should().BeFalse();
+        add.Error.Should().Contain("Unknown torrent source");
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task StatusPollingLoop_emits_snapshot_for_an_added_magnet()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var session = provider.GetRequiredService<ITorrentSessionService>();
+        await session.StartAsync();
+
+        const string magnet = "magnet:?xt=urn:btih:aabbccddeeff00112233445566778899aabbccdd&dn=winbit-poll";
+        var add = await session.AddAsync(new AddTorrentParams
+        {
+            Source = magnet,
+            SavePath = temp.Path,
+            StartImmediately = false,
+        });
+        add.IsSuccess.Should().BeTrue(add.Error ?? string.Empty);
+
+        TorrentSnapshot? captured = null;
+        session.TorrentUpdated += (_, batch) =>
+        {
+            foreach (var s in batch)
+            {
+                if (s.Id.Value == add.Value.Value)
+                {
+                    captured = s;
+                }
+            }
+        };
+
+        var loop = provider.GetServices<IHostedService>().OfType<StatusPollingLoop>().Single();
+        using var cts = new CancellationTokenSource();
+        await loop.StartAsync(cts.Token);
+        await Task.Delay(TimeSpan.FromMilliseconds(1500));
+        await loop.StopAsync(cts.Token);
+        await session.DisposeAsync();
+
+        captured.Should().NotBeNull("polling loop must include the added torrent in at least one batch");
+        captured!.Value.Id.Value.Should().Be(add.Value.Value);
+    }
+
+    [Fact]
+    public async Task WinBitHostedService_starts_and_stops_the_session()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var session = provider.GetRequiredService<ITorrentSessionService>();
+        var hosted = provider.GetServices<IHostedService>().OfType<WinBitHostedService>().Single();
+
+        using var cts = new CancellationTokenSource();
+        await hosted.StartAsync(cts.Token);
+        session.IsRunning.Should().BeTrue("StartAsync must bring the engine up");
+
+        await hosted.StopAsync(cts.Token);
+        session.IsRunning.Should().BeFalse("StopAsync flushes and disposes the session");
+    }
+
+    [Fact]
+    public async Task StatusPollingLoop_ticks_at_1_Hz_and_raises_batched_TorrentUpdated()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var session = provider.GetRequiredService<ITorrentSessionService>();
+        await session.StartAsync();
+
+        var ticks = 0;
+        IReadOnlyList<TorrentSnapshot>? lastBatch = null;
+        session.TorrentUpdated += (_, snapshots) =>
+        {
+            Interlocked.Increment(ref ticks);
+            lastBatch = snapshots;
+        };
+
+        var loop = provider.GetServices<IHostedService>().OfType<StatusPollingLoop>().Single();
+        using var cts = new CancellationTokenSource();
+        await loop.StartAsync(cts.Token);
+
+        await Task.Delay(TimeSpan.FromMilliseconds(2200));
+
+        await loop.StopAsync(cts.Token);
+        await session.DisposeAsync();
+
+        ticks.Should().BeGreaterOrEqualTo(1, "PeriodicTimer at 1 Hz should fire at least once inside 2.2 s");
+        lastBatch.Should().NotBeNull();
+        lastBatch!.Should().BeEmpty("no torrents added yet, so each snapshot batch is empty");
     }
 
     [Fact]

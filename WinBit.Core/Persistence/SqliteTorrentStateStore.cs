@@ -1,16 +1,17 @@
 using System.Text;
 using Microsoft.Data.Sqlite;
+using WinBit.Core.Common;
 
 namespace WinBit.Core.Persistence;
 
 /// <summary>
 /// SQLite-backed torrent state store. Opens the database in WAL mode, runs embedded
 /// migrations, and serializes writes through a single connection + semaphore. Readers open
-/// fresh pooled connections and proceed in parallel under WAL. Subsequent milestones layer
-/// typed upsert/query helpers on top of <see cref="ExecuteWriteAsync"/> /
-/// <see cref="ExecuteReadAsync{T}"/>.
+/// fresh pooled connections and proceed in parallel under WAL. Exposes both the generic
+/// <see cref="ExecuteWriteAsync"/> / <see cref="ExecuteReadAsync{T}"/> helpers and the typed
+/// <see cref="ITorrentStateStore"/> surface used by the engine.
 /// </summary>
-public sealed class SqliteTorrentStateStore : IAsyncDisposable
+public sealed class SqliteTorrentStateStore : ITorrentStateStore, IAsyncDisposable
 {
     private const int CurrentSchemaVersion = 1;
 
@@ -88,6 +89,98 @@ public sealed class SqliteTorrentStateStore : IAsyncDisposable
         SqliteConnection.ClearAllPools();
         _writeLock.Dispose();
     }
+
+    public Task UpsertTorrentAsync(TorrentStateRecord record, CancellationToken ct = default) =>
+        ExecuteWriteAsync(async (conn, inner) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"INSERT INTO torrent (info_hash, name, save_path, category, tags, added_utc, completed_utc)
+                                VALUES (@hash, @name, @path, @category, @tags, @added, @completed)
+                                ON CONFLICT(info_hash) DO UPDATE SET
+                                    name          = excluded.name,
+                                    save_path     = excluded.save_path,
+                                    category      = excluded.category,
+                                    tags          = excluded.tags,
+                                    completed_utc = excluded.completed_utc;";
+            cmd.Parameters.AddWithValue("@hash", record.Id.Value);
+            cmd.Parameters.AddWithValue("@name", record.Name);
+            cmd.Parameters.AddWithValue("@path", record.SavePath);
+            cmd.Parameters.AddWithValue("@category", (object?)record.Category ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@tags", (object?)record.Tags ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@added", record.AddedUtc.ToString("O"));
+            cmd.Parameters.AddWithValue("@completed", (object?)record.CompletedUtc?.ToString("O") ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync(inner).ConfigureAwait(false);
+        }, ct);
+
+    public Task RemoveTorrentAsync(TorrentId id, CancellationToken ct = default) =>
+        ExecuteWriteAsync(async (conn, inner) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM torrent WHERE info_hash = @hash;";
+            cmd.Parameters.AddWithValue("@hash", id.Value);
+            await cmd.ExecuteNonQueryAsync(inner).ConfigureAwait(false);
+        }, ct);
+
+    public Task SaveFastResumeAsync(TorrentId id, byte[] blob, int version, CancellationToken ct = default) =>
+        ExecuteWriteAsync(async (conn, inner) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"UPDATE torrent
+                                SET fast_resume = @blob, resume_ver = @ver
+                                WHERE info_hash = @hash;";
+            cmd.Parameters.AddWithValue("@hash", id.Value);
+            cmd.Parameters.AddWithValue("@blob", blob);
+            cmd.Parameters.AddWithValue("@ver", version);
+            await cmd.ExecuteNonQueryAsync(inner).ConfigureAwait(false);
+        }, ct);
+
+    public Task<byte[]?> LoadFastResumeAsync(TorrentId id, int expectedVersion, CancellationToken ct = default) =>
+        ExecuteReadAsync<byte[]?>(async (conn, inner) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT fast_resume, resume_ver FROM torrent WHERE info_hash = @hash;";
+            cmd.Parameters.AddWithValue("@hash", id.Value);
+            await using var reader = await cmd.ExecuteReaderAsync(inner).ConfigureAwait(false);
+            if (!await reader.ReadAsync(inner).ConfigureAwait(false))
+            {
+                return null;
+            }
+            if (reader.IsDBNull(0))
+            {
+                return null;
+            }
+            if (reader.GetInt32(1) != expectedVersion)
+            {
+                return null;
+            }
+            var blob = (byte[])reader.GetValue(0);
+            return blob;
+        }, ct);
+
+    public Task<IReadOnlyList<TorrentStateRecord>> GetAllAsync(CancellationToken ct = default) =>
+        ExecuteReadAsync<IReadOnlyList<TorrentStateRecord>>(async (conn, inner) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"SELECT info_hash, name, save_path, category, tags, added_utc, completed_utc
+                                FROM torrent
+                                ORDER BY added_utc;";
+            var result = new List<TorrentStateRecord>();
+            await using var reader = await cmd.ExecuteReaderAsync(inner).ConfigureAwait(false);
+            while (await reader.ReadAsync(inner).ConfigureAwait(false))
+            {
+                result.Add(new TorrentStateRecord
+                {
+                    Id = TorrentId.FromInfoHash(reader.GetString(0)),
+                    Name = reader.GetString(1),
+                    SavePath = reader.GetString(2),
+                    Category = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    Tags = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    AddedUtc = DateTime.Parse(reader.GetString(5), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                    CompletedUtc = reader.IsDBNull(6) ? null : DateTime.Parse(reader.GetString(6), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                });
+            }
+            return result;
+        }, ct);
 
     private static async Task ExecuteNonQueryAsync(SqliteConnection conn, string sql)
     {

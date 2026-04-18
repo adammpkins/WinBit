@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="WinBit.Controls.StatePill"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Border x:Name="PillBorder"
+            Padding="10,3"
+            CornerRadius="12"
+            BorderThickness="1"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <FontIcon x:Name="PillIcon"
+                      FontSize="12" />
+            <TextBlock x:Name="PillLabel"
+                       Style="{ThemeResource CaptionTextBlockStyle}"
+                       FontWeight="SemiBold"
+                       CharacterSpacing="32" />
+        </StackPanel>
+    </Border>
+</UserControl>

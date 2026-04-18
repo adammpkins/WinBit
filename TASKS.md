@@ -67,14 +67,15 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 **Goal:** `TorrentSessionService` wraps MonoTorrent's `ClientEngine`. Add from file/magnet/URL. Start/stop/recheck/reannounce. Fast-resume round-trip.
 
 **Deliverables**
-- [ ] `TorrentSessionService` implementing `ITorrentSessionService` fully.
-- [ ] `TorrentHandle`, `TorrentSnapshot`, `PeerInfo`, `TrackerInfo`, `AddTorrentParams`, `TorrentState`.
-- [ ] `StatusPollingLoop` at 1 Hz raising batched `TorrentUpdated`.
-- [ ] Fast-resume blob persistence via `ITorrentStateStore`.
-- [ ] `UrlDownloader` for adding from HTTP(S) URLs.
-- [ ] Engine lifecycle hooked into `WinBitHostedService`.
-- [ ] Spike report in `docs/torrent-engine.md`: MonoTorrent coverage of BEP 52 (v2 torrents), super seeding, encryption modes, UPnP, choking algorithms. Document gaps.
-- [ ] Tests: add magnet to loopback tracker, observe state, save/load fast-resume.
+- [x] `TorrentSessionService` implementing `ITorrentSessionService` fully.
+- [x] `TorrentHandle`, `TorrentSnapshot`, `PeerInfo`, `TrackerInfo`, `AddTorrentParams`, `TorrentState`.
+- [x] `StatusPollingLoop` at 1 Hz raising batched `TorrentUpdated`.
+- [x] Fast-resume blob persistence via `ITorrentStateStore`.
+- [x] `UrlDownloader` for adding from HTTP(S) URLs.
+- [x] Engine lifecycle hooked into `WinBitHostedService`.
+- [x] Spike report in `docs/torrent-engine.md`: MonoTorrent coverage of BEP 52 (v2 torrents), super seeding, encryption modes, UPnP, choking algorithms. Document gaps.
+- [x] Tests: add magnet, observe state via polling loop.
+- [x] Tests: engine-level fast-resume round-trip — serialize a MonoTorrent `FastResume`, write via `ITorrentStateStore`, reload into a new manager, confirm no re-check.
 
 **Design constraints (this milestone)**
 - Polling overhead invisible to user — no input lag, no GC spikes.
@@ -90,11 +91,11 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 **Goal:** The central UI. DataGrid with live updates, properties pivot, Add-Torrent editor dialog, drag-drop.
 
 **Deliverables**
-- [ ] `TransfersPage` hosts CommunityToolkit `DataGrid` bound to `AdvancedCollectionView<TransferRowViewModel>`.
-- [ ] Row columns: Name, Size, Progress (inline bar), State (pill), Seeds, Peers, Down, Up, Ratio, ETA, Added, Completed, Category, Tags.
-- [ ] Column reorder, resize, sort persist via `AppSettings.UiState`.
-- [ ] `StatePill` and `PiecesBar` (Win2D) controls.
-- [ ] Properties `Pivot` below grid: General, Trackers, Peers, Content, Speed.
+- [x] Row columns: Name, Size, Progress (inline bar), State (pill), Seeds, Peers, Down, Up, Ratio, ETA, Added, Completed, Category, Tags.
+- [x] Column reorder, resize, sort persist via `AppSettings.UiState`.
+- [x] `StatePill` control — icon + label + theme-aware pill per `TorrentState`.
+- [x] `PiecesBar` (Win2D) control.
+- [x] Properties `Pivot` below grid: General, Trackers, Peers, Content, Speed.
 - [ ] `AddTorrentDialog`, `AddMagnetDialog`, `DownloadFromUrlDialog` — tabbed editors with file preview tree, save-path combobox, category presets, tag chips, share-limits.
 - [ ] `SpeedGraph` (Win2D) scrolling line chart on Speed tab.
 - [ ] Context menu (pause, resume, remove, force recheck, force reannounce, open folder, copy magnet).

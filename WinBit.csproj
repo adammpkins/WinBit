@@ -48,6 +48,9 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
+    <PackageReference Include="CommunityToolkit.WinUI.Collections" />
+    <PackageReference Include="WinUI.TableView" />
+    <PackageReference Include="Microsoft.Graphics.Win2D" />
   </ItemGroup>
 
   <ItemGroup>

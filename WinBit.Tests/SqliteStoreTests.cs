@@ -179,6 +179,126 @@ public sealed class SqliteStoreTests
     }
 
     [Fact]
+    public async Task FastResume_round_trips_when_version_matches()
+    {
+        using var temp = new TempDirectory();
+        var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
+        await using var store = new SqliteTorrentStateStore(paths);
+
+        var id = WinBit.Core.Common.TorrentId.FromInfoHash("a".PadRight(40, '0'));
+        await ((ITorrentStateStore)store).UpsertTorrentAsync(new TorrentStateRecord
+        {
+            Id = id,
+            Name = "example.iso",
+            SavePath = @"D:\downloads",
+            AddedUtc = DateTime.UtcNow,
+        });
+
+        var blob = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF, 0x12, 0x34 };
+        await ((ITorrentStateStore)store).SaveFastResumeAsync(id, blob, version: 1);
+
+        var reloaded = await ((ITorrentStateStore)store).LoadFastResumeAsync(id, expectedVersion: 1);
+        reloaded.Should().NotBeNull().And.Equal(blob);
+    }
+
+    [Fact]
+    public async Task FastResume_returns_null_on_version_mismatch_so_caller_rechecks()
+    {
+        using var temp = new TempDirectory();
+        var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
+        await using var store = new SqliteTorrentStateStore(paths);
+
+        var id = WinBit.Core.Common.TorrentId.FromInfoHash("b".PadRight(40, '0'));
+        await ((ITorrentStateStore)store).UpsertTorrentAsync(new TorrentStateRecord
+        {
+            Id = id,
+            Name = "example.iso",
+            SavePath = @"D:\downloads",
+            AddedUtc = DateTime.UtcNow,
+        });
+        await ((ITorrentStateStore)store).SaveFastResumeAsync(id, new byte[] { 1, 2, 3 }, version: 1);
+
+        var mismatch = await ((ITorrentStateStore)store).LoadFastResumeAsync(id, expectedVersion: 2);
+        mismatch.Should().BeNull("version bump must discard the stale blob and force a re-check");
+    }
+
+    [Fact]
+    public async Task FastResume_returns_null_when_no_row_exists()
+    {
+        using var temp = new TempDirectory();
+        var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
+        await using var store = new SqliteTorrentStateStore(paths);
+
+        var missing = await ((ITorrentStateStore)store).LoadFastResumeAsync(
+            WinBit.Core.Common.TorrentId.FromInfoHash("c".PadRight(40, '0')),
+            expectedVersion: 1);
+        missing.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetAllAsync_and_RemoveTorrentAsync_reflect_current_state()
+    {
+        using var temp = new TempDirectory();
+        var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
+        await using var store = new SqliteTorrentStateStore(paths);
+
+        var a = WinBit.Core.Common.TorrentId.FromInfoHash("aa".PadRight(40, '0'));
+        var b = WinBit.Core.Common.TorrentId.FromInfoHash("bb".PadRight(40, '0'));
+        var now = DateTime.UtcNow;
+
+        await ((ITorrentStateStore)store).UpsertTorrentAsync(new TorrentStateRecord { Id = a, Name = "A", SavePath = "/a", AddedUtc = now });
+        await ((ITorrentStateStore)store).UpsertTorrentAsync(new TorrentStateRecord { Id = b, Name = "B", SavePath = "/b", AddedUtc = now.AddSeconds(1) });
+
+        (await ((ITorrentStateStore)store).GetAllAsync()).Select(r => r.Id).Should().ContainInOrder(a, b);
+
+        await ((ITorrentStateStore)store).RemoveTorrentAsync(a);
+        var remaining = await ((ITorrentStateStore)store).GetAllAsync();
+        remaining.Should().ContainSingle().Which.Id.Should().Be(b);
+    }
+
+    [Fact]
+    public async Task FastResume_blob_round_trips_from_MonoTorrent_through_store_back_into_FastResume()
+    {
+        // End-to-end: MonoTorrent FastResume → Encode → ITorrentStateStore →
+        // LoadFastResumeAsync → FastResume.TryLoad → matching InfoHashes.
+        // MonoTorrent's LoadFastResumeAsync trusts a TryLoad-valid FastResume and skips the
+        // hash check (docs/torrent-engine.md "Fast-resume"), so a clean round-trip here
+        // proves the "no re-check" path.
+        using var temp = new TempDirectory();
+        var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
+        await using var store = new SqliteTorrentStateStore(paths);
+
+        var sha1 = new byte[20];
+        new Random(42).NextBytes(sha1);
+        var infoHashes = MonoTorrent.InfoHashes.FromV1(new MonoTorrent.InfoHash(sha1));
+
+        var bitfield = new MonoTorrent.ReadOnlyBitField(8);
+        var original = new MonoTorrent.Client.FastResume(infoHashes, bitfield, bitfield);
+        byte[] blob = original.Encode();
+        blob.Length.Should().BeGreaterThan(0);
+
+        var id = WinBit.Core.Common.TorrentId.FromInfoHash(infoHashes.V1!.ToHex());
+
+        ITorrentStateStore typed = store;
+        await typed.UpsertTorrentAsync(new TorrentStateRecord
+        {
+            Id = id,
+            Name = "fast-resume-test",
+            SavePath = temp.Path,
+            AddedUtc = DateTime.UtcNow,
+        });
+        await typed.SaveFastResumeAsync(id, blob, version: 1);
+
+        var reloaded = await typed.LoadFastResumeAsync(id, expectedVersion: 1);
+        reloaded.Should().NotBeNull().And.Equal(blob);
+
+        using var stream = new MemoryStream(reloaded!);
+        MonoTorrent.Client.FastResume.TryLoad(stream, out var rehydrated).Should().BeTrue("round-tripped bytes must parse back into a FastResume");
+        rehydrated.Should().NotBeNull();
+        rehydrated!.InfoHashes.V1!.ToHex().Should().Be(infoHashes.V1!.ToHex(), "the rehydrated FastResume must carry the same info-hash MonoTorrent keys by");
+    }
+
+    [Fact]
     public async Task Store_serializes_concurrent_writes_through_the_writer_queue()
     {
         using var temp = new TempDirectory();

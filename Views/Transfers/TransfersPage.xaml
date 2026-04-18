@@ -5,15 +5,151 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="using:WinBit.Views.Transfers"
+    xmlns:controls="using:WinBit.Controls"
+    xmlns:tv="using:WinUI.TableView"
     xmlns:vm="using:WinBit.ViewModels.Transfers"
     mc:Ignorable="d"
     Background="Transparent">
 
-    <Grid Padding="24">
+    <Grid>
+        <Grid Visibility="{x:Bind local:TransfersPage.VisibleIfTrue(ViewModel.HasTorrents), Mode=OneWay}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="2*" MinHeight="120" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" MinHeight="160" />
+            </Grid.RowDefinitions>
+
+            <tv:TableView x:Name="TransfersGrid"
+                      Grid.Row="0"
+                      ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      SelectionMode="Extended"
+                      CornerRadius="4"
+                      AlternateRowBackground="{ThemeResource LayerFillColorAltBrush}"
+                      Background="Transparent"
+                      Padding="16,12,16,16">
+            <tv:TableView.Columns>
+                <tv:TableViewTextColumn Tag="name" Header="Name" Binding="{Binding Name}" Width="240" MinWidth="140" />
+                <tv:TableViewTextColumn Tag="size" Header="Size" Binding="{Binding SizeText}" Width="96" />
+
+                <tv:TableViewTemplateColumn Tag="progress" Header="Progress" Width="140" MinWidth="100">
+                    <tv:TableViewTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:TransferRowViewModel">
+                            <Grid Padding="8,0" VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar Grid.Column="0"
+                                             Value="{x:Bind ProgressPercent, Mode=OneWay}"
+                                             Maximum="100"
+                                             Height="6"
+                                             CornerRadius="3"
+                                             Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                             VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{x:Bind ProgressText, Mode=OneWay}"
+                                           Margin="8,0,0,0"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </Grid>
+                        </DataTemplate>
+                    </tv:TableViewTemplateColumn.CellTemplate>
+                </tv:TableViewTemplateColumn>
+
+                <tv:TableViewTemplateColumn Tag="state" Header="State" Width="120" MinWidth="90">
+                    <tv:TableViewTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:TransferRowViewModel">
+                            <controls:StatePill State="{x:Bind State, Mode=OneWay}"
+                                                Margin="8,0" />
+                        </DataTemplate>
+                    </tv:TableViewTemplateColumn.CellTemplate>
+                </tv:TableViewTemplateColumn>
+
+                <tv:TableViewTextColumn Tag="seeds" Header="Seeds" Binding="{Binding Seeds}" Width="64" />
+                <tv:TableViewTextColumn Tag="peers" Header="Peers" Binding="{Binding Peers}" Width="64" />
+                <tv:TableViewTextColumn Tag="down" Header="Down" Binding="{Binding DownloadText}" Width="96" />
+                <tv:TableViewTextColumn Tag="up" Header="Up" Binding="{Binding UploadText}" Width="96" />
+                <tv:TableViewTextColumn Tag="ratio" Header="Ratio" Binding="{Binding RatioText}" Width="72" />
+                <tv:TableViewTextColumn Tag="eta" Header="ETA" Binding="{Binding EtaText}" Width="96" />
+                <tv:TableViewTextColumn Tag="added" Header="Added" Binding="{Binding AddedText}" Width="140" />
+                <tv:TableViewTextColumn Tag="completed" Header="Completed" Binding="{Binding CompletedText}" Width="140" />
+                <tv:TableViewTextColumn Tag="category" Header="Category" Binding="{Binding Category}" Width="120" />
+                <tv:TableViewTextColumn Tag="tags" Header="Tags" Binding="{Binding TagsText}" Width="160" />
+            </tv:TableView.Columns>
+        </tv:TableView>
+
+            <Border Grid.Row="1"
+                    Height="1"
+                    Background="{ThemeResource DividerStrokeColorDefaultBrush}"
+                    Margin="16,0" />
+
+            <Pivot x:Name="PropertiesPivot"
+                   Grid.Row="2"
+                   Padding="16,8,16,16"
+                   Background="Transparent">
+                <PivotItem Header="General">
+                    <ScrollViewer>
+                        <StackPanel Spacing="6" MaxWidth="720" HorizontalAlignment="Left">
+                            <TextBlock Text="Torrent details"
+                                       Style="{ThemeResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="Info hash, save path, comment, creation date, and fast-resume status populate in a later M4 deliverable."
+                                       Style="{ThemeResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </PivotItem>
+                <PivotItem Header="Trackers">
+                    <StackPanel Spacing="6" Padding="0,8" MaxWidth="720" HorizontalAlignment="Left">
+                        <TextBlock Text="Trackers"
+                                   Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="Announce URLs with seeds/leeches/last error — rendered once the per-tab trackers poll lands (3 s while tab is visible)."
+                                   Style="{ThemeResource BodyTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </PivotItem>
+                <PivotItem Header="Peers">
+                    <StackPanel Spacing="6" Padding="0,8" MaxWidth="720" HorizontalAlignment="Left">
+                        <TextBlock Text="Peers"
+                                   Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="Connected peer list (endpoint, client, progress, speeds) — populated by the 3 s per-tab peers poll."
+                                   Style="{ThemeResource BodyTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </PivotItem>
+                <PivotItem Header="Content">
+                    <StackPanel Spacing="6" Padding="0,8" MaxWidth="720" HorizontalAlignment="Left">
+                        <TextBlock Text="Content"
+                                   Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="File tree with per-file priority (Do not download / Low / Normal / High). Hosts the PiecesBar once bitfield data is wired."
+                                   Style="{ThemeResource BodyTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </PivotItem>
+                <PivotItem Header="Speed">
+                    <StackPanel Spacing="6" Padding="0,8" MaxWidth="720" HorizontalAlignment="Left">
+                        <TextBlock Text="Speed"
+                                   Style="{ThemeResource SubtitleTextBlockStyle}" />
+                        <TextBlock Text="SpeedGraph (Win2D scrolling line chart, 600 samples) arrives with its own M4 deliverable."
+                                   Style="{ThemeResource BodyTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </PivotItem>
+            </Pivot>
+        </Grid>
+
         <StackPanel HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Spacing="16"
-                    MaxWidth="440">
+                    MaxWidth="440"
+                    Visibility="{x:Bind local:TransfersPage.VisibleIfTrue(ViewModel.IsEmpty), Mode=OneWay}">
             <Border Width="140" Height="140"
                     CornerRadius="70"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"

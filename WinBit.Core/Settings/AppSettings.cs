@@ -74,4 +74,24 @@ public sealed class UiStateSettings
     public string? AccentColor { get; set; }
 
     public int SidebarWidth { get; set; } = 240;
+
+    public TransfersGridLayout TransfersGrid { get; set; } = new();
+}
+
+/// <summary>
+/// Per-user transfer-grid layout. Keys are stable column tags ("name", "size", etc.); entries
+/// capture pixel width, horizontal order, and current sort direction. A null <see cref="Columns"/>
+/// dictionary or a missing entry means "use the column's designed default".
+/// </summary>
+public sealed class TransfersGridLayout
+{
+    public Dictionary<string, TransferColumnState> Columns { get; set; } = new();
+}
+
+public sealed class TransferColumnState
+{
+    public double Width { get; set; }
+    public int Order { get; set; }
+    /// <summary>null = unsorted, "Ascending", or "Descending".</summary>
+    public string? SortDirection { get; set; }
 }

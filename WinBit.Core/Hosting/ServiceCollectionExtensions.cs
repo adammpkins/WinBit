@@ -27,7 +27,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISettingsStore, JsonSettingsStore>();
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<SqliteTorrentStateStore>();
+        services.AddSingleton<ITorrentStateStore>(sp => sp.GetRequiredService<SqliteTorrentStateStore>());
+        services.AddSingleton<HttpClient>();
+        services.AddSingleton<UrlDownloader>();
         services.AddSingleton<ITorrentSessionService, TorrentSessionService>();
+        services.AddHostedService<WinBitHostedService>();
+        services.AddHostedService<StatusPollingLoop>();
 
         return services;
     }
