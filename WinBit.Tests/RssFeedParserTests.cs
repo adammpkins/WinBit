@@ -126,6 +126,67 @@ public sealed class RssFeedParserTests
     }
 
     [Fact]
+    public void Rss_article_id_prefers_guid_element()
+    {
+        const string xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <item>
+                  <title>Show</title>
+                  <guid>explicit-guid-123</guid>
+                  <enclosure url="https://x/1.torrent" />
+                </item>
+              </channel>
+            </rss>
+            """;
+
+        var doc = RssFeedParser.Parse(xml, FeedUrl);
+        doc.Articles[0].Id.Should().Be("explicit-guid-123");
+    }
+
+    [Fact]
+    public void Rss_article_id_falls_back_to_hash_when_guid_missing()
+    {
+        const string xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <item>
+                  <title>Show</title>
+                  <enclosure url="https://x/1.torrent" />
+                </item>
+              </channel>
+            </rss>
+            """;
+
+        var doc1 = RssFeedParser.Parse(xml, FeedUrl);
+        var doc2 = RssFeedParser.Parse(xml, FeedUrl);
+        // Deterministic hash → same id across parses.
+        doc1.Articles[0].Id.Should().Be(doc2.Articles[0].Id);
+        doc1.Articles[0].Id.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public void Atom_article_id_uses_entry_id_element()
+    {
+        const string xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <entry>
+                <title>Atom Show</title>
+                <id>urn:atom:abc</id>
+                <link rel="enclosure" href="https://x/1.torrent" />
+                <updated>2026-04-07T12:00:00Z</updated>
+              </entry>
+            </feed>
+            """;
+
+        var doc = RssFeedParser.Parse(xml, FeedUrl);
+        doc.Articles[0].Id.Should().Be("urn:atom:abc");
+    }
+
+    [Fact]
     public void Rss_date_parsing_tolerates_wrong_day_of_week()
     {
         // 2026-04-07 is actually a Tuesday; real feeds regularly mislabel the day.

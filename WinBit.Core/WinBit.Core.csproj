@@ -25,4 +25,14 @@
   <ItemGroup>
     <EmbeddedResource Include="Persistence\SqlMigrations\*.sql" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- qBittorrent's HTML admin UI, copied verbatim from qbittorrent/src/webui/www and
+         served at runtime by QBittorrentAssets. Template tokens (QBT_TR, ${LANG}, ${CACHEID})
+         are rewritten on the way out. Resource names follow the default
+         RootNamespace.Directory.File pattern, which the middleware composes directly. -->
+    <EmbeddedResource Include="WebUi\WebAssets\**\*.*" />
+    <!-- WinBit's native Fluent-flavored SPA that talks to the same /api/v2/* endpoints. -->
+    <EmbeddedResource Include="WebUi\NativeClient\**\*.*" />
+  </ItemGroup>
 </Project>

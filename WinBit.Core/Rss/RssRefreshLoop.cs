@@ -19,7 +19,7 @@ public sealed class RssFeedRefreshedEventArgs : EventArgs
 /// <see cref="FeedRefreshed"/> with the parsed articles so downstream services (auto-downloader,
 /// <c>RssPage</c>) can act without polling.
 /// </summary>
-public sealed class RssRefreshLoop : BackgroundService
+public sealed class RssRefreshLoop : BackgroundService, IRssRefresher
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(60);
 
@@ -119,6 +119,49 @@ public sealed class RssRefreshLoop : BackgroundService
 
             await _rss.MarkRefreshedAsync(feed.Url, now, ct).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Forces a refresh of a single feed, bypassing the interval gate. No-ops silently if the
+    /// URL isn't currently in the tree or doesn't parse as an absolute URI.
+    /// </summary>
+    public async Task RefreshFeedAsync(string feedUrl, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(feedUrl))
+        {
+            return;
+        }
+        if (!Uri.TryCreate(feedUrl, UriKind.Absolute, out var uri))
+        {
+            _log.Write($"RSS: refreshItem skipped '{feedUrl}' — not a valid URL.", LogSeverity.Warning);
+            return;
+        }
+
+        string? xml;
+        try
+        {
+            xml = await _fetcher(uri, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.Write($"RSS: refreshItem fetch failed for '{feedUrl}': {ex.Message}", LogSeverity.Warning);
+            return;
+        }
+
+        var now = _time.GetUtcNow().UtcDateTime;
+        if (string.IsNullOrWhiteSpace(xml))
+        {
+            await _rss.MarkRefreshedAsync(feedUrl, now, ct).ConfigureAwait(false);
+            return;
+        }
+
+        var doc = RssFeedParser.Parse(xml, feedUrl);
+        FeedRefreshed?.Invoke(this, new RssFeedRefreshedEventArgs
+        {
+            FeedUrl = feedUrl,
+            Articles = doc.Articles,
+        });
+        await _rss.MarkRefreshedAsync(feedUrl, now, ct).ConfigureAwait(false);
     }
 
     internal static IEnumerable<RssFeedConfig> CollectFeeds(RssFolder folder)

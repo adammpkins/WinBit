@@ -482,14 +482,17 @@ public sealed class TorrentSessionService : ITorrentSessionService
             return;
         }
 
-        var snapshots = _engine is null
-            ? Array.Empty<TorrentSnapshot>()
-            : _engine.Torrents.Select(Snapshot).ToArray();
+        var snapshots = GetSnapshots();
 
         LogDiagnostics();
 
         handler(this, snapshots);
     }
+
+    public IReadOnlyList<TorrentSnapshot> GetSnapshots() =>
+        _engine is null
+            ? Array.Empty<TorrentSnapshot>()
+            : _engine.Torrents.Select(Snapshot).ToArray();
 
     private int _diagTick;
 
@@ -567,6 +570,7 @@ public sealed class TorrentSessionService : ITorrentSessionService
                 : (double)manager.Monitor.DataBytesSent / manager.Monitor.DataBytesReceived,
             Seeds = manager.Peers.Seeds,
             Peers = manager.Peers.Leechs,
+            ErrorMessage = TorrentErrorFormatter.Format(manager.Error),
         };
     }
 

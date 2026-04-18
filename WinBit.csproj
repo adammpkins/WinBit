@@ -15,13 +15,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**" />
-    <Content Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**" />
-    <None Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**" />
-    <Page Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**" />
-    <ApplicationDefinition Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**" />
-    <EmbeddedResource Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**" />
-    <PRIResource Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**" />
+    <Compile Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**;tools\**" />
+    <Content Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**;tools\**" />
+    <None Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**;tools\**" />
+    <Page Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**;tools\**" />
+    <ApplicationDefinition Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**;tools\**" />
+    <EmbeddedResource Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**;tools\**" />
+    <PRIResource Remove="WinBit.Core\**;WinBit.Tests\**;qbittorrent\**;tools\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -55,6 +55,7 @@
     <PackageReference Include="CommunityToolkit.WinUI.Collections" />
     <PackageReference Include="WinUI.TableView" />
     <PackageReference Include="Microsoft.Graphics.Win2D" />
+    <PackageReference Include="H.NotifyIcon.WinUI" />
   </ItemGroup>
 
   <ItemGroup>

@@ -32,4 +32,11 @@ public readonly record struct TorrentSnapshot
     public int Seeds { get; init; }
 
     public int Peers { get; init; }
+
+    /// <summary>
+    /// Human-readable reason the torrent is in <see cref="TorrentState.Error"/>. Null for healthy
+    /// torrents. Forwarded into the error toast so the user sees the actual disk / runtime failure
+    /// rather than a generic "stopped due to an error" string.
+    /// </summary>
+    public string? ErrorMessage { get; init; }
 }

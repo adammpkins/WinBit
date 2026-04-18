@@ -13,4 +13,11 @@ public sealed record RssArticle
     public string? TorrentUrl { get; init; }
 
     public DateTime PublishedUtc { get; init; }
+
+    /// <summary>
+    /// Stable article identifier. Pulled from RSS <c>&lt;guid&gt;</c> or Atom <c>&lt;id&gt;</c>
+    /// when the feed supplies it; otherwise derived from <see cref="Title"/> +
+    /// <see cref="TorrentUrl"/>. Used by markAsRead and dedup logic in the article cache.
+    /// </summary>
+    public string Id { get; init; } = "";
 }

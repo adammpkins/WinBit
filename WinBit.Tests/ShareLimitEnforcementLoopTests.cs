@@ -293,6 +293,7 @@ public sealed class ShareLimitEnforcementLoopTests
         public event EventHandler<IReadOnlyList<TorrentSnapshot>>? TorrentUpdated { add { } remove { } }
 
         public void CaptureAndPublishSnapshots() { }
+        public IReadOnlyList<TorrentSnapshot> GetSnapshots() => Array.Empty<TorrentSnapshot>();
         public Task PersistFastResumeAsync(CancellationToken ct = default) => Task.CompletedTask;
 
         public Task<Result<TorrentId>> AddAsync(AddTorrentParams parameters, CancellationToken ct = default)

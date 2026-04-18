@@ -1,0 +1,75 @@
+name: webui-compat
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  oracle:
+    name: qbittorrent-api compatibility
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python oracle client
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tools/webui-compat/requirements.txt
+
+      - name: Build compat host
+        shell: bash
+        run: |
+          dotnet build tools/webui-compat/WinBit.WebUiCompatHost.csproj -c Debug -nologo
+
+      - name: Launch compat host in background
+        shell: bash
+        env:
+          WEBUI_PORT: "18080"
+          DATA_ROOT: "${{ runner.temp }}/winbit-compat"
+        run: |
+          mkdir -p "$DATA_ROOT"
+          dotnet run --project tools/webui-compat/WinBit.WebUiCompatHost.csproj --no-build -c Debug \
+            > "$DATA_ROOT/host.log" 2>&1 &
+          echo $! > "$DATA_ROOT/host.pid"
+          echo "WinBit host PID $(cat $DATA_ROOT/host.pid)"
+
+      - name: Run qbittorrent-api compatibility oracle
+        shell: bash
+        env:
+          WEBUI_URL: "http://127.0.0.1:18080"
+        run: python tools/webui-compat/compat_test.py
+
+      - name: Stop compat host
+        if: always()
+        shell: bash
+        env:
+          DATA_ROOT: "${{ runner.temp }}/winbit-compat"
+        run: |
+          if [[ -f "$DATA_ROOT/host.pid" ]]; then
+            PID=$(cat "$DATA_ROOT/host.pid")
+            echo "Stopping host PID $PID"
+            taskkill //F //PID $PID || true
+          fi
+
+      - name: Upload host log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webui-compat-host-log
+          path: ${{ runner.temp }}/winbit-compat/host.log
+          if-no-files-found: ignore

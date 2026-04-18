@@ -29,6 +29,7 @@ public sealed partial class SettingsPage : Page
             "bittorrent" => typeof(BitTorrentPage),
             "rss" => typeof(RssPage),
             "webui" => typeof(WebUiPage),
+            "behavior" => typeof(BehaviorPage),
             "advanced" => typeof(AdvancedPage),
             _ => typeof(DownloadsPage),
         };

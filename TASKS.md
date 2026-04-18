@@ -207,15 +207,31 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 
 ---
 
-## M10 — Web UI
+## M10 — Web UI *(complete)*
 
 **Deliverables**
 - [x] In-process Kestrel host via `WebUiService`.
-- [ ] Routes matching qBittorrent v2 API: `/api/v2/torrents/*`, `/api/v2/app/*`, `/api/v2/transfer/*`, `/api/v2/rss/*`, `/api/v2/search/*`, `/api/v2/log/*`, `/api/v2/torrentcreator/*`, `/api/v2/sync/*`, `/api/v2/auth/*`.
-- [ ] PBKDF2 password hashing, cookie session, optional HTTPS (user cert), IP subnet whitelist.
-- [ ] Ship qBittorrent's HTML admin UI as static files (since we implement its API).
-- [ ] Native WinUI-style web client replacing qBittorrent's HTML — Fluent-flavored SPA served from the same Kestrel host, toggleable in Settings/WebUI.
-- [ ] `qbittorrent-api` (Python) compatibility as CI oracle.
+- [x] `/api/v2/app/*` — version, webapiVersion, buildInfo, defaultSavePath.
+- [x] `/api/v2/auth/*` — login / logout with cookie session.
+- [x] `/api/v2/torrents/*` read + control — info, delete, pause, resume, recheck.
+- [x] `/api/v2/torrents/add` — file / URL / magnet upload.
+- [x] `/api/v2/transfer/*` — session speeds, speed limits mode.
+- [x] `/api/v2/log/*` — main, peers (read-only).
+- [x] `/api/v2/sync/*` — maindata incremental poll.
+- [x] `/api/v2/rss/*` — feed list + rule CRUD.
+- [x] `/api/v2/rss/matchingArticles` — rule → matching article titles from the cache.
+- [x] `/api/v2/rss/moveItem` — move a folder/feed to a new path (needs `IRssService.MoveItemAsync`).
+- [x] `/api/v2/rss/markAsRead` — per-article read state (in-memory; disk persistence tracked separately).
+- [x] `/api/v2/rss/refreshItem` — force a single feed refresh (needs hook on `RssRefreshLoop`).
+- [x] Persist RSS article read-state across restart (SQLite `rss_read` table).
+- [x] `/api/v2/torrentcreator/*` — addTask, status, downloadTorrent, deleteTask.
+- [x] `/api/v2/search/*` — plugin bridge (stub until M12 search service exists).
+- [x] PBKDF2 password hashing + cookie session (shipped alongside `/api/v2/auth/*`).
+- [x] Optional HTTPS via user-supplied PFX / self-signed cert.
+- [x] IP subnet whitelist bypass for LAN clients.
+- [x] Ship qBittorrent's HTML admin UI as static files (since we implement its API).
+- [x] Native WinUI-style web client replacing qBittorrent's HTML — Fluent-flavored SPA served from the same Kestrel host, toggleable in Settings/WebUI.
+- [x] `qbittorrent-api` (Python) compatibility as CI oracle.
 
 **Verification**
 - `qbittorrent-api` can list, start, stop, remove torrents against a running WinBit.
@@ -225,9 +241,12 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 ## M11 — Tray, notifications, power, shell integration
 
 **Deliverables**
-- [ ] `WinBitTrayIcon` via `H.NotifyIcon.WinUI` — show/hide, Add-Magnet, alt-speed, Exit.
-- [ ] Close-to-tray option (configurable).
-- [ ] Toast notifications via Windows AppNotifications: completion, errors, download-rate low on long torrents.
+- [x] `WinBitTrayIcon` via `H.NotifyIcon.WinUI` — show/hide, Add-Magnet, alt-speed, Exit.
+- [x] Close-to-tray option (configurable).
+- [x] Toast notifications via Windows AppNotifications — completion (name + save path; click opens folder).
+- [x] Toast notifications — torrent errors (transition into Error state).
+- [x] Surface MonoTorrent error message on `TorrentSnapshot.ErrorMessage` and forward into the error toast.
+- [ ] Toast notifications — download-rate-low warning on long-running torrents.
 - [ ] `PowerManagementService` preventing sleep while active torrents exist.
 - [ ] `.torrent` file association and `magnet:` URI protocol handler.
 - [ ] Default-client prompt on startup — detect whether WinBit owns `.torrent` / `magnet:`, offer an in-app dialog to register (or the Windows "Default apps" deep link) when it doesn't.

@@ -27,6 +27,13 @@ public interface ITorrentSessionService : IAsyncDisposable
     void CaptureAndPublishSnapshots();
 
     /// <summary>
+    /// Synchronous pull counterpart to <see cref="TorrentUpdated"/>. Returns the current state
+    /// of every loaded torrent — used by the Web UI's <c>/torrents/info</c> endpoint and any
+    /// other caller that needs a point-in-time view without waiting for the next polling tick.
+    /// </summary>
+    IReadOnlyList<TorrentSnapshot> GetSnapshots();
+
+    /// <summary>
     /// Writes each manager's fast-resume blob through <c>ITorrentStateStore</c>. Called on
     /// the 60 s autosave cadence by <c>WinBitHostedService</c> and once more on shutdown.
     /// </summary>

@@ -1,3 +1,5 @@
+using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
@@ -23,16 +25,25 @@ public sealed partial class MainWindow : Window
     private readonly INavigationService _navigation;
     private readonly IDialogService _dialogs;
     private readonly IThemeService _themes;
+    private readonly ISettingsService _settings;
+    private bool _forceExit;
 
     public ShellStatusViewModel Status { get; }
 
+    public ICommand ShowCommand { get; }
+    public ICommand ToggleVisibilityCommand { get; }
+
     public MainWindow()
     {
+        ShowCommand = new RelayCommand(ShowFromTray);
+        ToggleVisibilityCommand = new RelayCommand(ToggleVisibilityFromTray);
+
         InitializeComponent();
 
         _navigation = App.Services.GetRequiredService<INavigationService>();
         _dialogs = App.Services.GetRequiredService<IDialogService>();
         _themes = App.Services.GetRequiredService<IThemeService>();
+        _settings = App.Services.GetRequiredService<ISettingsService>();
         Status = App.Services.GetRequiredService<ShellStatusViewModel>();
 
         ExtendsContentIntoTitleBar = true;
@@ -42,6 +53,74 @@ public sealed partial class MainWindow : Window
         _navigation.Initialize(RootFrame);
         RootFrame.Loaded += OnRootFrameLoaded;
         _themes.ThemeChanged += OnThemeChanged;
+        AppWindow.Closing += OnAppWindowClosing;
+        Closed += OnWindowClosed;
+
+        TrayIcon.ForceCreate();
+    }
+
+    private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        // The tray menu's Exit sets _forceExit before calling Application.Current.Exit(), so the
+        // teardown path bypasses close-to-tray. A bare close-button press honors the setting.
+        if (_forceExit)
+        {
+            return;
+        }
+        if (_settings.Current.Behavior.CloseToTray)
+        {
+            args.Cancel = true;
+            HideToTray();
+        }
+    }
+
+    private void OnWindowClosed(object sender, WindowEventArgs args)
+    {
+        TrayIcon.Dispose();
+    }
+
+    private void ShowFromTray()
+    {
+        AppWindow.Show();
+        Activate();
+    }
+
+    private void HideToTray()
+    {
+        AppWindow.Hide();
+    }
+
+    private void ToggleVisibilityFromTray()
+    {
+        if (AppWindow.IsVisible)
+        {
+            HideToTray();
+        }
+        else
+        {
+            ShowFromTray();
+        }
+    }
+
+    private void OnTrayShowClicked(object sender, RoutedEventArgs e) => ShowFromTray();
+
+    private void OnTrayHideClicked(object sender, RoutedEventArgs e) => HideToTray();
+
+    private async void OnTrayAltSpeedClicked(object sender, RoutedEventArgs e)
+    {
+        // ToggleMenuFlyoutItem flips IsChecked on click; revert so the menu reflects the
+        // persisted setting that Status mirrors back via OneWay binding on the next tick.
+        if (sender is ToggleMenuFlyoutItem item)
+        {
+            item.IsChecked = Status.AltSpeedEnabled;
+        }
+        await Status.ToggleAltSpeedAsync();
+    }
+
+    private void OnTrayExitClicked(object sender, RoutedEventArgs e)
+    {
+        _forceExit = true;
+        Application.Current.Exit();
     }
 
     private void ApplyTaskbarIcon()

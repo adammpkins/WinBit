@@ -133,6 +133,55 @@ public sealed class RssServiceTests
     }
 
     [Fact]
+    public async Task MoveItem_relocates_feed_to_new_parent_folder()
+    {
+        using var temp = new TempDirectory();
+        var svc = new RssService(NewPaths(temp));
+        await svc.UpsertFeedAsync("TV", new RssFeedConfig { Url = "http://f/1", Title = "feedA" });
+
+        await svc.MoveItemAsync("TV/feedA", "Movies/feedA");
+
+        var tree = await svc.GetTreeAsync();
+        tree.Folders.Single(f => f.Name == "TV").Feeds.Should().BeEmpty();
+        tree.Folders.Single(f => f.Name == "Movies").Feeds.Single().Url.Should().Be("http://f/1");
+    }
+
+    [Fact]
+    public async Task MoveItem_renames_folder_in_place()
+    {
+        using var temp = new TempDirectory();
+        var svc = new RssService(NewPaths(temp));
+        await svc.UpsertFolderAsync("TV/Drama");
+
+        await svc.MoveItemAsync("TV/Drama", "TV/Reality");
+
+        var tv = (await svc.GetTreeAsync()).Folders.Single();
+        tv.Folders.Should().ContainSingle().Which.Name.Should().Be("Reality");
+    }
+
+    [Fact]
+    public async Task MoveItem_renames_feed_via_leaf_segment()
+    {
+        using var temp = new TempDirectory();
+        var svc = new RssService(NewPaths(temp));
+        await svc.UpsertFeedAsync("", new RssFeedConfig { Url = "http://f/1", Title = "original" });
+
+        await svc.MoveItemAsync("original", "Renamed");
+
+        (await svc.GetTreeAsync()).Feeds.Single().Title.Should().Be("Renamed");
+    }
+
+    [Fact]
+    public async Task MoveItem_throws_for_missing_source()
+    {
+        using var temp = new TempDirectory();
+        var svc = new RssService(NewPaths(temp));
+
+        Func<Task> act = () => svc.MoveItemAsync("Does/NotExist", "Somewhere");
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
     public async Task Missing_feed_url_on_MarkRefreshed_is_a_no_op()
     {
         using var temp = new TempDirectory();

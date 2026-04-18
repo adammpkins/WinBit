@@ -109,6 +109,130 @@ public sealed class RssService : IRssService
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    public async Task MoveItemAsync(string sourcePath, string destPath, CancellationToken ct = default)
+    {
+        await EnsureLoadedAsync(ct).ConfigureAwait(false);
+        await _lock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var srcSegs = SplitPath(sourcePath);
+            var dstSegs = SplitPath(destPath);
+            if (srcSegs.Length == 0 || dstSegs.Length == 0)
+            {
+                throw new ArgumentException("Source and destination paths must be non-empty.");
+            }
+
+            var detached = Detach(_root!, srcSegs, out var next);
+            if (detached is null)
+            {
+                throw new InvalidOperationException($"Item not found at '{sourcePath}'.");
+            }
+            _root = next;
+
+            var dstParent = dstSegs[..^1];
+            var dstLeaf = dstSegs[^1];
+
+            // Ensure the destination parent chain exists.
+            _root = WithFolderAtPath(_root!, dstParent);
+
+            _root = detached switch
+            {
+                RssFolder folder => WithFolderAt(_root!, dstParent, folder with { Name = dstLeaf }),
+                RssFeedConfig feed => WithFeedAt(_root!, dstParent, feed with
+                {
+                    Title = string.IsNullOrWhiteSpace(dstLeaf) ? feed.Title : dstLeaf,
+                }),
+                _ => throw new InvalidOperationException("Unknown detached item type."),
+            };
+
+            await PersistAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static object? Detach(RssFolder root, string[] segments, out RssFolder updated)
+    {
+        // Walk down segments[0..^2] as folder chain, detach the leaf.
+        if (segments.Length == 1)
+        {
+            var leaf = segments[0];
+            // Try folder match first.
+            var folderMatch = root.Folders.FirstOrDefault(f =>
+                string.Equals(f.Name, leaf, StringComparison.OrdinalIgnoreCase));
+            if (folderMatch is not null)
+            {
+                updated = root with
+                {
+                    Folders = root.Folders.Where(f => !ReferenceEquals(f, folderMatch)).ToArray(),
+                };
+                return folderMatch;
+            }
+            // Otherwise a feed — match by Title or URL.
+            var feedMatch = root.Feeds.FirstOrDefault(f =>
+                string.Equals(f.Title, leaf, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(f.Url, leaf, StringComparison.OrdinalIgnoreCase));
+            if (feedMatch is not null)
+            {
+                updated = root with
+                {
+                    Feeds = root.Feeds.Where(f => !ReferenceEquals(f, feedMatch)).ToArray(),
+                };
+                return feedMatch;
+            }
+            updated = root;
+            return null;
+        }
+
+        var next = root.Folders.FirstOrDefault(f =>
+            string.Equals(f.Name, segments[0], StringComparison.OrdinalIgnoreCase));
+        if (next is null)
+        {
+            updated = root;
+            return null;
+        }
+
+        var detached = Detach(next, segments[1..], out var updatedChild);
+        if (detached is null)
+        {
+            updated = root;
+            return null;
+        }
+
+        updated = root with
+        {
+            Folders = root.Folders.Select(f =>
+                ReferenceEquals(f, next) ? updatedChild : f).ToArray(),
+        };
+        return detached;
+    }
+
+    private static RssFolder WithFolderAt(RssFolder root, string[] parentSegments, RssFolder folder)
+    {
+        if (parentSegments.Length == 0)
+        {
+            // Insert (or replace) at root; de-dup case-insensitively on Name.
+            var existing = root.Folders.FirstOrDefault(f =>
+                string.Equals(f.Name, folder.Name, StringComparison.OrdinalIgnoreCase));
+            var folders = existing is null
+                ? root.Folders.Append(folder).ToArray()
+                : root.Folders.Select(f => ReferenceEquals(f, existing) ? folder : f).ToArray();
+            return root with { Folders = folders };
+        }
+
+        var child = root.Folders.First(f =>
+            string.Equals(f.Name, parentSegments[0], StringComparison.OrdinalIgnoreCase));
+        var updated = WithFolderAt(child, parentSegments[1..], folder);
+        return root with
+        {
+            Folders = root.Folders.Select(f =>
+                ReferenceEquals(f, child) ? updated : f).ToArray(),
+        };
+    }
+
     public async Task MarkRefreshedAsync(string feedUrl, DateTime utc, CancellationToken ct = default)
     {
         await EnsureLoadedAsync(ct).ConfigureAwait(false);

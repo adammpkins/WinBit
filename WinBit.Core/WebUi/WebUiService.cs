@@ -6,8 +6,14 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using WinBit.Core.BitTorrent;
+using WinBit.Core.Categories;
 using WinBit.Core.Logging;
+using WinBit.Core.Persistence;
+using WinBit.Core.Rss;
 using WinBit.Core.Settings;
+using WinBit.Core.Tags;
+using WinBit.Core.WebUi.Endpoints;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace WinBit.Core.WebUi;
@@ -25,7 +31,18 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
     public const string VersionString = "WinBit/0.1.0";
 
     private readonly ISettingsService _settings;
+    private readonly IWebUiAuthService _auth;
+    private readonly ITorrentSessionService _session;
     private readonly ILogService _log;
+    private readonly IPeerLogService _peerLog;
+    private readonly ICategoryService _categories;
+    private readonly ITagService _tags;
+    private readonly IRssService _rss;
+    private readonly IAutoDownloaderService _autoDownloader;
+    private readonly IRssArticleCache _rssArticles;
+    private readonly IRssRefresher _rssRefresher;
+    private readonly ITorrentCreatorQueue _creatorQueue;
+    private readonly Paths _paths;
     private WebApplication? _app;
     private int? _boundPort;
 
@@ -33,10 +50,25 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
 
     public int? BoundPort => _boundPort;
 
-    public WebUiService(ISettingsService settings, ILogService log)
+    public WebUiService(ISettingsService settings, IWebUiAuthService auth,
+        ITorrentSessionService session, ILogService log, IPeerLogService peerLog,
+        ICategoryService categories, ITagService tags,
+        IRssService rss, IAutoDownloaderService autoDownloader, IRssArticleCache rssArticles,
+        IRssRefresher rssRefresher, ITorrentCreatorQueue creatorQueue, Paths paths)
     {
         _settings = settings;
+        _auth = auth;
+        _session = session;
         _log = log;
+        _peerLog = peerLog;
+        _categories = categories;
+        _tags = tags;
+        _rss = rss;
+        _autoDownloader = autoDownloader;
+        _rssArticles = rssArticles;
+        _rssRefresher = rssRefresher;
+        _creatorQueue = creatorQueue;
+        _paths = paths;
     }
 
     public async Task StartAsync(CancellationToken ct)
@@ -54,13 +86,34 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         builder.Logging.AddProvider(new LogServiceLoggerProvider(_log));
 
         var port = _settings.Current.WebUi.Port;
+        var useHttps = _settings.Current.WebUi.Https;
+        var cert = useHttps ? WebUiCertificateProvider.Resolve(_settings.Current.WebUi, _paths) : null;
+
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenAnyIP(Math.Max(0, port));
+            options.ListenAnyIP(Math.Max(0, port), listen =>
+            {
+                if (cert is not null)
+                {
+                    listen.UseHttps(cert);
+                }
+            });
         });
 
         var app = builder.Build();
-        app.MapGet("/api/v2/app/version", () => Results.Text(VersionString));
+        // The qBittorrent admin UI — must be registered before the API endpoints so its
+        // middleware can opt-out of /api/* routes and fall through to them.
+        QBittorrentAssets.Map(app, _auth, _settings);
+
+        AppEndpoints.Map(app, _settings);
+        AuthEndpoints.Map(app, _auth);
+        TorrentsEndpoints.Map(app, _session, _auth, _settings);
+        TransferEndpoints.Map(app, _session, _auth, _settings);
+        LogEndpoints.Map(app, _log, _peerLog, _auth);
+        SyncEndpoints.Map(app, _session, _settings, _categories, _tags, _auth);
+        RssEndpoints.Map(app, _rss, _autoDownloader, _rssArticles, _rssRefresher, _auth);
+        TorrentCreatorEndpoints.Map(app, _creatorQueue, _auth);
+        SearchEndpoints.Map(app, _auth);
 
         await app.StartAsync(ct).ConfigureAwait(false);
 

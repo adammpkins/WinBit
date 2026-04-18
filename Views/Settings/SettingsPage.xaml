@@ -47,6 +47,11 @@
                     <FontIcon Glyph="&#xE774;" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Tag="behavior" Content="Behavior">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE7B3;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Tag="advanced" Content="Advanced">
                 <NavigationViewItem.Icon>
                     <FontIcon Glyph="&#xE713;" />

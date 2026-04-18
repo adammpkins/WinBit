@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:WinBit"
+    xmlns:tb="using:H.NotifyIcon"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -98,6 +99,53 @@
         </Grid>
 
         <Frame x:Name="RootFrame" Grid.Row="1" />
+
+        <tb:TaskbarIcon x:Name="TrayIcon"
+                        Grid.Row="0"
+                        Visibility="Collapsed"
+                        ToolTipText="WinBit"
+                        IconSource="ms-appx:///Assets/AppIcon.ico"
+                        NoLeftClickDelay="True"
+                        LeftClickCommand="{x:Bind ToggleVisibilityCommand}"
+                        DoubleClickCommand="{x:Bind ShowCommand}">
+            <tb:TaskbarIcon.ContextFlyout>
+                <MenuFlyout Placement="Top">
+                    <MenuFlyoutItem Text="Show WinBit"
+                                    Click="OnTrayShowClicked">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE8A7;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <MenuFlyoutItem Text="Hide to tray"
+                                    Click="OnTrayHideClicked">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE711;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <MenuFlyoutSeparator />
+                    <MenuFlyoutItem Text="Add magnet link…"
+                                    Click="OnAddMagnetClicked">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE71B;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                    <ToggleMenuFlyoutItem Text="Alternative speed limits"
+                                          IsChecked="{x:Bind Status.AltSpeedEnabled, Mode=OneWay}"
+                                          Click="OnTrayAltSpeedClicked">
+                        <ToggleMenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE945;" />
+                        </ToggleMenuFlyoutItem.Icon>
+                    </ToggleMenuFlyoutItem>
+                    <MenuFlyoutSeparator />
+                    <MenuFlyoutItem Text="Exit WinBit"
+                                    Click="OnTrayExitClicked">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon Glyph="&#xE7E8;" />
+                        </MenuFlyoutItem.Icon>
+                    </MenuFlyoutItem>
+                </MenuFlyout>
+            </tb:TaskbarIcon.ContextFlyout>
+        </tb:TaskbarIcon>
 
         <Border Grid.Row="2"
                 BorderThickness="0,1,0,0"

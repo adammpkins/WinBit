@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinBit.Views.Settings.BehaviorPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <ScrollViewer Padding="32,24,32,48">
+        <StackPanel Spacing="12" MaxWidth="880">
+            <TextBlock Text="Behavior" Style="{ThemeResource TitleLargeTextBlockStyle}" />
+            <TextBlock Text="How WinBit integrates with the desktop and reacts to the close button."
+                       Style="{ThemeResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12" />
+
+            <controls:SettingsCard Header="Close to system tray"
+                                   Description="Pressing the window close button hides WinBit to the tray instead of exiting. Use the tray menu's Exit to fully quit.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE7B3;" />
+                </controls:SettingsCard.HeaderIcon>
+                <ToggleSwitch x:Name="CloseToTrayToggle" Toggled="OnCloseToTrayToggled" />
+            </controls:SettingsCard>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

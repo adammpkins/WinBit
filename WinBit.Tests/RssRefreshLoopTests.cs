@@ -205,6 +205,56 @@ public sealed class RssRefreshLoopTests
     }
 
     [Fact]
+    public async Task RefreshFeedAsync_fetches_and_emits_bypassing_the_interval_gate()
+    {
+        using var temp = new TempDirectory();
+        var rss = new RssService(NewPaths(temp));
+        var justNow = new DateTime(2026, 4, 18, 12, 0, 0, DateTimeKind.Utc);
+        await rss.UpsertFeedAsync("", new RssFeedConfig
+        {
+            Url = "http://feed/a",
+            LastRefreshUtc = justNow,
+        });
+
+        var settings = new InMemorySettingsService();
+        settings.Current.Rss.RefreshIntervalMinutes = 60;
+        var time = new FakeTimeProvider(justNow.AddMinutes(1));
+
+        var calls = 0;
+        var loop = new RssRefreshLoop(rss, settings,
+            (_, _) => { calls++; return Task.FromResult<string?>(SampleFeed); },
+            new NoopLog(), time);
+
+        RssFeedRefreshedEventArgs? received = null;
+        loop.FeedRefreshed += (_, e) => received = e;
+
+        await loop.RefreshFeedAsync("http://feed/a");
+
+        calls.Should().Be(1);
+        received.Should().NotBeNull();
+        received!.FeedUrl.Should().Be("http://feed/a");
+    }
+
+    [Fact]
+    public async Task RefreshFeedAsync_no_ops_on_invalid_url()
+    {
+        using var temp = new TempDirectory();
+        var rss = new RssService(NewPaths(temp));
+        var settings = new InMemorySettingsService();
+        var log = new CapturingLog();
+
+        var calls = 0;
+        var loop = new RssRefreshLoop(rss, settings,
+            (_, _) => { calls++; return Task.FromResult<string?>(SampleFeed); },
+            log);
+
+        await loop.RefreshFeedAsync("not-a-url");
+
+        calls.Should().Be(0);
+        log.Messages.Should().Contain(m => m.Contains("not a valid URL"));
+    }
+
+    [Fact]
     public async Task Nested_feeds_are_all_visited()
     {
         using var temp = new TempDirectory();

@@ -13,7 +13,7 @@ namespace WinBit.Core.Persistence;
 /// </summary>
 public sealed class SqliteTorrentStateStore : ITorrentStateStore, IAsyncDisposable
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
 
     private readonly string _connectionString;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
@@ -213,7 +213,21 @@ public sealed class SqliteTorrentStateStore : ITorrentStateStore, IAsyncDisposab
             return;
         }
 
-        var sql = LoadEmbeddedMigration("001_init.sql");
+        // Applied in order, each migration is idempotent relative to the last one's end-state
+        // and bumps schema_version to its own target.
+        if (version < 1)
+        {
+            await RunMigrationAsync(conn, "001_init.sql").ConfigureAwait(false);
+        }
+        if (version < 2)
+        {
+            await RunMigrationAsync(conn, "002_rss_read.sql").ConfigureAwait(false);
+        }
+    }
+
+    private static async Task RunMigrationAsync(SqliteConnection conn, string name)
+    {
+        var sql = LoadEmbeddedMigration(name);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);

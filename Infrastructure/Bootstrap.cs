@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using WinBit.Core.Notifications;
 using WinBit.Services;
 using WinBit.ViewModels.Logs;
 using WinBit.ViewModels.Shell;
@@ -20,6 +22,8 @@ public static class Bootstrap
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IThemeService, ThemeService>();
+
+        services.Replace(ServiceDescriptor.Singleton<INotificationService, AppToastNotificationService>());
 
         services.AddTransient<ShellViewModel>();
         services.AddSingleton<ShellStatusViewModel>();

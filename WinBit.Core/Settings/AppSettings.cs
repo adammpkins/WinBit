@@ -13,6 +13,14 @@ public sealed class AppSettings
     public WebUiSettings WebUi { get; set; } = new();
     public AdvancedSettings Advanced { get; set; } = new();
     public UiStateSettings UiState { get; set; } = new();
+    public BehaviorSettings Behavior { get; set; } = new();
+}
+
+public sealed class BehaviorSettings
+{
+    /// <summary>When true, closing the main window hides it to the system tray instead of exiting.
+    /// Off by default so first-run users still see the app quit on close.</summary>
+    public bool CloseToTray { get; set; }
 }
 
 public sealed class DownloadsSettings
@@ -118,6 +126,31 @@ public sealed class WebUiSettings
     public bool Enabled { get; set; }
     public int Port { get; set; } = 8080;
     public bool Https { get; set; }
+
+    /// <summary>Path to a user-supplied PFX certificate. When null/empty and <see cref="Https"/>
+    /// is true, WinBit generates a self-signed cert at <c>%LOCALAPPDATA%\WinBit\webui-self-signed.pfx</c>
+    /// and reuses it on subsequent starts.</summary>
+    public string? HttpsCertPath { get; set; }
+
+    /// <summary>Password for the user-supplied PFX. Ignored when the cert is generated here.</summary>
+    public string? HttpsCertPassword { get; set; }
+
+    /// <summary>Username for Web UI login. Defaults to <c>admin</c> when null/empty.</summary>
+    public string? Username { get; set; }
+
+    /// <summary>PBKDF2 hash in <c>base64(salt):base64(hash)</c> form. When null/empty the Web
+    /// UI accepts the documented default password (<c>adminadmin</c>) so first-run users are
+    /// not locked out.</summary>
+    public string? PasswordHash { get; set; }
+
+    /// <summary>CIDR subnets whose clients bypass the login check (e.g. <c>192.168.1.0/24</c>).
+    /// Empty = every request needs a valid SID cookie.</summary>
+    public List<string> WhitelistedSubnets { get; set; } = new();
+
+    /// <summary>When true, the root URL serves WinBit's Fluent-flavored native web client
+    /// instead of qBittorrent's HTML admin UI. The native client is always reachable at
+    /// <c>/winbit/</c>; qBittorrent's UI stays reachable at <c>/qbittorrent/</c>.</summary>
+    public bool UseNativeClient { get; set; }
 }
 
 public sealed class AdvancedSettings

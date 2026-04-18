@@ -17,7 +17,7 @@ public sealed class RssArticleCacheTests
     {
         var loop = MakeLoop(out var settings);
         settings.Current.Rss.MaxArticlesPerFeed = 50;
-        var cache = new RssArticleCache(loop, settings);
+        var cache = new RssArticleCache(loop, settings, new InMemoryRssReadStore());
 
         cache.Absorb("http://f", new[]
         {
@@ -33,7 +33,7 @@ public sealed class RssArticleCacheTests
     public void Duplicate_articles_are_suppressed_across_batches()
     {
         var loop = MakeLoop(out var settings);
-        var cache = new RssArticleCache(loop, settings);
+        var cache = new RssArticleCache(loop, settings, new InMemoryRssReadStore());
 
         cache.Absorb("http://f", new[] { new RssArticle { FeedUrl = "http://f", Title = "A", TorrentUrl = "t/a" } });
         cache.Absorb("http://f", new[]
@@ -50,7 +50,7 @@ public sealed class RssArticleCacheTests
     {
         var loop = MakeLoop(out var settings);
         settings.Current.Rss.MaxArticlesPerFeed = 2;
-        var cache = new RssArticleCache(loop, settings);
+        var cache = new RssArticleCache(loop, settings, new InMemoryRssReadStore());
 
         cache.Absorb("http://f", new[]
         {
@@ -66,8 +66,86 @@ public sealed class RssArticleCacheTests
     public void Unknown_feed_returns_empty()
     {
         var loop = MakeLoop(out var settings);
-        var cache = new RssArticleCache(loop, settings);
+        var cache = new RssArticleCache(loop, settings, new InMemoryRssReadStore());
         cache.Get("http://does-not-exist").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task MarkAsRead_with_articleId_flags_only_that_article()
+    {
+        var loop = MakeLoop(out var settings);
+        var cache = new RssArticleCache(loop, settings, new InMemoryRssReadStore());
+        cache.Absorb("http://f", new[]
+        {
+            new RssArticle { FeedUrl = "http://f", Title = "A", TorrentUrl = "t/a", Id = "A" },
+            new RssArticle { FeedUrl = "http://f", Title = "B", TorrentUrl = "t/b", Id = "B" },
+        });
+
+        await cache.MarkAsReadAsync("http://f", "A");
+
+        cache.IsRead("http://f", "A").Should().BeTrue();
+        cache.IsRead("http://f", "B").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task MarkAsRead_without_articleId_flags_everything_currently_cached()
+    {
+        var loop = MakeLoop(out var settings);
+        var cache = new RssArticleCache(loop, settings, new InMemoryRssReadStore());
+        cache.Absorb("http://f", new[]
+        {
+            new RssArticle { FeedUrl = "http://f", Title = "A", TorrentUrl = "t/a", Id = "A" },
+            new RssArticle { FeedUrl = "http://f", Title = "B", TorrentUrl = "t/b", Id = "B" },
+        });
+
+        await cache.MarkAsReadAsync("http://f");
+
+        cache.IsRead("http://f", "A").Should().BeTrue();
+        cache.IsRead("http://f", "B").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task MarkAsRead_raises_Updated_event_for_the_feed()
+    {
+        var loop = MakeLoop(out var settings);
+        var cache = new RssArticleCache(loop, settings, new InMemoryRssReadStore());
+        cache.Absorb("http://f", new[] { new RssArticle { FeedUrl = "http://f", Title = "A", TorrentUrl = "t/a", Id = "A" } });
+
+        var seen = 0;
+        cache.Updated += (_, e) => { if (e.FeedUrl == "http://f") seen++; };
+        await cache.MarkAsReadAsync("http://f", "A");
+
+        seen.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task MarkAsReadAsync_persists_through_the_read_store()
+    {
+        var loop = MakeLoop(out var settings);
+        var store = new InMemoryRssReadStore();
+        var cache = new RssArticleCache(loop, settings, store);
+        cache.Absorb("http://f", new[]
+        {
+            new RssArticle { FeedUrl = "http://f", Title = "A", TorrentUrl = "t/a", Id = "A" },
+            new RssArticle { FeedUrl = "http://f", Title = "B", TorrentUrl = "t/b", Id = "B" },
+        });
+
+        await cache.MarkAsReadAsync("http://f");
+        var reloaded = await store.LoadAllAsync();
+
+        reloaded.Select(r => r.ArticleId).Should().Contain(new[] { "A", "B" });
+    }
+
+    [Fact]
+    public void Hydrate_seeds_read_state_so_IsRead_reflects_pre_loaded_entries()
+    {
+        var loop = MakeLoop(out var settings);
+        var cache = new RssArticleCache(loop, settings, new InMemoryRssReadStore());
+
+        cache.Hydrate(new[] { ("http://f", "X") });
+
+        cache.IsRead("http://f", "X").Should().BeTrue();
+        cache.IsRead("http://f", "Y").Should().BeFalse();
     }
 
     [Fact]
@@ -91,7 +169,7 @@ public sealed class RssArticleCacheTests
                 """),
             new NoopLog());
 
-        var cache = new RssArticleCache(loop, settings);
+        var cache = new RssArticleCache(loop, settings, new InMemoryRssReadStore());
         var events = 0;
         cache.Updated += (_, _) => events++;
 

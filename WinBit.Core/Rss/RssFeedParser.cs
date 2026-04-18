@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Xml.Linq;
 
 namespace WinBit.Core.Rss;
@@ -72,12 +74,14 @@ public static class RssFeedParser
 
             var published = ParseRssDate(item.Element("pubDate")?.Value);
 
+            var guid = item.Element("guid")?.Value.Trim();
             articles.Add(new RssArticle
             {
                 FeedUrl = feedUrl,
                 Title = title,
                 TorrentUrl = torrentUrl,
                 PublishedUtc = published,
+                Id = DeriveArticleId(guid, title, torrentUrl),
             });
         }
 
@@ -101,12 +105,14 @@ public static class RssFeedParser
                 entry.Elements().FirstOrDefault(e => e.Name.LocalName == "published")?.Value
                 ?? entry.Elements().FirstOrDefault(e => e.Name.LocalName == "updated")?.Value);
 
+            var atomId = entry.Elements().FirstOrDefault(e => e.Name.LocalName == "id")?.Value.Trim();
             articles.Add(new RssArticle
             {
                 FeedUrl = feedUrl,
                 Title = title,
                 TorrentUrl = torrentUrl,
                 PublishedUtc = published,
+                Id = DeriveArticleId(atomId, title, torrentUrl),
             });
         }
 
@@ -189,6 +195,20 @@ public static class RssFeedParser
             return dto.UtcDateTime;
         }
         return default;
+    }
+
+    internal static string DeriveArticleId(string? explicitId, string title, string? torrentUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitId))
+        {
+            return explicitId.Trim();
+        }
+
+        // Deterministic fallback: SHA-1 over title + torrent url. Matches across polls so the
+        // cache can dedupe and markAsRead survives a re-fetch.
+        var material = $"{title}\u0000{torrentUrl ?? string.Empty}";
+        var hash = SHA1.HashData(Encoding.UTF8.GetBytes(material));
+        return Convert.ToHexString(hash);
     }
 
     private static DateTime ParseIso8601(string? raw)

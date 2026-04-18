@@ -45,7 +45,8 @@ public sealed class SqliteStoreTests
             cmd.CommandText = "SELECT version FROM schema_version LIMIT 1;";
             return Convert.ToInt32(await cmd.ExecuteScalarAsync(ct));
         });
-        version.Should().Be(1);
+        // Bumped when 002_rss_read.sql landed in the M10 Web UI rollout.
+        version.Should().Be(2);
 
         var tables = await store.ExecuteReadAsync(async (conn, ct) =>
         {

@@ -3,6 +3,7 @@ using WinBit.Core.BitTorrent;
 using WinBit.Core.Categories;
 using WinBit.Core.Logging;
 using WinBit.Core.Networking;
+using WinBit.Core.Notifications;
 using WinBit.Core.Persistence;
 using WinBit.Core.Rss;
 using WinBit.Core.Settings;
@@ -47,13 +48,18 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIpFilterService, IpFilterService>();
         services.AddSingleton<ITorrentSessionService, TorrentSessionService>();
         services.AddSingleton<ITorrentCreatorService, TorrentCreatorService>();
+        services.AddSingleton<ITorrentCreatorQueue, TorrentCreatorQueue>();
         services.AddSingleton<IRssService, RssService>();
         services.AddSingleton<RssRefreshLoop>();
         services.AddHostedService(sp => sp.GetRequiredService<RssRefreshLoop>());
+        services.AddSingleton<IRssRefresher>(sp => sp.GetRequiredService<RssRefreshLoop>());
+        services.AddSingleton<IRssReadStore, SqliteRssReadStore>();
         services.AddSingleton<RssArticleCache>();
         services.AddSingleton<IRssArticleCache>(sp => sp.GetRequiredService<RssArticleCache>());
+        services.AddHostedService<RssReadStateHydrator>();
         services.AddSingleton<IAutoDownloaderService, AutoDownloaderService>();
         services.AddHostedService<AutoDownloaderDispatcher>();
+        services.AddSingleton<IWebUiAuthService, WebUiAuthService>();
         services.AddSingleton<WebUiService>();
         services.AddSingleton<IWebUiService>(sp => sp.GetRequiredService<WebUiService>());
         services.AddHostedService(sp => sp.GetRequiredService<WebUiService>());
@@ -70,6 +76,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IWatchedFolderService>(sp => sp.GetRequiredService<WatchedFolderService>());
         services.AddHostedService(sp => sp.GetRequiredService<WatchedFolderService>());
         services.AddHostedService<StatusPollingLoop>();
+        // Default is a no-op; the WinBit app replaces this with a Windows-AppNotifications-backed
+        // implementation in Bootstrap.AddWinBitApp. Last registration wins for direct resolution.
+        services.AddSingleton<INotificationService, NullNotificationService>();
+        services.AddHostedService<TorrentCompletionNotifier>();
+        services.AddHostedService<TorrentErrorNotifier>();
 
         return services;
     }
