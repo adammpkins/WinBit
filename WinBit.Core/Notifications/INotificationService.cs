@@ -22,6 +22,12 @@ public interface INotificationService
     /// be rendered.
     /// </summary>
     Task NotifyTorrentErrorAsync(string name, string? errorMessage, CancellationToken ct = default);
+
+    /// <summary>
+    /// Shown once when a long-running torrent's current download rate drops below the user's
+    /// configured floor. Implementations present this as an advisory toast — not an error.
+    /// </summary>
+    Task NotifyDownloadRateLowAsync(string name, long currentRateBps, CancellationToken ct = default);
 }
 
 /// <summary>No-op fallback registered when the app-level toast implementation isn't in play.</summary>
@@ -31,5 +37,8 @@ public sealed class NullNotificationService : INotificationService
         Task.CompletedTask;
 
     public Task NotifyTorrentErrorAsync(string name, string? errorMessage, CancellationToken ct = default) =>
+        Task.CompletedTask;
+
+    public Task NotifyDownloadRateLowAsync(string name, long currentRateBps, CancellationToken ct = default) =>
         Task.CompletedTask;
 }

@@ -68,6 +68,9 @@ public sealed partial class DownloadFromUrlDialog : ContentDialog
 
     public nint OwnerHwnd { get; }
 
+    /// <summary>Preloads the URL box — used when the Search page activates "download .torrent".</summary>
+    public void SetUrl(string url) => UrlBox.Text = url;
+
     private async Task LoadCategoriesAsync()
     {
         var all = await _categories.GetAllAsync();

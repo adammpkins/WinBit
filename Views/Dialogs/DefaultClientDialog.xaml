@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="WinBit.Views.Dialogs.DefaultClientDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Make WinBit your default torrent client?"
+    PrimaryButtonText="Register WinBit"
+    SecondaryButtonText="Open Windows settings…"
+    CloseButtonText="Not now"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
+
+    <StackPanel MinWidth="440" MaxWidth="520" Spacing="12">
+        <TextBlock TextWrapping="Wrap"
+                   Style="{ThemeResource BodyTextBlockStyle}"
+                   Text="Register WinBit as the handler for .torrent files and magnet: links so that clicking one opens it here." />
+
+        <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
+                BorderThickness="1"
+                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                CornerRadius="6"
+                Padding="12,10">
+            <StackPanel Spacing="4">
+                <TextBlock Text="{x:Bind TorrentStatusText, Mode=OneWay}"
+                           Style="{ThemeResource CaptionTextBlockStyle}" />
+                <TextBlock Text="{x:Bind MagnetStatusText, Mode=OneWay}"
+                           Style="{ThemeResource CaptionTextBlockStyle}" />
+            </StackPanel>
+        </Border>
+
+        <TextBlock TextWrapping="Wrap"
+                   Style="{ThemeResource CaptionTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="Prefer to choose later? Use the Windows Default apps settings or the Behavior page in WinBit." />
+    </StackPanel>
+</ContentDialog>

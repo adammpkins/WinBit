@@ -14,6 +14,14 @@ public sealed class AppSettings
     public AdvancedSettings Advanced { get; set; } = new();
     public UiStateSettings UiState { get; set; } = new();
     public BehaviorSettings Behavior { get; set; } = new();
+    public SearchSettings Search { get; set; } = new();
+}
+
+public sealed class SearchSettings
+{
+    /// <summary>User-configured Torznab/Jackett endpoints. One <see cref="Search.Torznab.TorznabSearchPlugin"/>
+    /// is registered per enabled entry at startup.</summary>
+    public List<Search.Torznab.TorznabFeedDefinition> TorznabFeeds { get; set; } = new();
 }
 
 public sealed class BehaviorSettings
@@ -21,6 +29,32 @@ public sealed class BehaviorSettings
     /// <summary>When true, closing the main window hides it to the system tray instead of exiting.
     /// Off by default so first-run users still see the app quit on close.</summary>
     public bool CloseToTray { get; set; }
+
+    /// <summary>When true, a toast fires once per long-running torrent whose download rate drops
+    /// below <see cref="SlowDownloadWarningRateBps"/> after
+    /// <see cref="SlowDownloadWarningAfterMinutes"/> of being in the Downloading state.</summary>
+    public bool SlowDownloadWarningEnabled { get; set; }
+
+    /// <summary>Minutes a torrent must spend in the Downloading state before a low-rate
+    /// warning can fire. Default: 24h.</summary>
+    public int SlowDownloadWarningAfterMinutes { get; set; } = 24 * 60;
+
+    /// <summary>Bytes/sec threshold below which the warning fires (when the other gates pass).
+    /// Default: 10 KB/s.</summary>
+    public long SlowDownloadWarningRateBps { get; set; } = 10 * 1024;
+
+    /// <summary>When true, the system is kept awake while at least one torrent is actively
+    /// transferring bytes. Displays still sleep on their own schedule. Default: on.</summary>
+    public bool PreventSleepWhileActive { get; set; } = true;
+
+    /// <summary>Set to true after the user has seen or dismissed the "make WinBit the default
+    /// handler" prompt at least once. Reset manually if we want to nag again.</summary>
+    public bool DefaultClientPromptDismissed { get; set; }
+
+    /// <summary>Set to true after the first-run wizard has completed or been skipped. When
+    /// false on startup, the wizard runs in place of the default-client prompt so the user
+    /// isn't asked the same question twice.</summary>
+    public bool FirstRunComplete { get; set; }
 }
 
 public sealed class DownloadsSettings
@@ -165,6 +199,11 @@ public sealed class UiStateSettings
 
     /// <summary>Accent hex (e.g. "#0078D4") or null for system accent.</summary>
     public string? AccentColor { get; set; }
+
+    /// <summary>IETF BCP-47 tag (e.g. "en-US", "fr-FR") or null/empty for the OS default.
+    /// Applied once at startup via <c>ApplicationLanguages.PrimaryLanguageOverride</c>; changing
+    /// it requires an app restart for the new strings to take effect.</summary>
+    public string? LanguageTag { get; set; }
 
     public int SidebarWidth { get; set; } = 240;
 

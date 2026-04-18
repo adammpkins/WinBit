@@ -3,11 +3,13 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using WinBit.Core.Notifications;
 using WinBit.Services;
 using WinBit.ViewModels.Logs;
+using WinBit.ViewModels.Search;
 using WinBit.ViewModels.Shell;
 using WinBit.ViewModels.Stats;
 using WinBit.ViewModels.Transfers;
 using WinBit.Views.Logs;
 using WinBit.Views.Rss;
+using WinBit.Views.Search;
 using WinBit.Views.Settings;
 using WinBit.Views.Shell;
 using WinBit.Views.Stats;
@@ -31,6 +33,7 @@ public static class Bootstrap
         services.AddSingleton<StatsViewModel>();
         services.AddSingleton<LogsViewModel>();
         services.AddSingleton<PeerLogViewModel>();
+        services.AddSingleton<SearchViewModel>();
 
         services.AddTransient<ShellPage>();
         services.AddTransient<TransfersPage>();
@@ -47,6 +50,7 @@ public static class Bootstrap
         services.AddTransient<AutoDownloaderPage>();
         services.AddTransient<WebUiPage>();
         services.AddTransient<AdvancedPage>();
+        services.AddTransient<SearchPage>();
 
         return services;
     }

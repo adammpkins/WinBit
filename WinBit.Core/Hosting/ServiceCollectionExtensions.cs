@@ -5,8 +5,12 @@ using WinBit.Core.Logging;
 using WinBit.Core.Networking;
 using WinBit.Core.Notifications;
 using WinBit.Core.Persistence;
+using WinBit.Core.Power;
 using WinBit.Core.Rss;
+using WinBit.Core.Search;
 using WinBit.Core.Settings;
+using WinBit.Core.Shell;
+using WinBit.Core.Updates;
 using WinBit.Core.Sharing;
 using WinBit.Core.Stats;
 using WinBit.Core.Tags;
@@ -79,8 +83,30 @@ public static class ServiceCollectionExtensions
         // Default is a no-op; the WinBit app replaces this with a Windows-AppNotifications-backed
         // implementation in Bootstrap.AddWinBitApp. Last registration wins for direct resolution.
         services.AddSingleton<INotificationService, NullNotificationService>();
+        services.AddSingleton(TimeProvider.System);
         services.AddHostedService<TorrentCompletionNotifier>();
         services.AddHostedService<TorrentErrorNotifier>();
+        services.AddHostedService<SlowDownloadNotifier>();
+        services.AddSingleton<ISleepInhibitor, Win32SleepInhibitor>();
+        services.AddHostedService<PowerManagementService>();
+
+        if (OperatingSystem.IsWindows())
+        {
+            services.AddSingleton<IAssociationRegistryWriter, Win32AssociationRegistryWriter>();
+            services.AddSingleton<IShellAssociationService>(sp =>
+            {
+                var writer = sp.GetRequiredService<IAssociationRegistryWriter>();
+                var exe = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                    ?? throw new InvalidOperationException("Cannot determine current executable path.");
+                return new ShellAssociationService(writer, exe);
+            });
+        }
+
+        services.AddSingleton<ISearchPluginHost>(sp =>
+            new SearchPluginHost(sp.GetServices<ISearchPlugin>(), sp.GetRequiredService<ILogService>()));
+        services.AddHostedService<WinBit.Core.Search.Torznab.TorznabPluginRegistrar>();
+
+        services.AddSingleton<IUpdateChecker, GitHubUpdateChecker>();
 
         return services;
     }

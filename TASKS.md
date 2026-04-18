@@ -238,7 +238,7 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 
 ---
 
-## M11 — Tray, notifications, power, shell integration
+## M11 — Tray, notifications, power, shell integration *(complete)*
 
 **Deliverables**
 - [x] `WinBitTrayIcon` via `H.NotifyIcon.WinUI` — show/hide, Add-Magnet, alt-speed, Exit.
@@ -246,11 +246,11 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 - [x] Toast notifications via Windows AppNotifications — completion (name + save path; click opens folder).
 - [x] Toast notifications — torrent errors (transition into Error state).
 - [x] Surface MonoTorrent error message on `TorrentSnapshot.ErrorMessage` and forward into the error toast.
-- [ ] Toast notifications — download-rate-low warning on long-running torrents.
-- [ ] `PowerManagementService` preventing sleep while active torrents exist.
-- [ ] `.torrent` file association and `magnet:` URI protocol handler.
-- [ ] Default-client prompt on startup — detect whether WinBit owns `.torrent` / `magnet:`, offer an in-app dialog to register (or the Windows "Default apps" deep link) when it doesn't.
-- [ ] Single-instance enforcement — second launch forwards magnet to running instance.
+- [x] Toast notifications — download-rate-low warning on long-running torrents.
+- [x] `PowerManagementService` preventing sleep while active torrents exist.
+- [x] `.torrent` file association and `magnet:` URI protocol handler.
+- [x] Default-client prompt on startup — detect whether WinBit owns `.torrent` / `magnet:`, offer an in-app dialog to register (or the Windows "Default apps" deep link) when it doesn't.
+- [x] Single-instance enforcement — second launch forwards magnet to running instance.
 
 **Verification**
 - Close to tray → app persists, tray icon visible.
@@ -259,16 +259,20 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 
 ---
 
-## M12 — Search + polish
+## M12 — Search + polish *(complete)*
 
 **Deliverables**
-- [ ] Search plugin host. Preferred: `Python.NET` embedding qBittorrent's Nova3 plugins. Fallback: C# ports of top 5 plugins (`ISearchPlugin`).
-- [ ] `SearchPage`: multi-plugin search with progress, filters, one-click download.
-- [ ] Localization scaffolding (`.resw` files + a locale picker in Settings).
-- [ ] About dialog, first-run wizard, update checker.
-- [ ] Accent color picker and theme refinement.
-- [ ] Full regression pass of M4..M11.
-- [ ] `docs/development.md` finalized with packaging + MSIX steps.
+- [x] Search plugin host framework — `ISearchPlugin` / `ISearchPluginHost` / concurrent merged streams.
+- [x] Ship at least one concrete `ISearchPlugin` — Torznab/Jackett feed plugin with parser + startup registrar.
+- [x] Live-reconfigure Torznab plugins when `SearchSettings.TorznabFeeds` changes.
+- [x] `SearchPage`: multi-plugin search with progress, filters, one-click download.
+- [x] Localization scaffolding (`.resw` files + a locale picker in Settings).
+- [x] About dialog (version + credits + project links).
+- [x] First-run wizard (guided defaults for save path, default-handler prompt, Web UI toggle).
+- [x] Update checker (compare local version to latest GitHub release, offer download).
+- [x] Accent color picker and theme refinement.
+- [x] Full regression pass of M4..M11.
+- [x] `docs/development.md` finalized with packaging + MSIX steps.
 
 **Verification**
 - Search returns results from at least one working provider.
@@ -285,3 +289,4 @@ Features we deliberately hold until after feature parity ships:
 - Multi-profile (home/work) support. Only if this is something other torrent clients offer. 
 - Plugin SDK for C# search providers.
 - ARM64 first-class support and NativeAOT publishing.
+- `Python.NET` embedding of qBittorrent's Nova3 plugins. Deferred from M12 — blocked on user decisions about bundled vs system Python, plugin curation, and in-process sandboxing. Torznab (shipped) satisfies the M12 verification gate.

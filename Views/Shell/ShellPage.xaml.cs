@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Media.Animation;
 using WinBit.ViewModels.Shell;
 using WinBit.Views.Logs;
 using WinBit.Views.Rss;
+using WinBit.Views.Search;
 using WinBit.Views.Settings;
 using WinBit.Views.Stats;
 using WinBit.Views.TorrentCreator;
@@ -39,6 +40,7 @@ public sealed partial class ShellPage : Page
             "logs" => typeof(LogsPage),
             "creator" => typeof(TorrentCreatorPage),
             "rss" => typeof(RssReaderPage),
+            "search" => typeof(SearchPage),
             "settings" => typeof(SettingsPage),
             _ => typeof(ComingSoonPage),
         };

@@ -138,6 +138,75 @@ public sealed class SmokeTests
     }
 
     [Fact]
+    public async Task BehaviorSettings_first_run_complete_defaults_false_and_round_trips()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var settings = provider.GetRequiredService<ISettingsService>();
+        settings.Current.Behavior.FirstRunComplete.Should().BeFalse();
+
+        await settings.UpdateAsync(s => s.Behavior.FirstRunComplete = true);
+        await settings.SaveAsync();
+
+        await using var provider2 = new ServiceCollection()
+            .AddWinBitCore(opts => opts.DataRoot = temp.Path)
+            .BuildServiceProvider();
+        var reloaded = await provider2.GetRequiredService<ISettingsService>().LoadAsync();
+
+        reloaded.Behavior.FirstRunComplete.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UiState_AccentColor_round_trips_through_JsonSettingsStore()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var settings = provider.GetRequiredService<ISettingsService>();
+        settings.Current.UiState.AccentColor.Should().BeNull();
+
+        await settings.UpdateAsync(s => s.UiState.AccentColor = "#D13438");
+        await settings.SaveAsync();
+
+        await using var provider2 = new ServiceCollection()
+            .AddWinBitCore(opts => opts.DataRoot = temp.Path)
+            .BuildServiceProvider();
+        var reloaded = await provider2.GetRequiredService<ISettingsService>().LoadAsync();
+
+        reloaded.UiState.AccentColor.Should().Be("#D13438");
+    }
+
+    [Fact]
+    public async Task UiState_LanguageTag_round_trips_through_JsonSettingsStore()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var settings = provider.GetRequiredService<ISettingsService>();
+        settings.Current.UiState.LanguageTag.Should().BeNull();
+
+        await settings.UpdateAsync(s => s.UiState.LanguageTag = "fr-FR");
+        await settings.SaveAsync();
+
+        await using var provider2 = new ServiceCollection()
+            .AddWinBitCore(opts => opts.DataRoot = temp.Path)
+            .BuildServiceProvider();
+        var reloaded = await provider2.GetRequiredService<ISettingsService>().LoadAsync();
+
+        reloaded.UiState.LanguageTag.Should().Be("fr-FR");
+    }
+
+    [Fact]
     public async Task BehaviorSettings_close_to_tray_defaults_off_and_round_trips()
     {
         using var temp = new TempDirectory();

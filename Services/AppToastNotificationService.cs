@@ -86,6 +86,45 @@ public sealed class AppToastNotificationService : INotificationService, IDisposa
         return Task.CompletedTask;
     }
 
+    public Task NotifyDownloadRateLowAsync(string name, long currentRateBps, CancellationToken ct = default)
+    {
+        if (!_registered)
+        {
+            return Task.CompletedTask;
+        }
+        try
+        {
+            var toast = new AppNotificationBuilder()
+                .AddText("Download is slow")
+                .AddText(name)
+                .AddText($"Current rate: {FormatRate(currentRateBps)}")
+                .BuildNotification();
+            AppNotificationManager.Default.Show(toast);
+        }
+        catch (Exception ex)
+        {
+            _log.Write($"Failed to show slow-download toast for \"{name}\": {ex.Message}", LogSeverity.Warning);
+        }
+        return Task.CompletedTask;
+    }
+
+    private static string FormatRate(long bytesPerSec)
+    {
+        if (bytesPerSec <= 0)
+        {
+            return "0 B/s";
+        }
+        string[] units = { "B", "KB", "MB", "GB" };
+        double v = bytesPerSec;
+        int u = 0;
+        while (v >= 1024 && u < units.Length - 1)
+        {
+            v /= 1024;
+            u++;
+        }
+        return $"{v:0.#} {units[u]}/s";
+    }
+
     private void OnNotificationInvoked(AppNotificationManager sender, AppNotificationActivatedEventArgs args)
     {
         if (!args.Arguments.TryGetValue(ActionKey, out var action))

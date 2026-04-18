@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="WinBit.Views.Dialogs.FirstRunWizard"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Welcome to WinBit"
+    PrimaryButtonText="Get started"
+    CloseButtonText="Skip"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
+
+    <StackPanel MinWidth="520" MaxWidth="600" Spacing="10">
+        <TextBlock TextWrapping="Wrap"
+                   Style="{ThemeResource BodyTextBlockStyle}"
+                   Text="A few choices to get you started. You can change any of these later in Settings." />
+
+        <controls:SettingsCard Header="Default save path"
+                               Description="Where new torrents land unless a category overrides.">
+            <controls:SettingsCard.HeaderIcon>
+                <FontIcon Glyph="&#xE8B7;" />
+            </controls:SettingsCard.HeaderIcon>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBox x:Name="SavePathBox"
+                         MinWidth="280"
+                         PlaceholderText="%USERPROFILE%\Downloads" />
+                <Button Content="Browse…"
+                        Click="OnBrowseSavePathClicked"
+                        AutomationProperties.Name="Browse for default save path" />
+            </StackPanel>
+        </controls:SettingsCard>
+
+        <controls:SettingsCard Header="Make WinBit the default for .torrent and magnet: links"
+                               Description="Writes per-user handler entries in HKCU\Software\Classes.">
+            <controls:SettingsCard.HeaderIcon>
+                <FontIcon Glyph="&#xE71B;" />
+            </controls:SettingsCard.HeaderIcon>
+            <ToggleSwitch x:Name="RegisterDefaultsToggle" IsOn="True" />
+        </controls:SettingsCard>
+
+        <controls:SettingsCard Header="Enable the Web UI"
+                               Description="qBittorrent-compatible web interface on http://localhost:8080.">
+            <controls:SettingsCard.HeaderIcon>
+                <FontIcon Glyph="&#xE774;" />
+            </controls:SettingsCard.HeaderIcon>
+            <ToggleSwitch x:Name="EnableWebUiToggle" IsOn="False" />
+        </controls:SettingsCard>
+
+        <TextBlock TextWrapping="Wrap"
+                   Style="{ThemeResource CaptionTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="Skip leaves everything at its default; nothing gets registered or enabled." />
+    </StackPanel>
+</ContentDialog>

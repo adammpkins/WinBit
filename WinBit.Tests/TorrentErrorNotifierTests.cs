@@ -107,6 +107,9 @@ public sealed class TorrentErrorNotifierTests
             lock (ErrorCalls) ErrorCalls.Add((name, errorMessage));
             return Task.CompletedTask;
         }
+
+        public Task NotifyDownloadRateLowAsync(string name, long currentRateBps, CancellationToken ct = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class NoopLog : ILogService

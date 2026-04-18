@@ -25,6 +25,115 @@
                 </controls:SettingsCard.HeaderIcon>
                 <ToggleSwitch x:Name="CloseToTrayToggle" Toggled="OnCloseToTrayToggled" />
             </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Warn when a long-running download is slow"
+                                   Description="After 24 hours of downloading, shows a toast if the rate is below 10 KB/s. One warning per torrent per Downloading session.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE91C;" />
+                </controls:SettingsCard.HeaderIcon>
+                <ToggleSwitch x:Name="SlowDownloadWarningToggle" Toggled="OnSlowDownloadWarningToggled" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Keep the system awake while transferring"
+                                   Description="Prevents idle sleep while at least one torrent is uploading or downloading. Displays still sleep on their own schedule.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE945;" />
+                </controls:SettingsCard.HeaderIcon>
+                <ToggleSwitch x:Name="PreventSleepToggle" Toggled="OnPreventSleepToggled" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard x:Name="DefaultClientCard"
+                                   Header="Default app for .torrent files and magnet: links"
+                                   Description="Loading…">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE71B;" />
+                </controls:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="RegisterDefaultClientButton"
+                            Content="Register WinBit"
+                            Click="OnRegisterDefaultClientClicked"
+                            AutomationProperties.Name="Register WinBit as default torrent handler" />
+                    <Button Content="Open Windows settings…"
+                            Click="OnOpenDefaultAppsClicked"
+                            AutomationProperties.Name="Open Windows default apps settings" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Theme"
+                                   Description="Follow the OS, or pin to Light or Dark.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE706;" />
+                </controls:SettingsCard.HeaderIcon>
+                <ComboBox x:Name="ThemeCombo"
+                          MinWidth="180"
+                          SelectionChanged="OnThemeChanged"
+                          AutomationProperties.Name="UI theme">
+                    <ComboBoxItem Content="System default" Tag="Default" />
+                    <ComboBoxItem Content="Light" Tag="Light" />
+                    <ComboBoxItem Content="Dark" Tag="Dark" />
+                </ComboBox>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Accent color"
+                                   Description="Overrides the Windows accent for WinBit controls. Restart to apply.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE790;" />
+                </controls:SettingsCard.HeaderIcon>
+                <StackPanel x:Name="AccentPaletteStack"
+                            Orientation="Horizontal"
+                            Spacing="6"
+                            AutomationProperties.Name="Accent color swatches" />
+            </controls:SettingsCard>
+
+            <InfoBar x:Name="AccentRestartBar"
+                     Severity="Informational"
+                     IsOpen="False"
+                     IsClosable="True"
+                     Title="Restart required"
+                     Message="Restart WinBit for the accent color to take effect." />
+
+            <controls:SettingsCard Header="Language"
+                                   Description="Restart WinBit after changing the language.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xF2B7;" />
+                </controls:SettingsCard.HeaderIcon>
+                <ComboBox x:Name="LanguageCombo"
+                          MinWidth="180"
+                          SelectionChanged="OnLanguageChanged"
+                          AutomationProperties.Name="UI language" />
+            </controls:SettingsCard>
+
+            <InfoBar x:Name="LanguageRestartBar"
+                     Severity="Informational"
+                     IsOpen="False"
+                     IsClosable="True"
+                     Title="Restart required"
+                     Message="Restart WinBit for the language change to apply." />
+
+            <controls:SettingsCard Header="Updates"
+                                   Description="Check GitHub for a newer published release.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE895;" />
+                </controls:SettingsCard.HeaderIcon>
+                <Button x:Name="CheckUpdatesButton"
+                        Content="Check now"
+                        Click="OnCheckUpdatesClicked"
+                        AutomationProperties.Name="Check for updates" />
+            </controls:SettingsCard>
+
+            <InfoBar x:Name="UpdateStatusBar"
+                     IsOpen="False"
+                     IsClosable="True" />
+
+            <controls:SettingsCard Header="About WinBit"
+                                   Description="Version, credits, and project links.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE946;" />
+                </controls:SettingsCard.HeaderIcon>
+                <Button Content="About…"
+                        Click="OnAboutClicked"
+                        AutomationProperties.Name="Show About dialog" />
+            </controls:SettingsCard>
         </StackPanel>
     </ScrollViewer>
 </Page>

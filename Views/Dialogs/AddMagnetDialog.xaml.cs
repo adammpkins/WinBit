@@ -42,6 +42,9 @@ public sealed partial class AddMagnetDialog : ContentDialog
 
     public nint OwnerHwnd { get; }
 
+    /// <summary>Preloads the magnet URI box — used when the app is activated with a magnet argument.</summary>
+    public void SetMagnet(string magnetUri) => MagnetBox.Text = magnetUri;
+
     private async Task LoadCategoriesAsync()
     {
         var all = await _categories.GetAllAsync();
