@@ -109,6 +109,93 @@ public sealed class SmokeTests
     }
 
     [Fact]
+    public void RecentPathsHelper_dedupes_prepends_and_caps()
+    {
+        var list = new List<string>();
+
+        RecentPathsHelper.PushMru(list, @"C:\a");
+        RecentPathsHelper.PushMru(list, @"C:\b");
+        RecentPathsHelper.PushMru(list, @"C:\c");
+        list.Should().Equal(@"C:\c", @"C:\b", @"C:\a");
+
+        // Pushing an existing entry moves it to the front, no duplicates.
+        RecentPathsHelper.PushMru(list, @"c:\A");
+        list.Should().Equal(@"c:\A", @"C:\c", @"C:\b");
+
+        // Cap trims the oldest.
+        for (int i = 0; i < 20; i++)
+        {
+            RecentPathsHelper.PushMru(list, $@"C:\pad-{i}", cap: 5);
+        }
+        list.Should().HaveCount(5);
+        list[0].Should().Be(@"C:\pad-19");
+
+        // Whitespace / empty is ignored.
+        var before = list.Count;
+        RecentPathsHelper.PushMru(list, "   ");
+        RecentPathsHelper.PushMru(list, "");
+        list.Count.Should().Be(before);
+    }
+
+    [Fact]
+    public async Task RecentSavePaths_round_trip_through_JsonSettingsStore()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var settings = provider.GetRequiredService<ISettingsService>();
+        await settings.UpdateAsync(s =>
+        {
+            RecentPathsHelper.PushMru(s.UiState.RecentSavePaths, @"D:\downloads");
+            RecentPathsHelper.PushMru(s.UiState.RecentSavePaths, @"D:\archive");
+        });
+        await settings.SaveAsync();
+
+        await using var provider2 = new ServiceCollection()
+            .AddWinBitCore(opts => opts.DataRoot = temp.Path)
+            .BuildServiceProvider();
+        var reloaded = await provider2.GetRequiredService<ISettingsService>().LoadAsync();
+
+        reloaded.UiState.RecentSavePaths.Should().Equal(@"D:\archive", @"D:\downloads");
+    }
+
+    [Fact]
+    public async Task ShareLimits_round_trip_through_JsonSettingsStore()
+    {
+        using var temp = new TempDirectory();
+
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var settings = provider.GetRequiredService<ISettingsService>();
+        await settings.UpdateAsync(s => s.BitTorrent.GlobalShareLimits = new WinBit.Core.Sharing.ShareLimits
+        {
+            RatioLimit = 2.5,
+            SeedingTimeLimit = TimeSpan.FromHours(24),
+            InactiveSeedingTimeLimit = TimeSpan.FromMinutes(90),
+            Mode = WinBit.Core.Sharing.ShareLimitsMode.MatchAll,
+            Action = WinBit.Core.Sharing.ShareLimitAction.RemoveWithContent,
+        });
+        await settings.SaveAsync();
+
+        await using var provider2 = new ServiceCollection()
+            .AddWinBitCore(opts => opts.DataRoot = temp.Path)
+            .BuildServiceProvider();
+        var reloaded = await provider2.GetRequiredService<ISettingsService>().LoadAsync();
+
+        var limits = reloaded.BitTorrent.GlobalShareLimits;
+        limits.RatioLimit.Should().Be(2.5);
+        limits.SeedingTimeLimit.Should().Be(TimeSpan.FromHours(24));
+        limits.InactiveSeedingTimeLimit.Should().Be(TimeSpan.FromMinutes(90));
+        limits.Mode.Should().Be(WinBit.Core.Sharing.ShareLimitsMode.MatchAll);
+        limits.Action.Should().Be(WinBit.Core.Sharing.ShareLimitAction.RemoveWithContent);
+    }
+
+    [Fact]
     public void LogService_ring_buffer_returns_entries()
     {
         var log = new LogService();
@@ -278,6 +365,73 @@ public sealed class SmokeTests
         var remove = await session.RemoveAsync(add.Value);
         remove.IsSuccess.Should().BeTrue();
         session.Torrents.Should().BeEmpty();
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Session_speed_limit_surface_fails_cleanly_for_unknown_ids()
+    {
+        using var temp = new TempDirectory();
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var session = provider.GetRequiredService<ITorrentSessionService>();
+        await session.StartAsync();
+
+        var ghost = TorrentId.FromInfoHash("1111".PadRight(40, '0'));
+        session.GetSpeedLimits(ghost).Should().BeNull();
+        (await session.SetSpeedLimitsAsync(ghost, 500_000, 50_000)).IsSuccess.Should().BeFalse();
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Session_per_torrent_commands_fail_cleanly_for_unknown_ids()
+    {
+        using var temp = new TempDirectory();
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var session = provider.GetRequiredService<ITorrentSessionService>();
+        await session.StartAsync();
+
+        var ghost = TorrentId.FromInfoHash("deadbeef".PadRight(40, '0'));
+
+        (await session.PauseAsync(ghost)).IsSuccess.Should().BeFalse();
+        (await session.ResumeAsync(ghost)).IsSuccess.Should().BeFalse();
+        (await session.ForceRecheckAsync(ghost)).IsSuccess.Should().BeFalse();
+        (await session.ForceReannounceAsync(ghost)).IsSuccess.Should().BeFalse();
+        session.GetMagnetUri(ghost).Should().BeNull();
+        session.GetSavePath(ghost).Should().BeNull();
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Session_stats_are_zero_before_engine_starts_and_non_negative_after()
+    {
+        using var temp = new TempDirectory();
+        var services = new ServiceCollection();
+        services.AddWinBitCore(opts => opts.DataRoot = temp.Path);
+        await using var provider = services.BuildServiceProvider();
+
+        var session = provider.GetRequiredService<ITorrentSessionService>();
+
+        var pre = session.GetSessionStats();
+        pre.GlobalDownloadBps.Should().Be(0);
+        pre.GlobalUploadBps.Should().Be(0);
+        pre.OpenConnections.Should().Be(0);
+        pre.DhtNodes.Should().Be(0);
+
+        await session.StartAsync();
+        var post = session.GetSessionStats();
+        post.GlobalDownloadBps.Should().BeGreaterThanOrEqualTo(0);
+        post.GlobalUploadBps.Should().BeGreaterThanOrEqualTo(0);
+        post.OpenConnections.Should().BeGreaterThanOrEqualTo(0);
+        post.DhtNodes.Should().BeGreaterThanOrEqualTo(0);
 
         await session.DisposeAsync();
     }

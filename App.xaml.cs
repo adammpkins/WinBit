@@ -18,6 +18,8 @@ public partial class App : Application
         ((App)Current)._host?.Services
         ?? throw new InvalidOperationException("Host has not been built yet.");
 
+    public static Window? MainWindow => ((App)Current)._window;
+
     public App()
     {
         InitializeComponent();

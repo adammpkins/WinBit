@@ -47,6 +47,16 @@
                     <ComboBoxItem Content="Disable" />
                 </ComboBox>
             </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Share limits"
+                                   Description="Global ratio / seeding-time caps and the action to take on trigger.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE8C8;" />
+                </controls:SettingsCard.HeaderIcon>
+                <Button Content="Configure…"
+                        Click="OnConfigureShareLimitsClicked"
+                        AutomationProperties.Name="Configure global share limits" />
+            </controls:SettingsCard>
         </StackPanel>
     </ScrollViewer>
 </Page>

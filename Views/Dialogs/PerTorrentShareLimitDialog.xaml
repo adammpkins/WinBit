@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="WinBit.Views.Dialogs.PerTorrentShareLimitDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Share limits"
+    PrimaryButtonText="Save"
+    SecondaryButtonText="Cancel"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
+
+    <Grid MinWidth="520" MaxWidth="640">
+        <StackPanel Spacing="8">
+            <TextBlock x:Name="TargetLabel"
+                       Style="{ThemeResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap" />
+
+            <TextBlock Text="Turn a limit Off to inherit the global setting. 'Use global default' on the action combobox does the same."
+                       Style="{ThemeResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap" />
+
+            <controls:SettingsCard Header="Ratio limit"
+                                   Description="Override the global ratio cap.">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ToggleSwitch x:Name="RatioEnabled" OnContent="On" OffContent="Off" />
+                    <NumberBox x:Name="RatioValue"
+                               Value="1.0"
+                               Minimum="0"
+                               Maximum="100"
+                               SmallChange="0.1"
+                               LargeChange="1"
+                               SpinButtonPlacementMode="Compact"
+                               MinWidth="120" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Seeding time limit"
+                                   Description="Override the global active-seeding cap, in minutes.">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ToggleSwitch x:Name="SeedingTimeEnabled" OnContent="On" OffContent="Off" />
+                    <NumberBox x:Name="SeedingTimeValue"
+                               Value="1440"
+                               Minimum="1"
+                               Maximum="5256000"
+                               SmallChange="60"
+                               LargeChange="1440"
+                               SpinButtonPlacementMode="Compact"
+                               MinWidth="120" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Inactive seeding time limit"
+                                   Description="Override the global inactivity cap, in minutes.">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ToggleSwitch x:Name="InactiveEnabled" OnContent="On" OffContent="Off" />
+                    <NumberBox x:Name="InactiveValue"
+                               Value="1440"
+                               Minimum="1"
+                               Maximum="5256000"
+                               SmallChange="60"
+                               LargeChange="1440"
+                               SpinButtonPlacementMode="Compact"
+                               MinWidth="120" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Match mode"
+                                   Description="How multiple enabled overrides combine. 'Use global default' inherits the global mode.">
+                <ComboBox x:Name="ModeCombo" SelectedIndex="0" MinWidth="200">
+                    <ComboBoxItem Content="Use global default" Tag="Default" />
+                    <ComboBoxItem Content="Any limit triggers" Tag="MatchAny" />
+                    <ComboBoxItem Content="All limits must trigger" Tag="MatchAll" />
+                </ComboBox>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Action on limit"
+                                   Description="Override what happens when a limit is reached.">
+                <ComboBox x:Name="ActionCombo" SelectedIndex="0" MinWidth="200">
+                    <ComboBoxItem Content="Use global default" Tag="Default" />
+                    <ComboBoxItem Content="Stop" Tag="Stop" />
+                    <ComboBoxItem Content="Remove" Tag="Remove" />
+                    <ComboBoxItem Content="Remove and delete files" Tag="RemoveWithContent" />
+                    <ComboBoxItem Content="Enable super seeding" Tag="EnableSuperSeeding" />
+                </ComboBox>
+            </controls:SettingsCard>
+
+            <InfoBar x:Name="ErrorBar"
+                     Severity="Error"
+                     IsClosable="False"
+                     IsOpen="False" />
+        </StackPanel>
+    </Grid>
+</ContentDialog>

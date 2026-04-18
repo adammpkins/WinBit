@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="WinBit.Views.Dialogs.PerTorrentSpeedLimitDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Speed limits"
+    PrimaryButtonText="Save"
+    SecondaryButtonText="Cancel"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
+
+    <Grid MinWidth="440" MaxWidth="560">
+        <StackPanel Spacing="8">
+            <TextBlock x:Name="TargetLabel"
+                       Style="{ThemeResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap" />
+
+            <controls:SettingsCard Header="Download limit"
+                                   Description="Maximum download rate in KB/s.">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ToggleSwitch x:Name="DownloadEnabled" OnContent="On" OffContent="Off" />
+                    <NumberBox x:Name="DownloadKBps"
+                               Value="1024"
+                               Minimum="1"
+                               Maximum="2000000"
+                               SmallChange="64"
+                               LargeChange="1024"
+                               SpinButtonPlacementMode="Compact"
+                               MinWidth="140" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Upload limit"
+                                   Description="Maximum upload rate in KB/s.">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ToggleSwitch x:Name="UploadEnabled" OnContent="On" OffContent="Off" />
+                    <NumberBox x:Name="UploadKBps"
+                               Value="256"
+                               Minimum="1"
+                               Maximum="2000000"
+                               SmallChange="64"
+                               LargeChange="1024"
+                               SpinButtonPlacementMode="Compact"
+                               MinWidth="140" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <InfoBar x:Name="ErrorBar"
+                     Severity="Error"
+                     IsClosable="False"
+                     IsOpen="False" />
+        </StackPanel>
+    </Grid>
+</ContentDialog>

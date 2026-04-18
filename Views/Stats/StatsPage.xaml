@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinBit.Views.Stats.StatsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <ScrollViewer Padding="24,16,24,16">
+        <StackPanel Spacing="8" MaxWidth="880">
+            <TextBlock Text="Statistics"
+                       Style="{ThemeResource TitleTextBlockStyle}"
+                       Margin="0,0,0,8" />
+
+            <controls:SettingsCard Header="All-time downloaded"
+                                   Description="Bytes this WinBit install has downloaded across every session.">
+                <TextBlock Text="{x:Bind ViewModel.AllTimeDownloadedText, Mode=OneWay}"
+                           Style="{ThemeResource SubtitleTextBlockStyle}"
+                           Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="All-time uploaded"
+                                   Description="Bytes this WinBit install has uploaded across every session.">
+                <TextBlock Text="{x:Bind ViewModel.AllTimeUploadedText, Mode=OneWay}"
+                           Style="{ThemeResource SubtitleTextBlockStyle}"
+                           Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Shared"
+                                   Description="Lifetime upload / download ratio across every session.">
+                <TextBlock Text="{x:Bind ViewModel.AllTimeRatioText, Mode=OneWay}"
+                           Style="{ThemeResource SubtitleTextBlockStyle}" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Session ratio"
+                                   Description="Upload / download ratio since the app was last launched.">
+                <TextBlock Text="{x:Bind ViewModel.SessionRatioText, Mode=OneWay}"
+                           Style="{ThemeResource SubtitleTextBlockStyle}" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="DHT nodes"
+                                   Description="Peers currently reachable through the Mainline DHT.">
+                <TextBlock Text="{x:Bind ViewModel.DhtNodesText, Mode=OneWay}"
+                           Style="{ThemeResource SubtitleTextBlockStyle}" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Free space"
+                                   Description="{x:Bind ViewModel.SavePath, Mode=OneWay}">
+                <TextBlock Text="{x:Bind ViewModel.FreeSpaceText, Mode=OneWay}"
+                           Style="{ThemeResource SubtitleTextBlockStyle}" />
+            </controls:SettingsCard>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

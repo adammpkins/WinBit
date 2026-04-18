@@ -64,6 +64,9 @@ public sealed partial class TransferRowViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<string> tags = Array.Empty<string>();
 
+    [ObservableProperty]
+    private IReadOnlyList<string> trackerHosts = Array.Empty<string>();
+
     public double ProgressPercent => Progress * 100.0;
 
     public string SizeText => FormatBytes(TotalSize);

@@ -23,6 +23,10 @@ public sealed class LogService : ILogService
         {
         }
 
+        // Mirror to the debugger's Output window so devs can tail the log without an
+        // in-app Logs page (that UI lands in M7).
+        System.Diagnostics.Debug.WriteLine($"[WinBit {severity}] {message}");
+
         MessageLogged?.Invoke(this, entry);
     }
 

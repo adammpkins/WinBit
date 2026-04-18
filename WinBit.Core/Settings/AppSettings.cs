@@ -43,6 +43,8 @@ public sealed class BitTorrentSettings
     public bool Pex { get; set; } = true;
     public bool Lsd { get; set; } = true;
     public string Encryption { get; set; } = "Prefer";
+
+    public Sharing.ShareLimits GlobalShareLimits { get; set; } = new();
 }
 
 public sealed class RssSettings
@@ -76,6 +78,30 @@ public sealed class UiStateSettings
     public int SidebarWidth { get; set; } = 240;
 
     public TransfersGridLayout TransfersGrid { get; set; } = new();
+
+    /// <summary>Most-recently-used save paths from add dialogs. First entry = most recent.</summary>
+    public List<string> RecentSavePaths { get; set; } = new();
+}
+
+public static class RecentPathsHelper
+{
+    public const int DefaultCap = 8;
+
+    /// <summary>MRU push: dedupes case-insensitively, prepends, and trims to <paramref name="cap"/>.</summary>
+    public static void PushMru(List<string> list, string path, int cap = DefaultCap)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        list.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+        list.Insert(0, path);
+        while (list.Count > cap)
+        {
+            list.RemoveAt(list.Count - 1);
+        }
+    }
 }
 
 /// <summary>

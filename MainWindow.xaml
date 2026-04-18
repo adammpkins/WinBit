@@ -13,10 +13,13 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid>
+    <Grid AllowDrop="True"
+          DragOver="OnDragOver"
+          Drop="OnDrop">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid x:Name="AppTitleBar"
@@ -31,7 +34,11 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <FontIcon Glyph="&#xE8B7;" FontSize="18" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                <Image Source="ms-appx:///Assets/AppIcon.png"
+                       Width="20"
+                       Height="20"
+                       VerticalAlignment="Center"
+                       AutomationProperties.AccessibilityView="Raw" />
                 <TextBlock Text="WinBit"
                            VerticalAlignment="Center"
                            Style="{ThemeResource CaptionTextBlockStyle}"
@@ -60,9 +67,21 @@
                         <TextBlock Text="Magnet" />
                     </StackPanel>
                 </Button>
+                <Button x:Name="AddFromUrlButton"
+                        Click="OnAddFromUrlClicked"
+                        Padding="12,4"
+                        CornerRadius="16"
+                        AutomationProperties.Name="Add torrent from URL">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE753;" FontSize="14" />
+                        <TextBlock Text="URL" />
+                    </StackPanel>
+                </Button>
                 <ToggleButton x:Name="AltSpeedToggle"
                               Padding="10,4"
                               CornerRadius="16"
+                              Click="OnAltSpeedToggleClicked"
+                              IsChecked="{x:Bind Status.AltSpeedEnabled, Mode=OneWay}"
                               AutomationProperties.Name="Toggle alternative speed limits"
                               ToolTipService.ToolTip="Alternative speed limits">
                     <FontIcon Glyph="&#xE945;" FontSize="14" />
@@ -79,5 +98,51 @@
         </Grid>
 
         <Frame x:Name="RootFrame" Grid.Row="1" />
+
+        <Border Grid.Row="2"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                Background="{ThemeResource LayerFillColorDefaultBrush}"
+                Padding="16,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            Spacing="16"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind Status.GlobalDownloadText, Mode=OneWay}"
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="{x:Bind Status.GlobalUploadText, Mode=OneWay}"
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="{x:Bind Status.ConnectionsText, Mode=OneWay}"
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="{x:Bind Status.DhtNodesText, Mode=OneWay}"
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
+                <ToggleButton Grid.Column="1"
+                              x:Name="AltSpeedFooterToggle"
+                              Click="OnAltSpeedToggleClicked"
+                              IsChecked="{x:Bind Status.AltSpeedEnabled, Mode=OneWay}"
+                              Padding="10,2"
+                              CornerRadius="14"
+                              AutomationProperties.Name="Toggle alternative speed limits"
+                              ToolTipService.ToolTip="Alternative speed limits">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE945;" FontSize="12" />
+                        <TextBlock Text="{x:Bind Status.AltSpeedText, Mode=OneWay}"
+                                   Style="{ThemeResource CaptionTextBlockStyle}" />
+                    </StackPanel>
+                </ToggleButton>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

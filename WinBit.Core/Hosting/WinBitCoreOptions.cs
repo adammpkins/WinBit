@@ -16,4 +16,16 @@ public sealed class WinBitCoreOptions
     /// keep the suite fast; production defaults to 500 ms.
     /// </summary>
     public TimeSpan SettingsSaveDebounce { get; set; } = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// TCP/UDP port the MonoTorrent engine listens on. 0 = do not set an explicit endpoint.
+    /// M7 wires this through the Settings/Connection page.
+    /// </summary>
+    public int ListenPort { get; set; } = 6881;
+
+    /// <summary>Whether the engine attempts UPnP / NAT-PMP port mapping on start.</summary>
+    public bool AllowPortForwarding { get; set; } = true;
+
+    /// <summary>Whether the engine uses multicast Local Peer Discovery (BEP 14).</summary>
+    public bool AllowLocalPeerDiscovery { get; set; } = true;
 }

@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Animation;
 using WinBit.ViewModels.Shell;
 using WinBit.Views.Settings;
+using WinBit.Views.Stats;
 using WinBit.Views.Transfers;
 
 namespace WinBit.Views.Shell;
@@ -31,6 +32,7 @@ public sealed partial class ShellPage : Page
         var pageType = tag switch
         {
             "transfers" => typeof(TransfersPage),
+            "stats" => typeof(StatsPage),
             "settings" => typeof(SettingsPage),
             _ => typeof(ComingSoonPage),
         };

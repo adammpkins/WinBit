@@ -13,7 +13,42 @@
     Background="Transparent">
 
     <Grid>
-        <Grid Visibility="{x:Bind local:TransfersPage.VisibleIfTrue(ViewModel.HasTorrents), Mode=OneWay}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="240" MinWidth="180" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0"
+                Margin="8,8,0,8"
+                CornerRadius="4"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1">
+            <StackPanel Padding="8" Spacing="6">
+                <TextBlock Text="Filters"
+                           Style="{ThemeResource BodyStrongTextBlockStyle}"
+                           Margin="4,0,0,4" />
+                <TreeView x:Name="FilterTree"
+                          ItemInvoked="OnFilterInvoked"
+                          SelectionMode="Single"
+                          CanDragItems="False"
+                          CanReorderItems="False"
+                          Background="Transparent" />
+                <Border BorderThickness="0,1,0,0"
+                        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                        Margin="0,6,0,0"
+                        Padding="0,6,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <HyperlinkButton Content="Manage categories…"
+                                         Click="OnManageCategoriesClicked" />
+                        <HyperlinkButton Content="Manage tags…"
+                                         Click="OnManageTagsClicked" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Column="1" Visibility="{x:Bind local:TransfersPage.VisibleIfTrue(ViewModel.HasTorrents), Mode=OneWay}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="2*" MinHeight="120" />
                 <RowDefinition Height="Auto" />
@@ -30,6 +65,53 @@
                       AlternateRowBackground="{ThemeResource LayerFillColorAltBrush}"
                       Background="Transparent"
                       Padding="16,12,16,16">
+                <tv:TableView.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="Resume" Click="OnResumeClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE768;" /></MenuFlyoutItem.Icon>
+                            <MenuFlyoutItem.KeyboardAccelerators>
+                                <KeyboardAccelerator Modifiers="Control" Key="R" />
+                            </MenuFlyoutItem.KeyboardAccelerators>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Pause" Click="OnPauseClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE769;" /></MenuFlyoutItem.Icon>
+                            <MenuFlyoutItem.KeyboardAccelerators>
+                                <KeyboardAccelerator Modifiers="Control" Key="P" />
+                            </MenuFlyoutItem.KeyboardAccelerators>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="Force recheck" Click="OnForceRecheckClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE895;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Force reannounce" Click="OnForceReannounceClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EE;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="Speed limits…" Click="OnSpeedLimitsClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEC4A;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Share limits…" Click="OnShareLimitsClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74C;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="Open folder" Click="OnOpenFolderClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8DA;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Copy magnet" Click="OnCopyMagnetClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71B;" /></MenuFlyoutItem.Icon>
+                            <MenuFlyoutItem.KeyboardAccelerators>
+                                <KeyboardAccelerator Modifiers="Control" Key="C" />
+                            </MenuFlyoutItem.KeyboardAccelerators>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Text="Remove" Click="OnRemoveClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon>
+                            <MenuFlyoutItem.KeyboardAccelerators>
+                                <KeyboardAccelerator Key="Delete" />
+                            </MenuFlyoutItem.KeyboardAccelerators>
+                        </MenuFlyoutItem>
+                    </MenuFlyout>
+                </tv:TableView.ContextFlyout>
             <tv:TableView.Columns>
                 <tv:TableViewTextColumn Tag="name" Header="Name" Binding="{Binding Name}" Width="240" MinWidth="140" />
                 <tv:TableViewTextColumn Tag="size" Header="Size" Binding="{Binding SizeText}" Width="96" />
@@ -133,19 +215,53 @@
                     </StackPanel>
                 </PivotItem>
                 <PivotItem Header="Speed">
-                    <StackPanel Spacing="6" Padding="0,8" MaxWidth="720" HorizontalAlignment="Left">
-                        <TextBlock Text="Speed"
+                    <Grid Padding="0,8" RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="Speed"
                                    Style="{ThemeResource SubtitleTextBlockStyle}" />
-                        <TextBlock Text="SpeedGraph (Win2D scrolling line chart, 600 samples) arrives with its own M4 deliverable."
-                                   Style="{ThemeResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
+
+                        <controls:SpeedGraph Grid.Row="1"
+                                             x:Name="SpeedChart"
+                                             MinHeight="180" />
+
+                        <StackPanel Grid.Row="2"
+                                    Orientation="Horizontal"
+                                    Spacing="16"
+                                    HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Rectangle Width="14" Height="3"
+                                           RadiusX="1.5" RadiusY="1.5"
+                                           Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                                <TextBlock Text="Download"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Rectangle Width="14" Height="3"
+                                           RadiusX="1.5" RadiusY="1.5"
+                                           Fill="{ThemeResource SystemFillColorSuccessBrush}" />
+                                <TextBlock Text="Upload"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Text="Rolling 10-minute window populates once the selection + per-tab poll lands."
+                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
                 </PivotItem>
             </Pivot>
         </Grid>
 
-        <StackPanel HorizontalAlignment="Center"
+        <StackPanel Grid.Column="1"
+                    HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Spacing="16"
                     MaxWidth="440"

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="WinBit.Views.Dialogs.AddMagnetDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Add magnet link"
+    PrimaryButtonText="Add"
+    SecondaryButtonText="Cancel"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
+
+    <Grid MinWidth="520" MaxWidth="720">
+        <StackPanel Spacing="12">
+            <TextBlock Text="Paste a magnet: URI and choose a destination folder."
+                       Style="{ThemeResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap" />
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Magnet URI" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                <TextBox x:Name="MagnetBox"
+                         PlaceholderText="magnet:?xt=urn:btih:..."
+                         AcceptsReturn="False"
+                         TextWrapping="NoWrap"
+                         AutomationProperties.Name="Magnet URI" />
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Tags" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                <DropDownButton x:Name="TagsButton"
+                                Content="(no tags)"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                AutomationProperties.Name="Tags">
+                    <DropDownButton.Flyout>
+                        <Flyout x:Name="TagsFlyout" Placement="Bottom">
+                            <StackPanel MinWidth="240" Spacing="8">
+                                <TextBlock x:Name="TagsEmptyText"
+                                           Text="No tags defined yet — add some in Categories &amp; Tags."
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Visibility="Collapsed" />
+                                <ListView x:Name="TagsList"
+                                          SelectionMode="Multiple"
+                                          MaxHeight="220"
+                                          SelectionChanged="OnTagsSelectionChanged" />
+                            </StackPanel>
+                        </Flyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Category" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                <ComboBox x:Name="CategoryCombo"
+                          HorizontalAlignment="Stretch"
+                          PlaceholderText="(none)"
+                          SelectionChanged="OnCategorySelectionChanged"
+                          AutomationProperties.Name="Category" />
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Save to" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="SavePathBox"
+                             Grid.Column="0"
+                             PlaceholderText="Default downloads folder"
+                             AutomationProperties.Name="Save path" />
+                    <Button x:Name="BrowseButton"
+                            Grid.Column="1"
+                            Content="Browse…"
+                            Click="OnBrowseClicked"
+                            AutomationProperties.Name="Browse for save folder" />
+                </Grid>
+            </StackPanel>
+
+            <Expander Header="Share limits"
+                      HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Leave a field at 0 (or 'Use global default') to inherit from the global configuration."
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" />
+                    <NumberBox x:Name="RatioLimitBox"
+                               Header="Ratio cap (0 = use global)"
+                               Minimum="0"
+                               SmallChange="0.1"
+                               SpinButtonPlacementMode="Inline"
+                               Value="0" />
+                    <NumberBox x:Name="SeedingMinutesBox"
+                               Header="Seeding time (minutes, 0 = use global)"
+                               Minimum="0"
+                               SmallChange="30"
+                               SpinButtonPlacementMode="Inline"
+                               Value="0" />
+                    <NumberBox x:Name="InactiveMinutesBox"
+                               Header="Inactive seeding time (minutes, 0 = use global)"
+                               Minimum="0"
+                               SmallChange="30"
+                               SpinButtonPlacementMode="Inline"
+                               Value="0" />
+                    <ComboBox x:Name="ActionCombo"
+                              Header="Action on limit"
+                              HorizontalAlignment="Stretch">
+                        <ComboBoxItem Content="Use global default" Tag="Default" IsSelected="True" />
+                        <ComboBoxItem Content="Stop" Tag="Stop" />
+                        <ComboBoxItem Content="Remove" Tag="Remove" />
+                        <ComboBoxItem Content="Remove with content" Tag="RemoveWithContent" />
+                        <ComboBoxItem Content="Enable super seeding" Tag="EnableSuperSeeding" />
+                    </ComboBox>
+                </StackPanel>
+            </Expander>
+
+            <CheckBox x:Name="StartImmediatelyCheck"
+                      Content="Start immediately"
+                      IsChecked="True" />
+
+            <InfoBar x:Name="ErrorBar"
+                     Severity="Error"
+                     IsClosable="False"
+                     IsOpen="False" />
+        </StackPanel>
+    </Grid>
+</ContentDialog>

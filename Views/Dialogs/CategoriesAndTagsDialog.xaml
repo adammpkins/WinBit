@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="WinBit.Views.Dialogs.CategoriesAndTagsDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Categories &amp; tags"
+    CloseButtonText="Close"
+    DefaultButton="Close"
+    CornerRadius="8"
+    Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
+
+    <Grid MinWidth="560" MaxWidth="720" Height="440">
+        <Pivot x:Name="EditorPivot" Padding="0">
+            <PivotItem x:Name="CategoriesPivot" Header="Categories">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="CategoryNameBox"
+                                 Grid.Column="0"
+                                 PlaceholderText="Category name"
+                                 AutomationProperties.Name="Category name" />
+                        <TextBox x:Name="CategorySavePathBox"
+                                 Grid.Column="1"
+                                 PlaceholderText="Save path (optional)"
+                                 AutomationProperties.Name="Category save path" />
+                        <Button Grid.Column="2"
+                                Content="Add / update"
+                                Click="OnUpsertCategoryClicked"
+                                Style="{ThemeResource AccentButtonStyle}" />
+                    </Grid>
+
+                    <InfoBar Grid.Row="1"
+                             x:Name="CategoryError"
+                             Severity="Error"
+                             IsClosable="False"
+                             IsOpen="False" />
+
+                    <Border Grid.Row="2"
+                            CornerRadius="4"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                        <ListView x:Name="CategoriesList" SelectionChanged="OnCategorySelectionChanged">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnSpacing="8" Padding="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Name}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding SavePathText}"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <Button Grid.Column="2"
+                                                Content="Remove"
+                                                Click="OnRemoveCategoryClicked"
+                                                Tag="{Binding Name}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Border>
+                </Grid>
+            </PivotItem>
+
+            <PivotItem x:Name="TagsPivot" Header="Tags">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="TagNameBox"
+                                 Grid.Column="0"
+                                 PlaceholderText="Tag name"
+                                 AutomationProperties.Name="Tag name" />
+                        <Button Grid.Column="1"
+                                Content="Add"
+                                Click="OnAddTagClicked"
+                                Style="{ThemeResource AccentButtonStyle}" />
+                    </Grid>
+
+                    <InfoBar Grid.Row="1"
+                             x:Name="TagError"
+                             Severity="Error"
+                             IsClosable="False"
+                             IsOpen="False" />
+
+                    <Border Grid.Row="2"
+                            CornerRadius="4"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                        <ListView x:Name="TagsList">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnSpacing="8" Padding="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding}"
+                                                   VerticalAlignment="Center" />
+                                        <Button Grid.Column="1"
+                                                Content="Remove"
+                                                Click="OnRemoveTagClicked"
+                                                Tag="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Border>
+                </Grid>
+            </PivotItem>
+        </Pivot>
+    </Grid>
+</ContentDialog>

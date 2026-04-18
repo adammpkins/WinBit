@@ -1,9 +1,19 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage;
+using Windows.System;
+using WinBit.Core.BitTorrent;
+using WinBit.Core.Categories;
+using WinBit.Core.Common;
+using WinBit.Core.Filters;
 using WinBit.Core.Settings;
+using WinBit.Core.Sharing;
+using WinBit.Core.Tags;
 using WinBit.Services;
 using WinBit.ViewModels.Transfers;
+using WinBit.Views.Dialogs;
 using WinUI.TableView;
 
 namespace WinBit.Views.Transfers;
@@ -26,11 +36,134 @@ public sealed partial class TransfersPage : Page
 
     public static Visibility VisibleIfTrue(bool value) => value ? Visibility.Visible : Visibility.Collapsed;
 
-    private void OnLoaded(object sender, RoutedEventArgs e) =>
+    private async void OnLoaded(object sender, RoutedEventArgs e)
+    {
         ApplyLayout(_settings.Current.UiState.TransfersGrid);
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        await ViewModel.RefreshFilterOptionsAsync();
+        PopulateFilterTree();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TransfersViewModel.TrackerHostOptions))
+        {
+            PopulateFilterTree();
+        }
+    }
+
+    private void PopulateFilterTree()
+    {
+        var priorFilter = (FilterTree.SelectedNode?.Content as FilterNode)?.Filter;
+
+        FilterTree.RootNodes.Clear();
+
+        var all = new TreeViewNode { Content = new FilterNode("All torrents", TransferFilter.All), IsExpanded = true };
+        FilterTree.RootNodes.Add(all);
+
+        var statusRoot = new TreeViewNode { Content = new FilterNode("Status", null), IsExpanded = true };
+        foreach (var (label, status) in StatusFilters)
+        {
+            statusRoot.Children.Add(new TreeViewNode { Content = new FilterNode(label, TransferFilter.ForStatus(status)) });
+        }
+        FilterTree.RootNodes.Add(statusRoot);
+
+        var categoriesRoot = new TreeViewNode { Content = new FilterNode("Categories", null), IsExpanded = true };
+        categoriesRoot.Children.Add(new TreeViewNode { Content = new FilterNode("(Uncategorized)", TransferFilter.Uncategorized) });
+        foreach (var category in ViewModel.CategoryOptions)
+        {
+            categoriesRoot.Children.Add(new TreeViewNode { Content = new FilterNode(category.Name, TransferFilter.ForCategory(category.Name)) });
+        }
+        FilterTree.RootNodes.Add(categoriesRoot);
+
+        var tagsRoot = new TreeViewNode { Content = new FilterNode("Tags", null), IsExpanded = true };
+        foreach (var tag in ViewModel.TagOptions)
+        {
+            tagsRoot.Children.Add(new TreeViewNode { Content = new FilterNode(tag, TransferFilter.ForTag(tag)) });
+        }
+        FilterTree.RootNodes.Add(tagsRoot);
+
+        var trackersRoot = new TreeViewNode { Content = new FilterNode("Trackers", null), IsExpanded = true };
+        foreach (var host in ViewModel.TrackerHostOptions)
+        {
+            trackersRoot.Children.Add(new TreeViewNode { Content = new FilterNode(host, TransferFilter.ForTrackerHost(host)) });
+        }
+        FilterTree.RootNodes.Add(trackersRoot);
+
+        FilterTree.SelectedNode = FindNode(priorFilter) ?? all;
+    }
+
+    private TreeViewNode? FindNode(TransferFilter? target)
+    {
+        if (target is null)
+        {
+            return null;
+        }
+        foreach (var root in FilterTree.RootNodes)
+        {
+            if ((root.Content as FilterNode)?.Filter == target)
+            {
+                return root;
+            }
+            foreach (var child in root.Children)
+            {
+                if ((child.Content as FilterNode)?.Filter == target)
+                {
+                    return child;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static readonly (string Label, TransferStatus Status)[] StatusFilters =
+    {
+        ("Downloading", TransferStatus.Downloading),
+        ("Seeding", TransferStatus.Seeding),
+        ("Completed", TransferStatus.Completed),
+        ("Paused", TransferStatus.Paused),
+        ("Active", TransferStatus.Active),
+        ("Inactive", TransferStatus.Inactive),
+        ("Errored", TransferStatus.Errored),
+    };
+
+    private void OnFilterInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
+    {
+        if (args.InvokedItem is TreeViewNode node && node.Content is FilterNode filter && filter.Filter is not null)
+        {
+            ViewModel.ApplyFilter(filter.Filter);
+        }
+    }
+
+    private async void OnManageCategoriesClicked(object sender, RoutedEventArgs e) =>
+        await ShowEditorAsync(CategoriesAndTagsDialog.Tab.Categories);
+
+    private async void OnManageTagsClicked(object sender, RoutedEventArgs e) =>
+        await ShowEditorAsync(CategoriesAndTagsDialog.Tab.Tags);
+
+    private async Task ShowEditorAsync(CategoriesAndTagsDialog.Tab tab)
+    {
+        var dialog = new CategoriesAndTagsDialog(
+            App.Services.GetRequiredService<ICategoryService>(),
+            App.Services.GetRequiredService<ITagService>(),
+            tab)
+        {
+            XamlRoot = XamlRoot,
+        };
+        await dialog.ShowAsync();
+
+        await ViewModel.RefreshFilterOptionsAsync();
+        PopulateFilterTree();
+    }
+
+    private sealed record FilterNode(string Label, TransferFilter? Filter)
+    {
+        public override string ToString() => Label;
+    }
 
     private async void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         var layout = CaptureLayout();
         await _settings.UpdateAsync(s => s.UiState.TransfersGrid = layout);
     }
@@ -94,13 +227,143 @@ public sealed partial class TransfersPage : Page
 
     private async void OnAddTorrentClicked(object sender, RoutedEventArgs e)
     {
-        await App.Services.GetRequiredService<IDialogService>()
-            .ShowAsync("Add torrent", "Torrent adding lands in milestone M4 — Add-Torrent dialog deliverable.");
+        if (App.MainWindow is null)
+        {
+            return;
+        }
+
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+        var dialog = new AddTorrentDialog(
+            App.Services.GetRequiredService<ITorrentSessionService>(),
+            _settings,
+            App.Services.GetRequiredService<ICategoryService>(),
+            App.Services.GetRequiredService<ITagService>(),
+            App.Services.GetRequiredService<IShareLimitOverrideService>(),
+            hwnd)
+        {
+            XamlRoot = XamlRoot,
+        };
+        await dialog.ShowAsync();
     }
 
     private async void OnAddMagnetClicked(object sender, RoutedEventArgs e)
     {
-        await App.Services.GetRequiredService<IDialogService>()
-            .ShowAsync("Add magnet", "Magnet adding lands in milestone M4 — Add-Magnet dialog deliverable.");
+        if (App.MainWindow is null)
+        {
+            return;
+        }
+
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+        var dialog = new AddMagnetDialog(
+            App.Services.GetRequiredService<ITorrentSessionService>(),
+            App.Services.GetRequiredService<ICategoryService>(),
+            App.Services.GetRequiredService<ITagService>(),
+            App.Services.GetRequiredService<IShareLimitOverrideService>(),
+            _settings,
+            hwnd)
+        {
+            XamlRoot = XamlRoot,
+        };
+        await dialog.ShowAsync();
+    }
+
+    private async void OnPauseClicked(object sender, RoutedEventArgs e) =>
+        await ForEachSelectedAsync(id => Session.PauseAsync(id));
+
+    private async void OnResumeClicked(object sender, RoutedEventArgs e) =>
+        await ForEachSelectedAsync(id => Session.ResumeAsync(id));
+
+    private async void OnForceRecheckClicked(object sender, RoutedEventArgs e) =>
+        await ForEachSelectedAsync(id => Session.ForceRecheckAsync(id));
+
+    private async void OnForceReannounceClicked(object sender, RoutedEventArgs e) =>
+        await ForEachSelectedAsync(id => Session.ForceReannounceAsync(id));
+
+    private async void OnRemoveClicked(object sender, RoutedEventArgs e) =>
+        await ForEachSelectedAsync(id => Session.RemoveAsync(id));
+
+    private async void OnOpenFolderClicked(object sender, RoutedEventArgs e)
+    {
+        foreach (var id in SelectedIds())
+        {
+            var path = Session.GetSavePath(id);
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                var folder = await StorageFolder.GetFolderFromPathAsync(path);
+                await Launcher.LaunchFolderAsync(folder);
+            }
+            catch
+            {
+                // best-effort launch; unknown paths or permission errors are silent for now.
+            }
+        }
+    }
+
+    private async void OnSpeedLimitsClicked(object sender, RoutedEventArgs e)
+    {
+        var ids = SelectedIds().ToArray();
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        var dialog = new PerTorrentSpeedLimitDialog(Session, ids)
+        {
+            XamlRoot = XamlRoot,
+        };
+        await dialog.ShowAsync();
+    }
+
+    private async void OnShareLimitsClicked(object sender, RoutedEventArgs e)
+    {
+        var ids = SelectedIds().ToArray();
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        var dialog = new PerTorrentShareLimitDialog(
+            App.Services.GetRequiredService<IShareLimitOverrideService>(),
+            ids)
+        {
+            XamlRoot = XamlRoot,
+        };
+        await dialog.ShowAsync();
+    }
+
+    private void OnCopyMagnetClicked(object sender, RoutedEventArgs e)
+    {
+        var uris = SelectedIds()
+            .Select(Session.GetMagnetUri)
+            .Where(u => !string.IsNullOrEmpty(u))
+            .ToArray();
+
+        if (uris.Length == 0)
+        {
+            return;
+        }
+
+        var package = new DataPackage();
+        package.SetText(string.Join('\n', uris!));
+        Clipboard.SetContent(package);
+    }
+
+    private ITorrentSessionService Session =>
+        App.Services.GetRequiredService<ITorrentSessionService>();
+
+    private IEnumerable<TorrentId> SelectedIds() =>
+        TransfersGrid.SelectedItems.OfType<TransferRowViewModel>().Select(r => r.Id);
+
+    private async Task ForEachSelectedAsync(Func<TorrentId, Task> action)
+    {
+        foreach (var id in SelectedIds().ToArray())
+        {
+            await action(id);
+        }
     }
 }

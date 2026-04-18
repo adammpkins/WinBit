@@ -1,8 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using WinBit.Core.BitTorrent;
+using WinBit.Core.Categories;
 using WinBit.Core.Logging;
 using WinBit.Core.Persistence;
 using WinBit.Core.Settings;
+using WinBit.Core.Sharing;
+using WinBit.Core.Stats;
+using WinBit.Core.Tags;
 
 namespace WinBit.Core.Hosting;
 
@@ -28,6 +32,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<SqliteTorrentStateStore>();
         services.AddSingleton<ITorrentStateStore>(sp => sp.GetRequiredService<SqliteTorrentStateStore>());
+        services.AddSingleton<ICategoryService, CategoryService>();
+        services.AddSingleton<ITagService, TagService>();
+        services.AddSingleton<IShareLimitOverrideService, ShareLimitOverrideService>();
+        services.AddSingleton<IAllTimeStatsService, AllTimeStatsService>();
+        services.AddHostedService<ShareLimitEnforcementLoop>();
         services.AddSingleton<HttpClient>();
         services.AddSingleton<UrlDownloader>();
         services.AddSingleton<ITorrentSessionService, TorrentSessionService>();

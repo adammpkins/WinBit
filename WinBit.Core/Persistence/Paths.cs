@@ -32,6 +32,10 @@ public sealed class Paths
 
     public string TagsFile => Path.Combine(_root, "tags.json");
 
+    public string ShareLimitOverridesFile => Path.Combine(_root, "share-limit-overrides.json");
+
+    public string AllTimeStatsFile => Path.Combine(_root, "stats.json");
+
     public string WatchedFoldersFile => Path.Combine(_root, "watched-folders.json");
 
     public string RssDir => Path.Combine(_root, "rss");

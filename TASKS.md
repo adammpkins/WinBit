@@ -96,11 +96,19 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 - [x] `StatePill` control — icon + label + theme-aware pill per `TorrentState`.
 - [x] `PiecesBar` (Win2D) control.
 - [x] Properties `Pivot` below grid: General, Trackers, Peers, Content, Speed.
-- [ ] `AddTorrentDialog`, `AddMagnetDialog`, `DownloadFromUrlDialog` — tabbed editors with file preview tree, save-path combobox, category presets, tag chips, share-limits.
-- [ ] `SpeedGraph` (Win2D) scrolling line chart on Speed tab.
-- [ ] Context menu (pause, resume, remove, force recheck, force reannounce, open folder, copy magnet).
-- [ ] Drag-drop `.torrent` files onto window opens AddTorrentDialog.
-- [ ] Row updates via INPC only; zero collection rebuilds on tick.
+- [x] `AddMagnetDialog` — magnet URI input + save-path picker + start-immediately toggle, wired to `ITorrentSessionService.AddAsync` with inline `InfoBar` error surfacing.
+- [x] `AddTorrentDialog` — .torrent file picker + flat file preview + save-path text input. (Nested folder tree + save-path combobox with recent roots are polish follow-ups.)
+- [x] `AddTorrentDialog` polish: save-path combobox with recent roots.
+- [x] `AddTorrentDialog` polish: nested folder-tree preview.
+- [x] `DownloadFromUrlDialog` — HTTP(S) URL fetch via `UrlDownloader`, then hands bytes to the engine.
+- [x] Add-dialogs richer editor: category preset picker — `AddMagnetDialog`, `AddTorrentDialog`, `DownloadFromUrlDialog` show a Category combobox; selection resolves the TMM save path via `TmmPathResolver` and `AddTorrentParams.Category` flows through.
+- [x] Add-dialogs richer editor: tag chips — each add dialog hosts a `DropDownButton` + multi-select `ListView` backed by `ITagService`; selection flows into `AddTorrentParams.Tags`.
+- [x] Add-dialogs richer editor: share-limits editor — inline share-limit controls on each add dialog, persisted via `IShareLimitOverrideService` against the new torrent id.
+- [x] `SpeedGraph` (Win2D) scrolling line chart on Speed tab — dual series (download/upload) with theme-resolved line + gradient-fill rendering.
+- [x] `SpeedGraph` polish: peak callouts per series.
+- [x] Context menu (pause, resume, remove, force recheck, force reannounce, open folder, copy magnet).
+- [x] Drag-drop `.torrent` files onto window opens AddTorrentDialog.
+- [x] Row updates via INPC only; zero collection rebuilds on tick.
 
 **Design constraints**
 - Inline progress bars look Fluent, not web-generic. Rounded corners, accent color, subtle gradient.
@@ -118,13 +126,19 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 ## M5 — Categories, tags, share limits, per-torrent speed limits
 
 **Deliverables**
-- [ ] `ICategoryService` + `ITagService` + persistence.
-- [ ] Category/tag sidebar filter tree.
-- [ ] Category/tag editor dialogs.
-- [ ] Share limits dialog (global + per-torrent): ratio, seeding time, action on limit.
-- [ ] Per-torrent speed limit dialog.
-- [ ] Auto Torrent Management (TMM) path resolution mirroring qBittorrent's category options.
-- [ ] Parity unit tests for TMM path rules.
+- [x] `ICategoryService` + `ITagService` + persistence.
+- [x] Category/tag sidebar filter tree.
+- [x] Category/tag editor dialogs.
+- [x] Share limits dialog (global scope): ratio, seeding time, inactive seeding time, match mode, action on limit.
+- [x] Per-torrent share-limit override store: `PerTorrentShareLimitOverride` + `IShareLimitOverrideService` with JSON persistence and global-merge logic.
+- [x] Per-torrent share-limit evaluator — pure `ShareLimitEvaluator` porting `processTorrentShareLimits` with parity fixtures.
+- [x] Per-torrent share-limit enforcement hosted service — `ShareLimitEnforcementLoop` background service ticks every 60 s, tracks per-torrent seeding/inactive-seeding time, and dispatches Stop/Remove/RemoveWithContent/EnableSuperSeeding via `ITorrentSessionService`.
+- [x] Engine-level content deletion — extend `ITorrentSessionService.RemoveAsync` (or add a sibling) so share-limit `RemoveWithContent` can actually delete on-disk files.
+- [x] Super-seeding toggle — surface MonoTorrent's super-seeding on `ITorrentSessionService` so share-limit `EnableSuperSeeding` can engage it.
+- [x] Per-torrent share-limit UI — context-menu "Share limits…" entry + dialog wired to `IShareLimitOverrideService`.
+- [x] Per-torrent speed limit dialog.
+- [x] Auto Torrent Management (TMM) path resolution mirroring qBittorrent's category options.
+- [x] Parity unit tests for TMM path rules.
 
 **Verification**
 - Assigning a category moves files to that category's save path when TMM is on.
@@ -135,10 +149,10 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 ## M6 — Filters, status bar, statistics
 
 **Deliverables**
-- [ ] Status filter sidebar (Downloading/Seeding/Completed/Paused/Active/Inactive/Errored).
-- [ ] Tracker filter sidebar grouped by host.
-- [ ] Session status bar: DHT nodes, global down/up, connection count, alt-speed toggle.
-- [ ] `StatsPage`: all-time upload/download, shared, session ratio, DHT nodes, free space.
+- [x] Status filter sidebar (Downloading/Seeding/Completed/Paused/Active/Inactive/Errored).
+- [x] Tracker filter sidebar grouped by host.
+- [x] Session status bar: DHT nodes, global down/up, connection count, alt-speed toggle.
+- [x] `StatsPage`: all-time upload/download, shared, session ratio, DHT nodes, free space.
 
 **Verification**
 - Switching filters updates grid in <50 ms with 500 rows.

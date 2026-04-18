@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ContentDialog
+    x:Class="WinBit.Views.Dialogs.ShareLimitsDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Global share limits"
+    PrimaryButtonText="Save"
+    SecondaryButtonText="Cancel"
+    DefaultButton="Primary"
+    CornerRadius="8"
+    Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
+
+    <Grid MinWidth="520" MaxWidth="640">
+        <StackPanel Spacing="8">
+            <controls:SettingsCard Header="Ratio limit"
+                                   Description="Cap upload-to-download ratio.">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ToggleSwitch x:Name="RatioEnabled" OnContent="On" OffContent="Off" />
+                    <NumberBox x:Name="RatioValue"
+                               Value="1.0"
+                               Minimum="0"
+                               Maximum="100"
+                               SmallChange="0.1"
+                               LargeChange="1"
+                               SpinButtonPlacementMode="Compact"
+                               MinWidth="120" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Seeding time limit"
+                                   Description="Total active seeding time cap, in minutes.">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ToggleSwitch x:Name="SeedingTimeEnabled" OnContent="On" OffContent="Off" />
+                    <NumberBox x:Name="SeedingTimeValue"
+                               Value="1440"
+                               Minimum="1"
+                               Maximum="5256000"
+                               SmallChange="60"
+                               LargeChange="1440"
+                               SpinButtonPlacementMode="Compact"
+                               MinWidth="120" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Inactive seeding time limit"
+                                   Description="Time since the last uploaded piece, in minutes.">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ToggleSwitch x:Name="InactiveEnabled" OnContent="On" OffContent="Off" />
+                    <NumberBox x:Name="InactiveValue"
+                               Value="1440"
+                               Minimum="1"
+                               Maximum="5256000"
+                               SmallChange="60"
+                               LargeChange="1440"
+                               SpinButtonPlacementMode="Compact"
+                               MinWidth="120" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Match mode"
+                                   Description="How multiple enabled limits combine.">
+                <ComboBox x:Name="ModeCombo" SelectedIndex="0" MinWidth="160">
+                    <ComboBoxItem Content="Any limit triggers the action" Tag="MatchAny" />
+                    <ComboBoxItem Content="All limits must trigger" Tag="MatchAll" />
+                </ComboBox>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Action on limit"
+                                   Description="What to do when a limit is reached.">
+                <ComboBox x:Name="ActionCombo" SelectedIndex="0" MinWidth="180">
+                    <ComboBoxItem Content="Stop" Tag="Stop" />
+                    <ComboBoxItem Content="Remove" Tag="Remove" />
+                    <ComboBoxItem Content="Remove and delete files" Tag="RemoveWithContent" />
+                    <ComboBoxItem Content="Enable super seeding" Tag="EnableSuperSeeding" />
+                </ComboBox>
+            </controls:SettingsCard>
+        </StackPanel>
+    </Grid>
+</ContentDialog>
