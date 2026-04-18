@@ -1,0 +1,34 @@
+# Reference source (not part of WinBit; clone qBittorrent into this path if needed)
+qbittorrent/
+
+# .NET build outputs
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Rider / ReSharper
+.idea/
+_ReSharper*/
+*.DotSettings.user
+
+# Publish
+publish/
+*.pubxml.user
+
+# NuGet
+*.nuget.props
+*.nuget.targets
+packages/
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+
+# Local env
+.env
+.env.*

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinBit.Views.Settings.WebUiPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <ScrollViewer Padding="32,24,32,48">
+        <StackPanel Spacing="12" MaxWidth="880">
+            <TextBlock Text="Web UI" Style="{ThemeResource TitleLargeTextBlockStyle}" />
+            <TextBlock Text="In-process Kestrel host with qBittorrent v2 API parity and optional native skin."
+                       Style="{ThemeResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12" />
+
+            <controls:SettingsCard Header="Enable Web UI"
+                                   Description="Serve the remote control surface on the configured port.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE774;" />
+                </controls:SettingsCard.HeaderIcon>
+                <ToggleSwitch x:Name="WebUiEnabledToggle" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Port"
+                                   Description="Listener port for the Web UI HTTP server.">
+                <NumberBox x:Name="WebUiPortBox"
+                           Value="8080"
+                           Minimum="1"
+                           Maximum="65535"
+                           SpinButtonPlacementMode="Compact"
+                           MinWidth="140" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Use HTTPS"
+                                   Description="Terminate TLS on a user-supplied certificate.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE72E;" />
+                </controls:SettingsCard.HeaderIcon>
+                <ToggleSwitch x:Name="WebUiHttpsToggle" />
+            </controls:SettingsCard>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

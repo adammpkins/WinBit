@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinBit.Views.Settings.DownloadsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <ScrollViewer Padding="32,24,32,48">
+        <StackPanel Spacing="12" MaxWidth="880">
+            <TextBlock Text="Downloads" Style="{ThemeResource TitleLargeTextBlockStyle}" />
+            <TextBlock Text="Default save location, torrent management, and on-disk behavior."
+                       Style="{ThemeResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12" />
+
+            <controls:SettingsCard Header="Default save path"
+                                   Description="Where new torrents land unless a category overrides.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE8B7;" />
+                </controls:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBox x:Name="SavePathBox"
+                             MinWidth="320"
+                             PlaceholderText="%USERPROFILE%\Downloads" />
+                    <Button Content="Browse…"
+                            AutomationProperties.Name="Browse for default save path" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsExpander Header="Automatic torrent management"
+                                       Description="Let WinBit place files based on the assigned category.">
+                <controls:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE8FD;" />
+                </controls:SettingsExpander.HeaderIcon>
+                <ToggleSwitch x:Name="AutoTmmToggle" OnContent="On" OffContent="Off" />
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Switch files when category changes"
+                                           Description="Moves existing torrent content to the new category's save path.">
+                        <ToggleSwitch />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
+            <controls:SettingsCard Header="Pre-allocate disk space"
+                                   Description="Reserves full torrent size on disk before downloading.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xEDA2;" />
+                </controls:SettingsCard.HeaderIcon>
+                <ToggleSwitch x:Name="PreAllocateToggle" />
+            </controls:SettingsCard>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

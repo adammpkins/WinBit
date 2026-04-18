@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinBit.Views.Settings.BitTorrentPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <ScrollViewer Padding="32,24,32,48">
+        <StackPanel Spacing="12" MaxWidth="880">
+            <TextBlock Text="BitTorrent" Style="{ThemeResource TitleLargeTextBlockStyle}" />
+            <TextBlock Text="Peer-discovery protocols and transport encryption."
+                       Style="{ThemeResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12" />
+
+            <controls:SettingsCard Header="DHT"
+                                   Description="Distributed Hash Table (BEP 5) for trackerless peer discovery.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE968;" />
+                </controls:SettingsCard.HeaderIcon>
+                <ToggleSwitch x:Name="DhtToggle" IsOn="True" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Peer Exchange (PEX)"
+                                   Description="Swap peer lists with connected clients (BEP 11).">
+                <ToggleSwitch x:Name="PexToggle" IsOn="True" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Local Peer Discovery (LSD)"
+                                   Description="Multicast peer discovery on the local network (BEP 14).">
+                <ToggleSwitch x:Name="LsdToggle" IsOn="True" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Encryption"
+                                   Description="Message Stream Encryption handshake preference.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE72E;" />
+                </controls:SettingsCard.HeaderIcon>
+                <ComboBox x:Name="EncryptionCombo" SelectedIndex="0" MinWidth="160">
+                    <ComboBoxItem Content="Prefer" />
+                    <ComboBoxItem Content="Require" />
+                    <ComboBoxItem Content="Disable" />
+                </ComboBox>
+            </controls:SettingsCard>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

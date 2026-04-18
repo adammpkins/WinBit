@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Motion tokens. No animation longer than 300 ms; no bouncy springs. Pages wire up
+        ThemeTransitions (EntranceThemeTransition, RepositionThemeTransition) and Composition
+        ImplicitAnimations from these durations.
+    -->
+
+    <x:String x:Key="AppFastDuration">0:0:0.1</x:String>
+    <x:String x:Key="AppStandardDuration">0:0:0.2</x:String>
+    <x:String x:Key="AppSlowDuration">0:0:0.3</x:String>
+</ResourceDictionary>

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "WinBit (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "WinBit (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

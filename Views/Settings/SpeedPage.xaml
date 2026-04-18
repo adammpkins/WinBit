@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinBit.Views.Settings.SpeedPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <ScrollViewer Padding="32,24,32,48">
+        <StackPanel Spacing="12" MaxWidth="880">
+            <TextBlock Text="Speed" Style="{ThemeResource TitleLargeTextBlockStyle}" />
+            <TextBlock Text="Global throttles and the alternative profile used by the scheduler."
+                       Style="{ThemeResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12" />
+
+            <controls:SettingsCard Header="Global download limit"
+                                   Description="0 = unlimited. Applies to all active torrents combined.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE896;" />
+                </controls:SettingsCard.HeaderIcon>
+                <NumberBox x:Name="GlobalDownBox" Value="0" Minimum="0" SpinButtonPlacementMode="Compact" MinWidth="160" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Global upload limit"
+                                   Description="0 = unlimited.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE898;" />
+                </controls:SettingsCard.HeaderIcon>
+                <NumberBox x:Name="GlobalUpBox" Value="0" Minimum="0" SpinButtonPlacementMode="Compact" MinWidth="160" />
+            </controls:SettingsCard>
+
+            <controls:SettingsExpander Header="Alternative limits"
+                                       Description="Swapped in by the scheduler or via the title-bar toggle.">
+                <controls:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE945;" />
+                </controls:SettingsExpander.HeaderIcon>
+                <ToggleSwitch x:Name="AltEnabledToggle" />
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Alt download limit">
+                        <NumberBox Value="0" Minimum="0" SpinButtonPlacementMode="Compact" MinWidth="160" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Alt upload limit">
+                        <NumberBox Value="0" Minimum="0" SpinButtonPlacementMode="Compact" MinWidth="160" />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
