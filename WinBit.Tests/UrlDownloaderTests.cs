@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using FluentAssertions;
 using WinBit.Core.BitTorrent;
+using WinBit.Core.Networking;
 using Xunit;
 
 namespace WinBit.Tests;
@@ -11,7 +12,7 @@ public sealed class UrlDownloaderTests
     [Fact]
     public async Task Rejects_non_http_schemes()
     {
-        var downloader = new UrlDownloader(new HttpClient(new StubHandler((_, _) => throw new InvalidOperationException("should not reach handler"))));
+        var downloader = new UrlDownloader(new StubProvider(new HttpClient(new StubHandler((_, _) => throw new InvalidOperationException("should not reach handler")))));
 
         var result = await downloader.DownloadAsync(new Uri("ftp://example.invalid/file.torrent"));
 
@@ -23,8 +24,8 @@ public sealed class UrlDownloaderTests
     public async Task Returns_bytes_on_success()
     {
         var expected = Encoding.UTF8.GetBytes("d4:infod6:lengthi1ee4:name4:teste8:announce19:http://t.example/ae");
-        var downloader = new UrlDownloader(new HttpClient(new StubHandler((_, _) =>
-            new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(expected) })));
+        var downloader = new UrlDownloader(new StubProvider(new HttpClient(new StubHandler((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(expected) }))));
 
         var result = await downloader.DownloadAsync(new Uri("https://example.invalid/file.torrent"));
 
@@ -35,8 +36,8 @@ public sealed class UrlDownloaderTests
     [Fact]
     public async Task Propagates_HTTP_error_status_as_failure()
     {
-        var downloader = new UrlDownloader(new HttpClient(new StubHandler((_, _) =>
-            new HttpResponseMessage(HttpStatusCode.NotFound) { ReasonPhrase = "Not Found" })));
+        var downloader = new UrlDownloader(new StubProvider(new HttpClient(new StubHandler((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.NotFound) { ReasonPhrase = "Not Found" }))));
 
         var result = await downloader.DownloadAsync(new Uri("https://example.invalid/missing.torrent"));
 
@@ -50,7 +51,7 @@ public sealed class UrlDownloaderTests
         var content = new ByteArrayContent(new byte[16]);
         content.Headers.ContentLength = 1_000_000;
         var downloader = new UrlDownloader(
-            new HttpClient(new StubHandler((_, _) => new HttpResponseMessage(HttpStatusCode.OK) { Content = content })),
+            new StubProvider(new HttpClient(new StubHandler((_, _) => new HttpResponseMessage(HttpStatusCode.OK) { Content = content }))),
             maxBytes: 1024);
 
         var result = await downloader.DownloadAsync(new Uri("https://example.invalid/large.torrent"));
@@ -64,18 +65,25 @@ public sealed class UrlDownloaderTests
     {
         var payload = new byte[2048];
         var downloader = new UrlDownloader(
-            new HttpClient(new StubHandler((_, _) =>
+            new StubProvider(new HttpClient(new StubHandler((_, _) =>
             {
                 var content = new StreamContent(new MemoryStream(payload));
                 content.Headers.ContentLength = null;
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
-            })),
+            }))),
             maxBytes: 1024);
 
         var result = await downloader.DownloadAsync(new Uri("https://example.invalid/chunked.torrent"));
 
         result.IsSuccess.Should().BeFalse();
         result.Error.Should().Contain("exceeds max size");
+    }
+
+    private sealed class StubProvider : IHttpClientProvider
+    {
+        private readonly HttpClient _client;
+        public StubProvider(HttpClient client) => _client = client;
+        public HttpClient Get() => _client;
     }
 
     private sealed class StubHandler : HttpMessageHandler

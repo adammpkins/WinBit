@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinBit.Views.TorrentCreator.TorrentCreatorPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <ScrollViewer Padding="32,24,32,48">
+        <StackPanel Spacing="12" MaxWidth="880">
+            <TextBlock Text="Torrent creator"
+                       Style="{ThemeResource TitleLargeTextBlockStyle}" />
+            <TextBlock Text="Build a .torrent from a file or folder. Hashing runs on a background thread."
+                       Style="{ThemeResource BodyTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,12" />
+
+            <controls:SettingsCard Header="Source"
+                                   Description="File or folder to hash into the torrent.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE8B7;" />
+                </controls:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBox x:Name="SourceBox"
+                             MinWidth="320"
+                             IsReadOnly="True"
+                             PlaceholderText="No source selected"
+                             AutomationProperties.Name="Source path" />
+                    <Button Content="File…" Click="OnBrowseSourceFileClicked"
+                            AutomationProperties.Name="Browse for source file" />
+                    <Button Content="Folder…" Click="OnBrowseSourceFolderClicked"
+                            AutomationProperties.Name="Browse for source folder" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Output"
+                                   Description="Where the resulting .torrent will be written.">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE74E;" />
+                </controls:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBox x:Name="OutputBox"
+                             MinWidth="320"
+                             IsReadOnly="True"
+                             PlaceholderText="Choose where to save the .torrent"
+                             AutomationProperties.Name="Output path" />
+                    <Button Content="Browse…" Click="OnBrowseOutputClicked"
+                            AutomationProperties.Name="Choose output path" />
+                </StackPanel>
+            </controls:SettingsCard>
+
+            <controls:SettingsExpander Header="Trackers"
+                                       Description="One URL per line. Leave a blank line between tiers.">
+                <controls:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xEC27;" />
+                </controls:SettingsExpander.HeaderIcon>
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard ContentAlignment="Vertical">
+                        <TextBox x:Name="TrackersBox"
+                                 AcceptsReturn="True"
+                                 TextWrapping="NoWrap"
+                                 MinHeight="120"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 PlaceholderText="udp://tracker.example:6969/announce&#x0a;&#x0a;http://backup.example/announce"
+                                 AutomationProperties.Name="Tracker URLs" />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
+            <controls:SettingsExpander Header="Web seeds"
+                                       Description="Optional HTTP mirrors (BEP 19). One URL per line.">
+                <controls:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE774;" />
+                </controls:SettingsExpander.HeaderIcon>
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard ContentAlignment="Vertical">
+                        <TextBox x:Name="WebSeedsBox"
+                                 AcceptsReturn="True"
+                                 TextWrapping="NoWrap"
+                                 MinHeight="80"
+                                 PlaceholderText="https://mirror.example/payload/"
+                                 AutomationProperties.Name="Web seed URLs" />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
+            <controls:SettingsCard Header="Private torrent"
+                                   Description="Peers come only from listed trackers — no DHT, PEX, or LSD.">
+                <ToggleSwitch x:Name="PrivateToggle" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Piece size"
+                                   Description="Smaller pieces → faster start, bigger torrent file. Auto picks a sensible default based on total size.">
+                <ComboBox x:Name="PieceSizeCombo" MinWidth="160" SelectedIndex="0">
+                    <ComboBoxItem Content="Auto" Tag="0" />
+                    <ComboBoxItem Content="16 KiB" Tag="16384" />
+                    <ComboBoxItem Content="32 KiB" Tag="32768" />
+                    <ComboBoxItem Content="64 KiB" Tag="65536" />
+                    <ComboBoxItem Content="128 KiB" Tag="131072" />
+                    <ComboBoxItem Content="256 KiB" Tag="262144" />
+                    <ComboBoxItem Content="512 KiB" Tag="524288" />
+                    <ComboBoxItem Content="1 MiB" Tag="1048576" />
+                    <ComboBoxItem Content="2 MiB" Tag="2097152" />
+                    <ComboBoxItem Content="4 MiB" Tag="4194304" />
+                    <ComboBoxItem Content="8 MiB" Tag="8388608" />
+                    <ComboBoxItem Content="16 MiB" Tag="16777216" />
+                </ComboBox>
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Comment"
+                                   Description="Optional free-form string embedded in the .torrent.">
+                <TextBox x:Name="CommentBox" MinWidth="320" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="Created by"
+                                   Description="Defaults to the MonoTorrent version string when blank.">
+                <TextBox x:Name="CreatedByBox" MinWidth="320" />
+            </controls:SettingsCard>
+
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
+                <Button x:Name="CreateButton"
+                        Style="{ThemeResource AccentButtonStyle}"
+                        Content="Create torrent"
+                        Click="OnCreateClicked"
+                        AutomationProperties.Name="Create torrent" />
+                <Button x:Name="CancelButton"
+                        Content="Cancel"
+                        IsEnabled="False"
+                        Click="OnCancelClicked" />
+                <ProgressBar x:Name="ProgressBarControl"
+                             Width="240"
+                             Visibility="Collapsed"
+                             Minimum="0"
+                             Maximum="1" />
+                <TextBlock x:Name="ProgressText"
+                           VerticalAlignment="Center"
+                           Style="{ThemeResource BodyTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+
+            <InfoBar x:Name="StatusBar"
+                     IsOpen="False"
+                     IsClosable="True"
+                     Margin="0,4,0,0" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -86,6 +86,34 @@ public interface ITorrentSessionService : IAsyncDisposable
     Task<Result> SetSpeedLimitsAsync(TorrentId id, long? downloadBps, long? uploadBps, CancellationToken ct = default);
 
     /// <summary>
+    /// Applies engine-wide download/upload rate caps (bytes/sec; 0 = unlimited). Driven by the
+    /// <c>SpeedProfileApplier</c> hosted service from <c>AppSettings.Speed</c>. Returns success
+    /// with no effect when the engine hasn't started yet — the applier re-runs after startup.
+    /// </summary>
+    Task<Result> SetGlobalSpeedLimitsAsync(long downloadBps, long uploadBps, CancellationToken ct = default);
+
+    /// <summary>
+    /// Toggles engine-level UPnP / NAT-PMP port mapping. Driven by <c>IPortForwardingService</c>
+    /// from <c>AppSettings.Connection.Upnp</c>. Returns success with no effect when the engine
+    /// hasn't started yet.
+    /// </summary>
+    Task<Result> SetPortForwardingAsync(bool enabled, CancellationToken ct = default);
+
+    /// <summary>
+    /// Applies Message Stream Encryption preference to the engine by rewriting
+    /// <c>EngineSettings.AllowedEncryption</c>. Returns success with no effect when the engine
+    /// hasn't started yet.
+    /// </summary>
+    Task<Result> SetEncryptionModeAsync(WinBit.Core.Settings.EncryptionMode mode, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets global peer-discovery flags. LSD is an engine-level setting; DHT and PEX are
+    /// per-torrent in MonoTorrent, so this method pushes the flags to every currently-loaded
+    /// manager. Newly-added torrents inherit MonoTorrent defaults until the next apply tick.
+    /// </summary>
+    Task<Result> SetPeerDiscoveryAsync(bool dht, bool pex, bool lsd, CancellationToken ct = default);
+
+    /// <summary>
     /// Toggles BEP 21 initial-seeding (qBittorrent's "super-seeding") on a torrent. Used by the
     /// share-limit enforcement loop for <c>ShareLimitAction.EnableSuperSeeding</c>, and available
     /// to the per-torrent properties surface. Idempotent — flipping to the current state is a

@@ -16,6 +16,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- In-process Kestrel for the M10 Web UI. Pulls in Microsoft.AspNetCore.* via the
+         shared framework rather than discrete packages to stay aligned with the target .NET
+         runtime on end-user machines. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Persistence\SqlMigrations\*.sql" />
   </ItemGroup>
 </Project>

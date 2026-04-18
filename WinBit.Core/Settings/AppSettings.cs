@@ -26,6 +26,29 @@ public sealed class ConnectionSettings
 {
     public int ListenPort { get; set; } = 6881;
     public bool Upnp { get; set; } = true;
+
+    /// <summary>When true + <see cref="IpFilterPath"/> points at an existing file, the engine
+    /// refuses connections from any address listed in the PeerGuardian <c>.p2p</c> blocklist.</summary>
+    public bool IpFilterEnabled { get; set; }
+
+    public string? IpFilterPath { get; set; }
+
+    public ProxyType ProxyType { get; set; } = ProxyType.None;
+
+    public string? ProxyHost { get; set; }
+
+    public int ProxyPort { get; set; } = 1080;
+
+    public string? ProxyUsername { get; set; }
+
+    public string? ProxyPassword { get; set; }
+}
+
+public enum ProxyType
+{
+    None,
+    Http,
+    Socks5,
 }
 
 public sealed class SpeedSettings
@@ -35,6 +58,29 @@ public sealed class SpeedSettings
     public int AltDownBps { get; set; }
     public int AltUpBps { get; set; }
     public bool AltEnabled { get; set; }
+
+    public bool SchedulerEnabled { get; set; }
+    public TimeOnly SchedulerStartTime { get; set; } = new(8, 0);
+    public TimeOnly SchedulerEndTime { get; set; } = new(20, 0);
+    public BandwidthScheduleDays SchedulerDays { get; set; } = BandwidthScheduleDays.EveryDay;
+}
+
+/// <summary>
+/// Ported from qBittorrent's <c>Scheduler::Days</c> enum (see
+/// <c>qbittorrent/src/base/preferences.h</c>). Ordering preserved for JSON stability.
+/// </summary>
+public enum BandwidthScheduleDays
+{
+    EveryDay,
+    Weekday,
+    Weekend,
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday,
+    Saturday,
+    Sunday,
 }
 
 public sealed class BitTorrentSettings
@@ -42,9 +88,21 @@ public sealed class BitTorrentSettings
     public bool Dht { get; set; } = true;
     public bool Pex { get; set; } = true;
     public bool Lsd { get; set; } = true;
-    public string Encryption { get; set; } = "Prefer";
+    public EncryptionMode Encryption { get; set; } = EncryptionMode.Prefer;
 
     public Sharing.ShareLimits GlobalShareLimits { get; set; } = new();
+}
+
+/// <summary>
+/// Message Stream Encryption preference mirroring qBittorrent's three-way combo. Maps onto
+/// MonoTorrent's <c>EngineSettings.AllowedEncryption</c>: Prefer = all three, Require = RC4
+/// variants only (no plain-text), Disable = plain-text only.
+/// </summary>
+public enum EncryptionMode
+{
+    Prefer,
+    Require,
+    Disable,
 }
 
 public sealed class RssSettings

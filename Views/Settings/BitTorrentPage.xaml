@@ -23,17 +23,17 @@
                 <controls:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE968;" />
                 </controls:SettingsCard.HeaderIcon>
-                <ToggleSwitch x:Name="DhtToggle" IsOn="True" />
+                <ToggleSwitch x:Name="DhtToggle" IsOn="True" Toggled="OnDhtToggled" />
             </controls:SettingsCard>
 
             <controls:SettingsCard Header="Peer Exchange (PEX)"
                                    Description="Swap peer lists with connected clients (BEP 11).">
-                <ToggleSwitch x:Name="PexToggle" IsOn="True" />
+                <ToggleSwitch x:Name="PexToggle" IsOn="True" Toggled="OnPexToggled" />
             </controls:SettingsCard>
 
             <controls:SettingsCard Header="Local Peer Discovery (LSD)"
                                    Description="Multicast peer discovery on the local network (BEP 14).">
-                <ToggleSwitch x:Name="LsdToggle" IsOn="True" />
+                <ToggleSwitch x:Name="LsdToggle" IsOn="True" Toggled="OnLsdToggled" />
             </controls:SettingsCard>
 
             <controls:SettingsCard Header="Encryption"
@@ -41,10 +41,13 @@
                 <controls:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE72E;" />
                 </controls:SettingsCard.HeaderIcon>
-                <ComboBox x:Name="EncryptionCombo" SelectedIndex="0" MinWidth="160">
-                    <ComboBoxItem Content="Prefer" />
-                    <ComboBoxItem Content="Require" />
-                    <ComboBoxItem Content="Disable" />
+                <ComboBox x:Name="EncryptionCombo"
+                          SelectedIndex="0"
+                          MinWidth="160"
+                          SelectionChanged="OnEncryptionChanged">
+                    <ComboBoxItem Content="Prefer" Tag="Prefer" />
+                    <ComboBoxItem Content="Require" Tag="Require" />
+                    <ComboBoxItem Content="Disable" Tag="Disable" />
                 </ComboBox>
             </controls:SettingsCard>
 

@@ -19,19 +19,35 @@
                        Margin="0,0,0,12" />
 
             <controls:SettingsCard Header="Global download limit"
-                                   Description="0 = unlimited. Applies to all active torrents combined.">
+                                   Description="KB/s. 0 = unlimited. Applies to all active torrents combined.">
                 <controls:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE896;" />
                 </controls:SettingsCard.HeaderIcon>
-                <NumberBox x:Name="GlobalDownBox" Value="0" Minimum="0" SpinButtonPlacementMode="Compact" MinWidth="160" />
+                <NumberBox x:Name="GlobalDownBox"
+                           Value="0"
+                           Minimum="0"
+                           Maximum="2000000"
+                           SmallChange="64"
+                           LargeChange="1024"
+                           SpinButtonPlacementMode="Compact"
+                           MinWidth="160"
+                           ValueChanged="OnGlobalDownChanged" />
             </controls:SettingsCard>
 
             <controls:SettingsCard Header="Global upload limit"
-                                   Description="0 = unlimited.">
+                                   Description="KB/s. 0 = unlimited.">
                 <controls:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE898;" />
                 </controls:SettingsCard.HeaderIcon>
-                <NumberBox x:Name="GlobalUpBox" Value="0" Minimum="0" SpinButtonPlacementMode="Compact" MinWidth="160" />
+                <NumberBox x:Name="GlobalUpBox"
+                           Value="0"
+                           Minimum="0"
+                           Maximum="2000000"
+                           SmallChange="64"
+                           LargeChange="1024"
+                           SpinButtonPlacementMode="Compact"
+                           MinWidth="160"
+                           ValueChanged="OnGlobalUpChanged" />
             </controls:SettingsCard>
 
             <controls:SettingsExpander Header="Alternative limits"
@@ -39,13 +55,31 @@
                 <controls:SettingsExpander.HeaderIcon>
                     <FontIcon Glyph="&#xE945;" />
                 </controls:SettingsExpander.HeaderIcon>
-                <ToggleSwitch x:Name="AltEnabledToggle" />
+                <ToggleSwitch x:Name="AltEnabledToggle" Toggled="OnAltEnabledToggled" />
                 <controls:SettingsExpander.Items>
-                    <controls:SettingsCard Header="Alt download limit">
-                        <NumberBox Value="0" Minimum="0" SpinButtonPlacementMode="Compact" MinWidth="160" />
+                    <controls:SettingsCard Header="Alt download limit"
+                                           Description="KB/s. 0 = unlimited.">
+                        <NumberBox x:Name="AltDownBox"
+                                   Value="0"
+                                   Minimum="0"
+                                   Maximum="2000000"
+                                   SmallChange="64"
+                                   LargeChange="1024"
+                                   SpinButtonPlacementMode="Compact"
+                                   MinWidth="160"
+                                   ValueChanged="OnAltDownChanged" />
                     </controls:SettingsCard>
-                    <controls:SettingsCard Header="Alt upload limit">
-                        <NumberBox Value="0" Minimum="0" SpinButtonPlacementMode="Compact" MinWidth="160" />
+                    <controls:SettingsCard Header="Alt upload limit"
+                                           Description="KB/s. 0 = unlimited.">
+                        <NumberBox x:Name="AltUpBox"
+                                   Value="0"
+                                   Minimum="0"
+                                   Maximum="2000000"
+                                   SmallChange="64"
+                                   LargeChange="1024"
+                                   SpinButtonPlacementMode="Compact"
+                                   MinWidth="160"
+                                   ValueChanged="OnAltUpChanged" />
                     </controls:SettingsCard>
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>

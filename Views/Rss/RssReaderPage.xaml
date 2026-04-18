@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="WinBit.Views.Rss.RssReaderPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="using:WinBit.Views.Rss"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <Grid Padding="24,16,24,16" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="RSS"
+                       Style="{ThemeResource TitleLargeTextBlockStyle}"
+                       VerticalAlignment="Center" />
+            <Button Content="Add feed…"
+                    Click="OnAddFeedClicked"
+                    VerticalAlignment="Center"
+                    AutomationProperties.Name="Add RSS feed" />
+            <Button Click="OnAutoDownloaderClicked"
+                    VerticalAlignment="Center"
+                    AutomationProperties.Name="Open auto-downloader">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE8C8;" FontSize="14" />
+                    <TextBlock Text="Auto-downloader…" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <InfoBar x:Name="StatusBar"
+                 Grid.Row="1"
+                 IsOpen="False"
+                 IsClosable="True" />
+
+        <Grid Grid.Row="2" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                <controls:TreeView x:Name="FeedTree"
+                                   SelectionMode="Single"
+                                   ItemInvoked="OnFeedInvoked"
+                                   Background="Transparent"
+                                   Margin="8">
+                    <controls:TreeView.ItemTemplate>
+                        <DataTemplate x:DataType="local:RssTreeItem">
+                            <controls:TreeViewItem ItemsSource="{x:Bind Children, Mode=OneWay}"
+                                                   AutomationProperties.Name="{x:Bind Label, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon FontSize="14" Glyph="{x:Bind Glyph, Mode=OneWay}" />
+                                    <TextBlock Text="{x:Bind Label, Mode=OneWay}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </controls:TreeViewItem>
+                        </DataTemplate>
+                    </controls:TreeView.ItemTemplate>
+                </controls:TreeView>
+            </Border>
+
+            <Grid Grid.Column="1" RowSpacing="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="ArticleHeader"
+                           Grid.Row="0"
+                           Text="Select a feed"
+                           Style="{ThemeResource SubtitleTextBlockStyle}" />
+
+                <Grid Grid.Row="1">
+                    <ListView x:Name="ArticleList"
+                              SelectionMode="None"
+                              Background="{ThemeResource LayerFillColorDefaultBrush}"
+                              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                              BorderThickness="1"
+                              CornerRadius="8"
+                              Padding="8">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:ArticleItem">
+                                <Grid Padding="8" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{x:Bind Title}"
+                                               Style="{ThemeResource BodyStrongTextBlockStyle}"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{x:Bind PublishedText}"
+                                               Style="{ThemeResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="2"
+                                            Content="Download"
+                                            Tag="{x:Bind}"
+                                            Click="OnDownloadClicked"
+                                            IsEnabled="{x:Bind CanDownload}"
+                                            AutomationProperties.Name="Download article torrent" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <StackPanel x:Name="EmptyState"
+                                Visibility="Collapsed"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="8">
+                        <FontIcon Glyph="&#xE774;"
+                                  FontSize="40"
+                                  Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <TextBlock Text="No articles yet"
+                                   Style="{ThemeResource SubtitleTextBlockStyle}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="Articles will appear after the next refresh."
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="320"
+                                   TextAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</Page>

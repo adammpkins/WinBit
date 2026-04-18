@@ -28,7 +28,8 @@
                            Minimum="1024"
                            Maximum="65535"
                            SpinButtonPlacementMode="Compact"
-                           MinWidth="140" />
+                           MinWidth="140"
+                           ValueChanged="OnListenPortChanged" />
             </controls:SettingsCard>
 
             <controls:SettingsCard Header="UPnP / NAT-PMP"
@@ -36,26 +37,49 @@
                 <controls:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xEC05;" />
                 </controls:SettingsCard.HeaderIcon>
-                <ToggleSwitch x:Name="UpnpToggle" IsOn="True" />
+                <ToggleSwitch x:Name="UpnpToggle" IsOn="True" Toggled="OnUpnpToggled" />
             </controls:SettingsCard>
 
             <controls:SettingsExpander Header="Proxy"
-                                       Description="Route peer and tracker traffic through a proxy.">
+                                       Description="Route .torrent downloads and other HTTP calls through a proxy. MonoTorrent peer sockets do not route through this proxy.">
                 <controls:SettingsExpander.HeaderIcon>
                     <FontIcon Glyph="&#xE774;" />
                 </controls:SettingsExpander.HeaderIcon>
-                <ComboBox x:Name="ProxyTypeCombo" SelectedIndex="0" MinWidth="160">
-                    <ComboBoxItem Content="None" />
-                    <ComboBoxItem Content="HTTP" />
-                    <ComboBoxItem Content="SOCKS5" />
+                <ComboBox x:Name="ProxyTypeCombo"
+                          SelectedIndex="0"
+                          MinWidth="160"
+                          SelectionChanged="OnProxyTypeChanged">
+                    <ComboBoxItem Content="None" Tag="None" />
+                    <ComboBoxItem Content="HTTP" Tag="Http" />
+                    <ComboBoxItem Content="SOCKS5" Tag="Socks5" />
                 </ComboBox>
                 <controls:SettingsExpander.Items>
                     <controls:SettingsCard Header="Host"
                                            Description="Proxy server hostname or IP.">
-                        <TextBox MinWidth="240" />
+                        <TextBox x:Name="ProxyHostBox"
+                                 MinWidth="240"
+                                 PlaceholderText="proxy.example.com"
+                                 TextChanged="OnProxyHostChanged" />
                     </controls:SettingsCard>
                     <controls:SettingsCard Header="Port">
-                        <NumberBox Value="1080" Minimum="1" Maximum="65535" SpinButtonPlacementMode="Compact" MinWidth="140" />
+                        <NumberBox x:Name="ProxyPortBox"
+                                   Value="1080"
+                                   Minimum="1"
+                                   Maximum="65535"
+                                   SpinButtonPlacementMode="Compact"
+                                   MinWidth="140"
+                                   ValueChanged="OnProxyPortChanged" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Username"
+                                           Description="Leave blank if the proxy doesn't require authentication.">
+                        <TextBox x:Name="ProxyUsernameBox"
+                                 MinWidth="240"
+                                 TextChanged="OnProxyUsernameChanged" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Password">
+                        <PasswordBox x:Name="ProxyPasswordBox"
+                                     MinWidth="240"
+                                     PasswordChanged="OnProxyPasswordChanged" />
                     </controls:SettingsCard>
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>

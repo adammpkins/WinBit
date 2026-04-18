@@ -162,11 +162,11 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 ## M7 — Speed controls, scheduler, IP filter, logs
 
 **Deliverables**
-- [ ] Global down/up speed limits + alt profile in Settings/Speed.
-- [ ] `BandwidthScheduler` (`IHostedService`) — time-of-day rules, parity-tested against qBittorrent's bandwidth scheduler.
-- [ ] `PeerGuardianParser` for `.p2p` blocklists; `IpFilterService` wires into engine.
-- [ ] Execution log page bound to `ILogService`.
-- [ ] Peer log page (banned peers, reason).
+- [x] Global down/up speed limits + alt profile in Settings/Speed.
+- [x] `BandwidthScheduler` (`IHostedService`) — time-of-day rules, parity-tested against qBittorrent's bandwidth scheduler.
+- [x] `PeerGuardianParser` for `.p2p` blocklists; `IpFilterService` wires into engine.
+- [x] Execution log page bound to `ILogService`.
+- [x] Peer log page (banned peers, reason).
 
 **Verification**
 - Scheduler flips alt mode at the scheduled time.
@@ -174,15 +174,15 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 
 ---
 
-## M8 — Networking, watched folders, torrent creator
+## M8 — Networking, watched folders, torrent creator *(complete)*
 
 **Deliverables**
-- [ ] Proxy settings (SOCKS5/HTTP) with optional auth.
-- [ ] UPnP / NAT-PMP port forwarding toggle via `IPortForwardingService`.
-- [ ] Protocol encryption mode selector.
-- [ ] DHT / PEX / LSD toggles.
-- [ ] `WatchedFolderService` with debounced `FileSystemWatcher` + per-folder options.
-- [ ] `TorrentCreatorPage` using MonoTorrent's `TorrentCreator`.
+- [x] Proxy settings (SOCKS5/HTTP) with optional auth.
+- [x] UPnP / NAT-PMP port forwarding toggle via `IPortForwardingService`.
+- [x] Protocol encryption mode selector.
+- [x] DHT / PEX / LSD toggles.
+- [x] `WatchedFolderService` with debounced `FileSystemWatcher` + per-folder options.
+- [x] `TorrentCreatorPage` using MonoTorrent's `TorrentCreator`.
 
 **Verification**
 - Drop `.torrent` into watched folder → auto-add within 1 s.
@@ -190,13 +190,17 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 
 ---
 
-## M9 — RSS + auto-downloader
+## M9 — RSS + auto-downloader *(complete)*
 
 **Deliverables**
-- [ ] `RssService` — feed tree, refresh loop, RSS 2.0 + Atom parsing.
-- [ ] `RssPage` with feed tree, article list, manual-download button.
-- [ ] `AutoDownloaderPage` with rule CRUD + live-tester.
-- [ ] `RuleMatcher` with must-contain, must-not-contain, episode filter, smart episode filter, re-download protection. Parity-tested against qBittorrent's RSS auto-download rule.
+- [x] RSS 2.0 + Atom feed parser (`RssFeedParser`, pure Core).
+- [x] Feed-tree model + `rss/feeds.json` persistence (`RssService.GetTree/Save`).
+- [x] Refresh loop `IHostedService` polling feeds at per-feed / global interval.
+- [x] `RssPage` with feed tree, article list, manual-download button.
+- [x] `IAutoDownloaderService` — rule CRUD + `rss/rules.json` persistence.
+- [x] `AutoDownloaderPage` with rule CRUD + live-tester.
+- [x] Auto-dispatch loop — evaluate new articles against rules and enqueue matches via `ITorrentSessionService`.
+- [x] `RuleMatcher` with must-contain, must-not-contain, episode filter, smart episode filter, re-download protection. Parity-tested against qBittorrent's RSS auto-download rule.
 
 **Verification**
 - Public RSS feed fetches; matching rule auto-adds torrents.
@@ -206,7 +210,7 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 ## M10 — Web UI
 
 **Deliverables**
-- [ ] In-process Kestrel host via `WebUiService`.
+- [x] In-process Kestrel host via `WebUiService`.
 - [ ] Routes matching qBittorrent v2 API: `/api/v2/torrents/*`, `/api/v2/app/*`, `/api/v2/transfer/*`, `/api/v2/rss/*`, `/api/v2/search/*`, `/api/v2/log/*`, `/api/v2/torrentcreator/*`, `/api/v2/sync/*`, `/api/v2/auth/*`.
 - [ ] PBKDF2 password hashing, cookie session, optional HTTPS (user cert), IP subnet whitelist.
 - [ ] Ship qBittorrent's HTML admin UI as static files (since we implement its API).
@@ -226,6 +230,7 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 - [ ] Toast notifications via Windows AppNotifications: completion, errors, download-rate low on long torrents.
 - [ ] `PowerManagementService` preventing sleep while active torrents exist.
 - [ ] `.torrent` file association and `magnet:` URI protocol handler.
+- [ ] Default-client prompt on startup — detect whether WinBit owns `.torrent` / `magnet:`, offer an in-app dialog to register (or the Windows "Default apps" deep link) when it doesn't.
 - [ ] Single-instance enforcement — second launch forwards magnet to running instance.
 
 **Verification**
@@ -258,6 +263,6 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 Features we deliberately hold until after feature parity ships:
 
 - qBittorrent resume-data import (if users request it).
-- Multi-profile (home/work) support.
+- Multi-profile (home/work) support. Only if this is something other torrent clients offer. 
 - Plugin SDK for C# search providers.
 - ARM64 first-class support and NativeAOT publishing.

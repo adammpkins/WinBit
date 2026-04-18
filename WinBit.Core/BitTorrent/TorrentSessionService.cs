@@ -1,10 +1,14 @@
+using System.Net;
 using Microsoft.Extensions.Options;
 using MonoTorrent;
 using MonoTorrent.Client;
+using MonoTorrent.Connections;
 using WinBit.Core.Common;
 using WinBit.Core.Hosting;
 using WinBit.Core.Logging;
+using WinBit.Core.Networking;
 using WinBit.Core.Persistence;
+using WinBit.Core.Settings;
 using WinBit.Core.Sharing;
 
 namespace WinBit.Core.BitTorrent;
@@ -19,14 +23,18 @@ namespace WinBit.Core.BitTorrent;
 public sealed class TorrentSessionService : ITorrentSessionService
 {
     private readonly ILogService _log;
+    private readonly IPeerLogService _peerLog;
     private readonly Paths _paths;
+    private readonly IIpFilterService _ipFilter;
     private readonly WinBitCoreOptions _options;
     private ClientEngine? _engine;
 
-    public TorrentSessionService(ILogService log, Paths paths, IOptions<WinBitCoreOptions> options)
+    public TorrentSessionService(ILogService log, IPeerLogService peerLog, Paths paths, IIpFilterService ipFilter, IOptions<WinBitCoreOptions> options)
     {
         _log = log;
+        _peerLog = peerLog;
         _paths = paths;
+        _ipFilter = ipFilter;
         _options = options.Value;
     }
 
@@ -70,8 +78,22 @@ public sealed class TorrentSessionService : ITorrentSessionService
         }
 
         _engine = new ClientEngine(builder.ToSettings());
+        _engine.ConnectionManager.BanPeer += OnBanPeerAttempt;
         _log.Write($"Torrent engine started (cache: {cacheDir}, port: {_options.ListenPort}, UPnP: {_options.AllowPortForwarding}, LPD: {_options.AllowLocalPeerDiscovery})", LogSeverity.Info);
         return Task.CompletedTask;
+    }
+
+    private void OnBanPeerAttempt(object? sender, AttemptConnectionEventArgs args)
+    {
+        if (_ipFilter.RuleCount == 0)
+        {
+            return;
+        }
+        if (IPAddress.TryParse(args.Peer.ConnectionUri.Host, out var addr) && _ipFilter.IsBlocked(addr))
+        {
+            args.BanPeer = true;
+            _peerLog.Record(args.Peer.ConnectionUri.ToString(), "Blocked by IP filter");
+        }
     }
 
     public async Task StopAsync(CancellationToken ct = default)
@@ -304,6 +326,106 @@ public sealed class TorrentSessionService : ITorrentSessionService
             }
             await m.UpdateSettingsAsync(builder.ToSettings()).ConfigureAwait(false);
         });
+
+    public async Task<Result> SetGlobalSpeedLimitsAsync(long downloadBps, long uploadBps, CancellationToken ct = default)
+    {
+        if (_engine is null)
+        {
+            // Engine hasn't started yet; SpeedProfileApplier re-runs after StartAsync.
+            return Result.Success();
+        }
+
+        try
+        {
+            var builder = new EngineSettingsBuilder(_engine.Settings)
+            {
+                MaximumDownloadRate = (int)Math.Clamp(downloadBps, 0L, int.MaxValue),
+                MaximumUploadRate = (int)Math.Clamp(uploadBps, 0L, int.MaxValue),
+            };
+            await _engine.UpdateSettingsAsync(builder.ToSettings()).ConfigureAwait(false);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(ex.Message);
+        }
+    }
+
+    public async Task<Result> SetPortForwardingAsync(bool enabled, CancellationToken ct = default)
+    {
+        if (_engine is null)
+        {
+            return Result.Success();
+        }
+
+        try
+        {
+            var builder = new EngineSettingsBuilder(_engine.Settings)
+            {
+                AllowPortForwarding = enabled,
+            };
+            await _engine.UpdateSettingsAsync(builder.ToSettings()).ConfigureAwait(false);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(ex.Message);
+        }
+    }
+
+    public async Task<Result> SetEncryptionModeAsync(EncryptionMode mode, CancellationToken ct = default)
+    {
+        if (_engine is null)
+        {
+            return Result.Success();
+        }
+
+        try
+        {
+            var builder = new EngineSettingsBuilder(_engine.Settings)
+            {
+                AllowedEncryption = EncryptionMapper.ToMonoTorrent(mode),
+            };
+            await _engine.UpdateSettingsAsync(builder.ToSettings()).ConfigureAwait(false);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(ex.Message);
+        }
+    }
+
+    public async Task<Result> SetPeerDiscoveryAsync(bool dht, bool pex, bool lsd, CancellationToken ct = default)
+    {
+        if (_engine is null)
+        {
+            return Result.Success();
+        }
+
+        try
+        {
+            var engineBuilder = new EngineSettingsBuilder(_engine.Settings)
+            {
+                AllowLocalPeerDiscovery = lsd,
+            };
+            await _engine.UpdateSettingsAsync(engineBuilder.ToSettings()).ConfigureAwait(false);
+
+            foreach (var manager in _engine.Torrents)
+            {
+                var tb = new TorrentSettingsBuilder(manager.Settings)
+                {
+                    AllowDht = dht,
+                    AllowPeerExchange = pex,
+                };
+                await manager.UpdateSettingsAsync(tb.ToSettings()).ConfigureAwait(false);
+            }
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(ex.Message);
+        }
+    }
 
     public Task<Result> SetSuperSeedingAsync(TorrentId id, bool enabled, CancellationToken ct = default) =>
         RunOnManagerAsync(id, async m =>

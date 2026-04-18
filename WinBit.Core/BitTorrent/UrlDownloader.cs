@@ -1,4 +1,5 @@
 using WinBit.Core.Common;
+using WinBit.Core.Networking;
 
 namespace WinBit.Core.BitTorrent;
 
@@ -12,12 +13,12 @@ public sealed class UrlDownloader
 {
     public const long DefaultMaxBytes = 20 * 1024 * 1024;
 
-    private readonly HttpClient _http;
+    private readonly IHttpClientProvider _httpProvider;
     private readonly long _maxBytes;
 
-    public UrlDownloader(HttpClient http, long maxBytes = DefaultMaxBytes)
+    public UrlDownloader(IHttpClientProvider httpProvider, long maxBytes = DefaultMaxBytes)
     {
-        _http = http;
+        _httpProvider = httpProvider;
         _maxBytes = maxBytes;
     }
 
@@ -31,7 +32,8 @@ public sealed class UrlDownloader
 
         try
         {
-            using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            var http = _httpProvider.Get();
+            using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 return Result<byte[]>.Failure($"HTTP {(int)response.StatusCode} {response.ReasonPhrase}");

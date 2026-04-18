@@ -326,6 +326,18 @@ public sealed class ShareLimitEnforcementLoopTests
         public Task<Result> SetSpeedLimitsAsync(TorrentId id, long? downloadBps, long? uploadBps, CancellationToken ct = default)
             => Task.FromResult(Result.Success());
 
+        public Task<Result> SetGlobalSpeedLimitsAsync(long downloadBps, long uploadBps, CancellationToken ct = default)
+            => Task.FromResult(Result.Success());
+
+        public Task<Result> SetPortForwardingAsync(bool enabled, CancellationToken ct = default)
+            => Task.FromResult(Result.Success());
+
+        public Task<Result> SetEncryptionModeAsync(WinBit.Core.Settings.EncryptionMode mode, CancellationToken ct = default)
+            => Task.FromResult(Result.Success());
+
+        public Task<Result> SetPeerDiscoveryAsync(bool dht, bool pex, bool lsd, CancellationToken ct = default)
+            => Task.FromResult(Result.Success());
+
         public Task<Result> SetSuperSeedingAsync(TorrentId id, bool enabled, CancellationToken ct = default)
         {
             SuperSeedingCalls.Add((id, enabled));

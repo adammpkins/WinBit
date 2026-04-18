@@ -2,8 +2,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Animation;
 using WinBit.ViewModels.Shell;
+using WinBit.Views.Logs;
+using WinBit.Views.Rss;
 using WinBit.Views.Settings;
 using WinBit.Views.Stats;
+using WinBit.Views.TorrentCreator;
 using WinBit.Views.Transfers;
 
 namespace WinBit.Views.Shell;
@@ -33,6 +36,9 @@ public sealed partial class ShellPage : Page
         {
             "transfers" => typeof(TransfersPage),
             "stats" => typeof(StatsPage),
+            "logs" => typeof(LogsPage),
+            "creator" => typeof(TorrentCreatorPage),
+            "rss" => typeof(RssReaderPage),
             "settings" => typeof(SettingsPage),
             _ => typeof(ComingSoonPage),
         };
