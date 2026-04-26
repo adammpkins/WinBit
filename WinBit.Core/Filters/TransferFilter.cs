@@ -76,7 +76,9 @@ public sealed record TransferFilter(TransferFilterKind Kind, string? Name = null
 
     private bool MatchesStatus(TransferFilterInputs inputs) => Status switch
     {
-        TransferStatus.Downloading => inputs.State == TorrentState.Downloading,
+        // Include Metadata — from the user's mental model, they clicked "download this"
+        // and the app is working on it (fetching the .torrent manifest from peers).
+        TransferStatus.Downloading => inputs.State is TorrentState.Downloading or TorrentState.Metadata,
         TransferStatus.Seeding => inputs.State == TorrentState.Seeding,
         // Completed = fully downloaded. Includes anything ≥ 100% regardless of current state so
         // paused-after-complete and actively seeding torrents both show up — matches

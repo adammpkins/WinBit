@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<TestSequence>
+  <Test Name="LibtorrentSharp.Tests.LoopbackRuntimeAlertTests.PeerAlert_fires_with_connection_directions_after_loopback_connect" DisplayName="LibtorrentSharp.Tests.LoopbackRuntimeAlertTests.PeerAlert_fires_with_connection_directions_after_loopback_connect" Source="C:\Users\adamm\Development\WinBit\libtorrentsharp\LibtorrentSharp.Tests\bin\Debug\net8.0\LibtorrentSharp.Tests.dll" Completed="False" />
+</TestSequence>

@@ -201,9 +201,8 @@ public sealed partial class AddTorrentDialog : ContentDialog
             var savePath = (SavePathCombo.Text ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(savePath))
             {
-                ShowError("Pick a save path.");
-                args.Cancel = true;
-                return;
+                savePath = _settings.Current.Downloads.DefaultSavePath
+                    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
             }
 
             var category = (CategoryCombo.SelectedItem as ComboBoxItem)?.Tag as string;

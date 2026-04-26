@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using System.Net;
 using Microsoft.Extensions.Options;
 using MonoTorrent;
 using MonoTorrent.Client;
 using MonoTorrent.Connections;
+using MonoTorrent.Dht;
 using WinBit.Core.Common;
 using WinBit.Core.Hosting;
 using WinBit.Core.Logging;
@@ -26,19 +28,33 @@ public sealed class TorrentSessionService : ITorrentSessionService
     private readonly IPeerLogService _peerLog;
     private readonly Paths _paths;
     private readonly IIpFilterService _ipFilter;
+    private readonly ISettingsService _settings;
     private readonly WinBitCoreOptions _options;
+    private readonly ICustomNameStore _customNames;
     private ClientEngine? _engine;
+    private IDhtEngine? _dhtEngine;
+    private Stopwatch? _engineClock;
+    private DhtState _lastDhtState = DhtState.NotReady;
+    private readonly Dictionary<string, string> _magnetDisplayNames = new(StringComparer.OrdinalIgnoreCase);
 
-    public TorrentSessionService(ILogService log, IPeerLogService peerLog, Paths paths, IIpFilterService ipFilter, IOptions<WinBitCoreOptions> options)
+    public TorrentSessionService(ILogService log, IPeerLogService peerLog, Paths paths, IIpFilterService ipFilter, ISettingsService settings, IOptions<WinBitCoreOptions> options, ICustomNameStore customNames)
     {
         _log = log;
         _peerLog = peerLog;
         _paths = paths;
         _ipFilter = ipFilter;
+        _settings = settings;
         _options = options.Value;
+        _customNames = customNames;
     }
 
     public bool IsRunning => _engine is not null;
+
+    public event EventHandler? DhtStateChanged;
+
+    public DhtState CurrentDhtState => _dhtEngine?.State ?? DhtState.NotReady;
+
+    public int CurrentDhtNodeCount => _dhtEngine?.NodeCount ?? 0;
 
     public IReadOnlyList<TorrentId> Torrents =>
         _engine is null
@@ -49,11 +65,11 @@ public sealed class TorrentSessionService : ITorrentSessionService
 
     public event EventHandler<IReadOnlyList<TorrentSnapshot>>? TorrentUpdated;
 
-    public Task StartAsync(CancellationToken ct = default)
+    public async Task StartAsync(CancellationToken ct = default)
     {
         if (_engine is not null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var cacheDir = Path.Combine(_paths.Root, "engine");
@@ -77,10 +93,51 @@ public sealed class TorrentSessionService : ITorrentSessionService
             builder.DhtEndPoint = new System.Net.IPEndPoint(System.Net.IPAddress.Any, _options.ListenPort);
         }
 
-        _engine = new ClientEngine(builder.ToSettings());
+        // Capture the IDhtEngine MonoTorrent constructs so we can seed PendingNodes and
+        // subscribe to StateChanged. The stock IDht wrapper exposed on ClientEngine.Dht
+        // doesn't surface Add() — this factory hook is the supported path.
+        IDhtEngine? capturedDht = null;
+        var factories = MonoTorrent.Factories.Default.WithDhtCreator(() =>
+        {
+            capturedDht = new DhtEngine();
+            return capturedDht;
+        });
+
+        _engineClock = Stopwatch.StartNew();
+        _engine = new ClientEngine(builder.ToSettings(), factories);
+        _dhtEngine = capturedDht;
+        _lastDhtState = _dhtEngine?.State ?? DhtState.NotReady;
+
+        if (_dhtEngine is not null)
+        {
+            _dhtEngine.StateChanged += OnDhtStateChanged;
+            var bootstrapNodes = _settings.Current.Advanced.DhtBootstrapNodes ?? (IReadOnlyList<string>)Array.Empty<string>();
+            await DhtBootstrapSeeder.InjectAsync(_dhtEngine, bootstrapNodes, _log, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            // DhtEndPoint not set (DHT disabled at the engine level) — no seeding path.
+            _log.Write("DHT seed: skipped (engine has no DHT endpoint)", LogSeverity.Info);
+        }
+
         _engine.ConnectionManager.BanPeer += OnBanPeerAttempt;
         _log.Write($"Torrent engine started (cache: {cacheDir}, port: {_options.ListenPort}, UPnP: {_options.AllowPortForwarding}, LPD: {_options.AllowLocalPeerDiscovery})", LogSeverity.Info);
-        return Task.CompletedTask;
+    }
+
+    private void OnDhtStateChanged(object? sender, EventArgs e)
+    {
+        if (_dhtEngine is null)
+        {
+            return;
+        }
+        var next = _dhtEngine.State;
+        var prev = _lastDhtState;
+        _lastDhtState = next;
+        var elapsed = _engineClock?.ElapsedMilliseconds ?? 0;
+        _log.Write(
+            $"DHT state: {prev} -> {next} nodes:{_dhtEngine.NodeCount} t+{elapsed}ms",
+            LogSeverity.Info);
+        DhtStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnBanPeerAttempt(object? sender, AttemptConnectionEventArgs args)
@@ -124,6 +181,11 @@ public sealed class TorrentSessionService : ITorrentSessionService
             {
                 var link = MagnetLink.Parse(parameters.Source);
                 manager = await _engine.AddAsync(link, parameters.SavePath).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(link.Name))
+                {
+                    var key = (manager.InfoHashes.V1 ?? manager.InfoHashes.V2)!.ToHex();
+                    _magnetDisplayNames[key] = link.Name;
+                }
             }
             else if (File.Exists(parameters.Source))
             {
@@ -193,6 +255,8 @@ public sealed class TorrentSessionService : ITorrentSessionService
         try
         {
             await _engine.RemoveAsync(manager, mode).ConfigureAwait(false);
+            _magnetDisplayNames.Remove(id.Value);
+            await _customNames.RemoveNameAsync(id).ConfigureAwait(false);
             return Result.Success();
         }
         catch (Exception ex)
@@ -226,7 +290,32 @@ public sealed class TorrentSessionService : ITorrentSessionService
 
     public string? GetSavePath(TorrentId id) => FindManager(id)?.SavePath;
 
-    public string? GetName(TorrentId id) => FindManager(id)?.Torrent?.Name;
+    public string? GetName(TorrentId id)
+    {
+        var custom = _customNames.GetName(id);
+        if (custom is not null)
+        {
+            return custom;
+        }
+
+        var manager = FindManager(id);
+        if (manager?.Torrent?.Name is { } metadataName)
+        {
+            return metadataName;
+        }
+        return _magnetDisplayNames.TryGetValue(id.Value, out var magnetName) ? magnetName : null;
+    }
+
+    public async Task<Result> SetNameAsync(TorrentId id, string name, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return Result.Failure("Name must not be empty.");
+        }
+
+        await _customNames.SetNameAsync(id, name.Trim(), ct).ConfigureAwait(false);
+        return Result.Success();
+    }
 
     public IReadOnlyList<string> GetTrackerHosts(TorrentId id)
     {
@@ -434,6 +523,35 @@ public sealed class TorrentSessionService : ITorrentSessionService
             await m.UpdateSettingsAsync(builder.ToSettings()).ConfigureAwait(false);
         });
 
+    public async Task<IReadOnlyList<PeerInfo>> GetPeersAsync(TorrentId id, CancellationToken ct = default)
+    {
+        var manager = FindManager(id);
+        if (manager is null)
+        {
+            return Array.Empty<PeerInfo>();
+        }
+
+        var peerIds = await manager.GetPeersAsync().ConfigureAwait(false);
+        return peerIds
+            .Select(p => new PeerInfo
+            {
+                Address = p.Uri is { } uri
+                    ? $"{uri.Host}:{uri.Port}"
+                    : "?",
+                // MonoTorrent 3.x reports the detected client application via a value type.
+                Client = p.ClientApp.ShortId is { Length: > 0 } s ? s : null,
+                Progress = p.BitField.PercentComplete / 100.0,
+                DownloadSpeedBps = p.Monitor.DownloadRate,
+                UploadSpeedBps = p.Monitor.UploadRate,
+                IsSeeder = p.IsSeeder,
+                IsEncrypted = p.EncryptionType != MonoTorrent.Connections.EncryptionType.PlainText,
+            })
+            .ToList();
+    }
+
+    public Task<IReadOnlyList<TrackerInfo>> GetTrackersAsync(TorrentId id, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<TrackerInfo>>(Array.Empty<TrackerInfo>());
+
     private TorrentManager? FindManager(TorrentId id) =>
         _engine?.Torrents.FirstOrDefault(m =>
             string.Equals((m.InfoHashes.V1 ?? m.InfoHashes.V2)!.ToHex(), id.Value, StringComparison.OrdinalIgnoreCase));
@@ -514,7 +632,9 @@ public sealed class TorrentSessionService : ITorrentSessionService
             ? string.Join(", ", eps.Select(kvp => $"{kvp.Key}={kvp.Value}"))
             : "(none)";
 
-        _log.Write($"Engine diag — listen:{listen} torrents:{_engine.Torrents.Count}", LogSeverity.Info);
+        _log.Write(
+            $"Engine diag — listen:{listen} dht:{_engine.Dht.State} nodes:{_engine.Dht.NodeCount} torrents:{_engine.Torrents.Count}",
+            LogSeverity.Info);
 
         foreach (var manager in _engine.Torrents)
         {
@@ -536,7 +656,8 @@ public sealed class TorrentSessionService : ITorrentSessionService
             _log.Write(
                 $"  {hash} state:{manager.State} seeds:{manager.Peers.Seeds} leeches:{manager.Peers.Leechs} "
                 + $"progress:{manager.Progress:0.0}% trackers:{workingTrackers}/{trackerCount} "
-                + $"open:{manager.OpenConnections} available:{manager.Peers.Available}",
+                + $"open:{manager.OpenConnections} available:{manager.Peers.Available} "
+                + $"meta:{(manager.Torrent is null ? "no" : "yes")}",
                 LogSeverity.Info);
 
             foreach (var tier in manager.TrackerManager.Tiers)
@@ -580,7 +701,7 @@ public sealed class TorrentSessionService : ITorrentSessionService
         MonoTorrent.Client.TorrentState.Seeding => TorrentState.Seeding,
         MonoTorrent.Client.TorrentState.Paused or MonoTorrent.Client.TorrentState.HashingPaused => TorrentState.Paused,
         MonoTorrent.Client.TorrentState.Hashing or MonoTorrent.Client.TorrentState.FetchingHashes => TorrentState.Checking,
-        MonoTorrent.Client.TorrentState.Metadata => TorrentState.Downloading,
+        MonoTorrent.Client.TorrentState.Metadata => TorrentState.Metadata,
         MonoTorrent.Client.TorrentState.Error => TorrentState.Error,
         MonoTorrent.Client.TorrentState.Stopped or MonoTorrent.Client.TorrentState.Stopping => TorrentState.Stopped,
         MonoTorrent.Client.TorrentState.Starting => TorrentState.Queued,
@@ -594,6 +715,11 @@ public sealed class TorrentSessionService : ITorrentSessionService
             return;
         }
 
+        if (_dhtEngine is not null)
+        {
+            _dhtEngine.StateChanged -= OnDhtStateChanged;
+        }
+
         try
         {
             await _engine.StopAllAsync().ConfigureAwait(false);
@@ -605,5 +731,7 @@ public sealed class TorrentSessionService : ITorrentSessionService
 
         _engine.Dispose();
         _engine = null;
+        _dhtEngine = null;
+        _engineClock = null;
     }
 }

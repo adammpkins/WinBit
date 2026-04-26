@@ -14,7 +14,12 @@
     CornerRadius="8"
     Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
 
-    <Grid MinWidth="640" MaxWidth="960" Height="520">
+    <ContentDialog.Resources>
+        <x:Double x:Key="ContentDialogMinWidth">560</x:Double>
+        <x:Double x:Key="ContentDialogMaxWidth">960</x:Double>
+    </ContentDialog.Resources>
+
+    <Grid Height="520">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />

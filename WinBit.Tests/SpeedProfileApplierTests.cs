@@ -79,6 +79,7 @@ public sealed class SpeedProfileApplierTests
         public Task PersistFastResumeAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task<Result<TorrentId>> AddAsync(AddTorrentParams parameters, CancellationToken ct = default)
             => throw new NotImplementedException();
+        public Task<Result> SetNameAsync(TorrentId id, string name, CancellationToken ct = default) => Task.FromResult(Result.Success());
         public Task<Result> RemoveAsync(TorrentId id, bool deleteContent = false, CancellationToken ct = default)
             => Task.FromResult(Result.Success());
         public Task<Result> PauseAsync(TorrentId id, CancellationToken ct = default) => Task.FromResult(Result.Success());
@@ -101,6 +102,10 @@ public sealed class SpeedProfileApplierTests
         public Task<Result> SetPeerDiscoveryAsync(bool dht, bool pex, bool lsd, CancellationToken ct = default)
             => Task.FromResult(Result.Success());
         public ShareLimitSnapshot? GetShareLimitSnapshot(TorrentId id) => null;
+        public Task<IReadOnlyList<PeerInfo>> GetPeersAsync(TorrentId id, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<PeerInfo>>(Array.Empty<PeerInfo>());
+        public Task<IReadOnlyList<TrackerInfo>> GetTrackersAsync(TorrentId id, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<TrackerInfo>>(Array.Empty<TrackerInfo>());
         public SessionStats GetSessionStats() => default;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

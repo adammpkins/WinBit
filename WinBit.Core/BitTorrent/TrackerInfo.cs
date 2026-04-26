@@ -13,7 +13,7 @@ public sealed record TrackerInfo
 
     public int Completed { get; init; }
 
-    public DateTime? LastAnnounceUtc { get; init; }
+    public DateTimeOffset? NextAnnounceUtc { get; init; }
 
     public string? LastError { get; init; }
 }

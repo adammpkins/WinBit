@@ -32,3 +32,7 @@ Desktop.ini
 # Local env
 .env
 .env.*
+
+# Claude Code local settings and runtime state (per-developer, not checked in)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

@@ -184,15 +184,31 @@ public sealed partial class MainWindow : Window
 
     private void ApplyThemeToRoot(ElementTheme theme)
     {
+        var log = App.Services.GetService<WinBit.Core.Logging.ILogService>();
         if (Content is FrameworkElement root)
         {
             root.RequestedTheme = theme;
+            log?.Write($"MainWindow applied theme {theme} to root (type:{root.GetType().Name})", WinBit.Core.Logging.LogSeverity.Info);
+        }
+        else
+        {
+            log?.Write($"MainWindow received theme {theme} but Content is not a FrameworkElement (type:{Content?.GetType().FullName ?? "null"})", WinBit.Core.Logging.LogSeverity.Warning);
         }
     }
 
     private async void OnAddTorrentClicked(object sender, RoutedEventArgs e)
     {
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+
+        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        picker.FileTypeFilter.Add(".torrent");
+        var file = await picker.PickSingleFileAsync();
+        if (file is null)
+        {
+            return;
+        }
+
         var dialog = new AddTorrentDialog(
             App.Services.GetRequiredService<ITorrentSessionService>(),
             App.Services.GetRequiredService<ISettingsService>(),
@@ -203,6 +219,7 @@ public sealed partial class MainWindow : Window
         {
             XamlRoot = Content.XamlRoot,
         };
+        await dialog.PreloadTorrentAsync(file.Path);
         await dialog.ShowAsync();
     }
 

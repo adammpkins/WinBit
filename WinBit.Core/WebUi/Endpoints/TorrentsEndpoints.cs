@@ -236,6 +236,7 @@ public static class TorrentsEndpoints
         TorrentState.Paused => "pausedDL",
         TorrentState.Checking => "checkingDL",
         TorrentState.Queued => "queuedDL",
+        TorrentState.Metadata => "metaDL",
         TorrentState.Downloading => "downloading",
         TorrentState.Seeding => "uploading",
         TorrentState.Stalled => "stalledDL",

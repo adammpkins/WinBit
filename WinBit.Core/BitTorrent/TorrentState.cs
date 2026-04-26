@@ -10,6 +10,9 @@ public enum TorrentState
     Paused,
     Checking,
     Queued,
+    // Magnet add: fetching the .torrent manifest from peers via BEP 9 ut_metadata.
+    // Progress is 0 in this phase because there is no piece layout yet.
+    Metadata,
     Downloading,
     Seeding,
     Stalled,

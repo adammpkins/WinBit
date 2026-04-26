@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>LibtorrentSharp</RootNamespace>
+    <AssemblyName>LibtorrentSharp</AssemblyName>
+
+    <!-- Vendored from csdl, which predates nullable-ref-types and uses pointer marshalling.
+         Keep these csproj-local overrides until the binding is polished. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <!-- CA2255: ModuleInitializer is used deliberately to self-register the native
+         library resolver so consumers don't need any setup code. -->
+    <NoWarn>$(NoWarn);CS3021;CS1574;CS0419;CA2255</NoWarn>
+
+    <IsPackable>true</IsPackable>
+    <PackageId>LibtorrentSharp</PackageId>
+    <Description>.NET binding for libtorrent-rasterbar.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/adampmcdev/winbit</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/adampmcdev/winbit/tree/main/libtorrentsharp</PackageProjectUrl>
+    <PackageTags>bittorrent;libtorrent;torrent;p2p;networking</PackageTags>
+
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="..\NOTICE" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="runtimes\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <Pack>true</Pack>
+      <PackagePath>runtimes</PackagePath>
+    </Content>
+  </ItemGroup>
+
+</Project>

@@ -58,15 +58,24 @@
             <tv:TableView x:Name="TransfersGrid"
                       Grid.Row="0"
                       ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}"
+                      SelectedItem="{x:Bind ViewModel.SelectedTorrentRow, Mode=TwoWay}"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
                       SelectionMode="Extended"
                       CornerRadius="4"
                       AlternateRowBackground="{ThemeResource LayerFillColorAltBrush}"
                       Background="Transparent"
-                      Padding="16,12,16,16">
+                      Padding="16,12,16,16"
+                      RightTapped="OnTransfersGridRightTapped">
                 <tv:TableView.ContextFlyout>
-                    <MenuFlyout>
+                    <MenuFlyout Opening="OnContextMenuOpening">
+                        <MenuFlyoutItem x:Name="RenameMenuItem" Text="Rename" Click="OnRenameClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AC;" /></MenuFlyoutItem.Icon>
+                            <MenuFlyoutItem.KeyboardAccelerators>
+                                <KeyboardAccelerator Key="F2" />
+                            </MenuFlyoutItem.KeyboardAccelerators>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
                         <MenuFlyoutItem Text="Resume" Click="OnResumeClicked">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE768;" /></MenuFlyoutItem.Icon>
                             <MenuFlyoutItem.KeyboardAccelerators>
@@ -185,24 +194,71 @@
                     </ScrollViewer>
                 </PivotItem>
                 <PivotItem Header="Trackers">
-                    <StackPanel Spacing="6" Padding="0,8" MaxWidth="720" HorizontalAlignment="Left">
-                        <TextBlock Text="Trackers"
-                                   Style="{ThemeResource SubtitleTextBlockStyle}" />
-                        <TextBlock Text="Announce URLs with seeds/leeches/last error — rendered once the per-tab trackers poll lands (3 s while tab is visible)."
-                                   Style="{ThemeResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
+                    <tv:TableView
+                        ItemsSource="{x:Bind ViewModel.Properties.Trackers, Mode=OneWay}"
+                        SelectionMode="Single"
+                        IsReadOnly="True"
+                        AutoGenerateColumns="False">
+                        <tv:TableView.Columns>
+                            <tv:TableViewTextColumn Header="URL"
+                                                    Binding="{Binding Url}"
+                                                    MinWidth="200" />
+                            <tv:TableViewTextColumn Header="Status"
+                                                    Binding="{Binding StatusDisplay}"
+                                                    MinWidth="100" />
+                            <tv:TableViewTextColumn Header="Seeds"
+                                                    Binding="{Binding SeedsDisplay}"
+                                                    MinWidth="65" />
+                            <tv:TableViewTextColumn Header="Leeches"
+                                                    Binding="{Binding LeechesDisplay}"
+                                                    MinWidth="65" />
+                            <tv:TableViewTextColumn Header="Downloaded"
+                                                    Binding="{Binding CompletedDisplay}"
+                                                    MinWidth="85" />
+                            <tv:TableViewTextColumn Header="Next Announce"
+                                                    Binding="{Binding NextAnnounceDisplay}"
+                                                    MinWidth="115" />
+                            <tv:TableViewTextColumn Header="Message"
+                                                    Binding="{Binding LastError}"
+                                                    MinWidth="120" />
+                        </tv:TableView.Columns>
+                    </tv:TableView>
                 </PivotItem>
                 <PivotItem Header="Peers">
-                    <StackPanel Spacing="6" Padding="0,8" MaxWidth="720" HorizontalAlignment="Left">
-                        <TextBlock Text="Peers"
-                                   Style="{ThemeResource SubtitleTextBlockStyle}" />
-                        <TextBlock Text="Connected peer list (endpoint, client, progress, speeds) — populated by the 3 s per-tab peers poll."
-                                   Style="{ThemeResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
+                    <tv:TableView
+                        ItemsSource="{x:Bind ViewModel.Properties.Peers, Mode=OneWay}"
+                        SelectionMode="Single"
+                        IsReadOnly="True"
+                        AutoGenerateColumns="False">
+                        <tv:TableView.Columns>
+                            <tv:TableViewTextColumn Header="IP / Port"
+                                                    Binding="{Binding Address}"
+                                                    MinWidth="140" />
+                            <tv:TableViewTextColumn Header="Client"
+                                                    Binding="{Binding Client}"
+                                                    MinWidth="160" />
+                            <tv:TableViewTextColumn Header="Flags"
+                                                    Binding="{Binding Flags}"
+                                                    MinWidth="60" />
+                            <tv:TableViewTemplateColumn Header="Progress"
+                                                        MinWidth="100">
+                                <tv:TableViewTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="vm:PeerRowViewModel">
+                                        <ProgressBar Value="{x:Bind Progress, Mode=OneWay}"
+                                                     Minimum="0" Maximum="1"
+                                                     Width="80"
+                                                     VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </tv:TableViewTemplateColumn.CellTemplate>
+                            </tv:TableViewTemplateColumn>
+                            <tv:TableViewTextColumn Header="Down"
+                                                    Binding="{Binding DownloadText}"
+                                                    MinWidth="90" />
+                            <tv:TableViewTextColumn Header="Up"
+                                                    Binding="{Binding UploadText}"
+                                                    MinWidth="90" />
+                        </tv:TableView.Columns>
+                    </tv:TableView>
                 </PivotItem>
                 <PivotItem Header="Content">
                     <StackPanel Spacing="6" Padding="0,8" MaxWidth="720" HorizontalAlignment="Left">

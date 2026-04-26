@@ -20,4 +20,14 @@
     <Platform Solution="*|x64" Project="AnyCPU" />
     <Platform Solution="*|x86" Project="AnyCPU" />
   </Project>
+  <Project Path="libtorrentsharp/LibtorrentSharp/LibtorrentSharp.csproj">
+    <Platform Solution="*|ARM64" Project="AnyCPU" />
+    <Platform Solution="*|x64" Project="AnyCPU" />
+    <Platform Solution="*|x86" Project="AnyCPU" />
+  </Project>
+  <Project Path="libtorrentsharp/LibtorrentSharp.Tests/LibtorrentSharp.Tests.csproj">
+    <Platform Solution="*|ARM64" Project="AnyCPU" />
+    <Platform Solution="*|x64" Project="AnyCPU" />
+    <Platform Solution="*|x86" Project="AnyCPU" />
+  </Project>
 </Solution>

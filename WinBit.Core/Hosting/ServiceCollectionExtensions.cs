@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using WinBit.Core.BitTorrent;
 using WinBit.Core.Categories;
+using WinBit.Core.Threading;
 using WinBit.Core.Logging;
 using WinBit.Core.Networking;
 using WinBit.Core.Notifications;
@@ -36,7 +37,14 @@ public static class ServiceCollectionExtensions
         }
 
         services.AddSingleton<Paths>();
+        services.AddSingleton<ICustomNameStore, JsonCustomNameStore>();
+        // Default to inline dispatch so headless contexts (tests, Web UI) work with no extra
+        // setup. The WinBit app replaces this with a Microsoft.UI.Dispatching-backed
+        // implementation in Bootstrap.AddWinBitApp; last registration wins.
+        services.AddSingleton<IDispatcherQueueProvider, InlineDispatcherQueueProvider>();
         services.AddSingleton<ILogService, LogService>();
+        services.AddHostedService<FileLogSink>();
+        services.AddHostedService<BitTorrent.DhtNetworkProbe>();
         services.AddSingleton<IPeerLogService, PeerLogService>();
         services.AddSingleton<ISettingsStore, JsonSettingsStore>();
         services.AddSingleton<ISettingsService, SettingsService>();
@@ -50,7 +58,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IHttpClientProvider, HttpClientProvider>();
         services.AddSingleton<UrlDownloader>();
         services.AddSingleton<IIpFilterService, IpFilterService>();
-        services.AddSingleton<ITorrentSessionService, TorrentSessionService>();
+        services.AddSingleton<TorrentSessionService>();
+        services.AddSingleton<LibTorrentSessionService>();
+        services.AddSingleton<ITorrentSessionService>(sp =>
+        {
+            // Dev-only toggle. Default path is MonoTorrent; the libtorrent adapter is a
+            // skeleton today and the flag stays off on main until the adapter ships.
+            var settings = sp.GetRequiredService<ISettingsService>();
+            return settings.Current.Advanced.UseLibtorrentEngine
+                ? sp.GetRequiredService<LibTorrentSessionService>()
+                : sp.GetRequiredService<TorrentSessionService>();
+        });
         services.AddSingleton<ITorrentCreatorService, TorrentCreatorService>();
         services.AddSingleton<ITorrentCreatorQueue, TorrentCreatorQueue>();
         services.AddSingleton<IRssService, RssService>();
@@ -93,13 +111,9 @@ public static class ServiceCollectionExtensions
         if (OperatingSystem.IsWindows())
         {
             services.AddSingleton<IAssociationRegistryWriter, Win32AssociationRegistryWriter>();
-            services.AddSingleton<IShellAssociationService>(sp =>
-            {
-                var writer = sp.GetRequiredService<IAssociationRegistryWriter>();
-                var exe = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
-                    ?? throw new InvalidOperationException("Cannot determine current executable path.");
-                return new ShellAssociationService(writer, exe);
-            });
+            // The concrete IShellAssociationService is registered from the app layer so it can
+            // pass through packaged-mode detection and the UI-thread URI launcher, both of
+            // which depend on WinRT types that WinBit.Core (net8.0) can't reference.
         }
 
         services.AddSingleton<ISearchPluginHost>(sp =>

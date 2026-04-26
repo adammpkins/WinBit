@@ -1,0 +1,16 @@
+{
+  "name": "libtorrentsharp-native",
+  "version-string": "0.1.0-dev",
+  "description": "Native C ABI over libtorrent-rasterbar for LibtorrentSharp.",
+  "builtin-baseline": "5e6578b62d9e4ac5a563e816802a56818540cd2e",
+  "dependencies": [
+    {
+      "name": "libtorrent",
+      "version>=": "2.0.11"
+    },
+    {
+      "name": "magic-enum",
+      "version>=": "0.9.7"
+    }
+  ]
+}

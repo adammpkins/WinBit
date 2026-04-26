@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.Data.Sqlite;
 using WinBit.Core.Common;
+using WinBit.Core.Logging;
 
 namespace WinBit.Core.Persistence;
 
@@ -19,8 +20,9 @@ public sealed class SqliteTorrentStateStore : ITorrentStateStore, IAsyncDisposab
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly Lazy<Task> _initTask;
     private SqliteConnection? _writeConnection;
+    private readonly ILogService _log;
 
-    public SqliteTorrentStateStore(Paths paths)
+    public SqliteTorrentStateStore(Paths paths, ILogService log)
     {
         _connectionString = new SqliteConnectionStringBuilder
         {
@@ -30,6 +32,7 @@ public sealed class SqliteTorrentStateStore : ITorrentStateStore, IAsyncDisposab
         }.ConnectionString;
 
         _initTask = new Lazy<Task>(InitializeInternalAsync, LazyThreadSafetyMode.ExecutionAndPublication);
+        _log = log;
     }
 
     /// <summary>Opens the database (WAL mode, pragmas, migrations). Safe to call repeatedly.</summary>

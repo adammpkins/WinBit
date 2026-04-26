@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using WinBit.Core.Hosting;
+using WinBit.Core.Logging;
 using WinBit.Core.Persistence;
 using WinBit.Tests.Helpers;
 using Xunit;
@@ -16,7 +17,7 @@ public sealed class SqliteStoreTests
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
 
-        await using var store = new SqliteTorrentStateStore(paths);
+        await using var store = new SqliteTorrentStateStore(paths, new LogService());
 
         var journalMode = await store.ExecuteReadAsync(async (conn, ct) =>
         {
@@ -34,7 +35,7 @@ public sealed class SqliteStoreTests
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
 
-        await using var store = new SqliteTorrentStateStore(paths);
+        await using var store = new SqliteTorrentStateStore(paths, new LogService());
         await store.InitializeAsync();
 
         File.Exists(paths.StateDatabase).Should().BeTrue();
@@ -70,12 +71,12 @@ public sealed class SqliteStoreTests
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
 
-        await using (var store = new SqliteTorrentStateStore(paths))
+        await using (var store = new SqliteTorrentStateStore(paths, new LogService()))
         {
             await store.InitializeAsync();
         }
 
-        await using var reopened = new SqliteTorrentStateStore(paths);
+        await using var reopened = new SqliteTorrentStateStore(paths, new LogService());
         var version = await reopened.ExecuteReadAsync(async (conn, ct) =>
         {
             await using var cmd = conn.CreateCommand();
@@ -92,7 +93,7 @@ public sealed class SqliteStoreTests
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
 
-        await using var store = new SqliteTorrentStateStore(paths);
+        await using var store = new SqliteTorrentStateStore(paths, new LogService());
 
         async Task UpsertAsync(string infoHash, string name, string savePath) =>
             await store.ExecuteWriteAsync(async (conn, ct) =>
@@ -154,7 +155,7 @@ public sealed class SqliteStoreTests
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
 
-        await using var store = new SqliteTorrentStateStore(paths);
+        await using var store = new SqliteTorrentStateStore(paths, new LogService());
 
         async Task UpsertAsync(int n) =>
             await store.ExecuteWriteAsync(async (conn, ct) =>
@@ -184,7 +185,7 @@ public sealed class SqliteStoreTests
     {
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
-        await using var store = new SqliteTorrentStateStore(paths);
+        await using var store = new SqliteTorrentStateStore(paths, new LogService());
 
         var id = WinBit.Core.Common.TorrentId.FromInfoHash("a".PadRight(40, '0'));
         await ((ITorrentStateStore)store).UpsertTorrentAsync(new TorrentStateRecord
@@ -207,7 +208,7 @@ public sealed class SqliteStoreTests
     {
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
-        await using var store = new SqliteTorrentStateStore(paths);
+        await using var store = new SqliteTorrentStateStore(paths, new LogService());
 
         var id = WinBit.Core.Common.TorrentId.FromInfoHash("b".PadRight(40, '0'));
         await ((ITorrentStateStore)store).UpsertTorrentAsync(new TorrentStateRecord
@@ -228,7 +229,7 @@ public sealed class SqliteStoreTests
     {
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
-        await using var store = new SqliteTorrentStateStore(paths);
+        await using var store = new SqliteTorrentStateStore(paths, new LogService());
 
         var missing = await ((ITorrentStateStore)store).LoadFastResumeAsync(
             WinBit.Core.Common.TorrentId.FromInfoHash("c".PadRight(40, '0')),
@@ -241,7 +242,7 @@ public sealed class SqliteStoreTests
     {
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
-        await using var store = new SqliteTorrentStateStore(paths);
+        await using var store = new SqliteTorrentStateStore(paths, new LogService());
 
         var a = WinBit.Core.Common.TorrentId.FromInfoHash("aa".PadRight(40, '0'));
         var b = WinBit.Core.Common.TorrentId.FromInfoHash("bb".PadRight(40, '0'));
@@ -267,7 +268,7 @@ public sealed class SqliteStoreTests
         // proves the "no re-check" path.
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
-        await using var store = new SqliteTorrentStateStore(paths);
+        await using var store = new SqliteTorrentStateStore(paths, new LogService());
 
         var sha1 = new byte[20];
         new Random(42).NextBytes(sha1);
@@ -305,7 +306,7 @@ public sealed class SqliteStoreTests
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
 
-        await using var store = new SqliteTorrentStateStore(paths);
+        await using var store = new SqliteTorrentStateStore(paths, new LogService());
 
         async Task InsertAsync(int id) =>
             await store.ExecuteWriteAsync(async (conn, ct) =>

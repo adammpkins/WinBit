@@ -6,12 +6,13 @@
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   xmlns:systemai="http://schemas.microsoft.com/appx/manifest/systemai/windows10"
-  IgnorableNamespaces="uap rescap systemai">
+  xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
+  IgnorableNamespaces="uap rescap systemai desktop2">
 
   <Identity
     Name="a0cad295-f80d-4e90-a69c-81963a583a9f"
     Publisher="CN=adamm"
-    Version="1.0.0.0" />
+    Version="1.0.0.6" />
 
   <mp:PhoneIdentity PhoneProductId="a0cad295-f80d-4e90-a69c-81963a583a9f" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
@@ -43,8 +44,35 @@
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
+      <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="torrent">
+            <uap:DisplayName>BitTorrent file</uap:DisplayName>
+            <uap:Logo>Assets\Square44x44Logo.png</uap:Logo>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.torrent</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="magnet">
+            <uap:DisplayName>magnet link</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+      </Extensions>
     </Application>
   </Applications>
+
+  <Extensions>
+    <desktop2:Extension Category="windows.firewallRules">
+      <desktop2:FirewallRules Executable="WinBit.exe">
+        <desktop2:Rule Direction="in" IPProtocol="TCP" Profile="all"/>
+        <desktop2:Rule Direction="out" IPProtocol="TCP" Profile="all"/>
+        <desktop2:Rule Direction="in" IPProtocol="UDP" Profile="all"/>
+        <desktop2:Rule Direction="out" IPProtocol="UDP" Profile="all"/>
+      </desktop2:FirewallRules>
+    </desktop2:Extension>
+  </Extensions>
 
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />

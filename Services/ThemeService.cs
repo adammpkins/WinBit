@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using WinBit.Core.Logging;
 using WinBit.Core.Settings;
 
 namespace WinBit.Services;
@@ -15,8 +16,13 @@ public sealed class ThemeService : IThemeService
     private const string DarkLabel = "Dark";
 
     private readonly ISettingsService _settings;
+    private readonly ILogService _log;
 
-    public ThemeService(ISettingsService settings) => _settings = settings;
+    public ThemeService(ISettingsService settings, ILogService log)
+    {
+        _settings = settings;
+        _log = log;
+    }
 
     public ElementTheme CurrentTheme { get; private set; } = ElementTheme.Default;
 
@@ -37,9 +43,12 @@ public sealed class ThemeService : IThemeService
     {
         if (CurrentTheme == theme)
         {
+            _log.Write($"Theme apply skipped — already {theme}", LogSeverity.Info);
             return;
         }
 
+        var subs = ThemeChanged?.GetInvocationList().Length ?? 0;
+        _log.Write($"Theme apply: {CurrentTheme} → {theme} (subscribers:{subs})", LogSeverity.Info);
         CurrentTheme = theme;
         ThemeChanged?.Invoke(this, theme);
 

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using WinBit.Core.Hosting;
+using WinBit.Core.Logging;
 using WinBit.Core.Persistence;
 using WinBit.Core.Rss;
 using WinBit.Tests.Helpers;
@@ -75,6 +76,6 @@ public sealed class SqliteRssReadStoreTests
     private static SqliteTorrentStateStore MakeStore(TempDirectory temp)
     {
         var opts = Options.Create(new WinBitCoreOptions { DataRoot = temp.Path });
-        return new SqliteTorrentStateStore(new Paths(opts));
+        return new SqliteTorrentStateStore(new Paths(opts), new LogService());
     }
 }

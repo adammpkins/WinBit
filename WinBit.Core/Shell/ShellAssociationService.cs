@@ -15,15 +15,36 @@ public sealed class ShellAssociationService : IShellAssociationService
 
     private readonly IAssociationRegistryWriter _writer;
     private readonly string _executablePath;
+    private readonly bool _isPackaged;
+    private readonly Func<CancellationToken, Task>? _openDefaultAppsSettings;
 
     public ShellAssociationService(IAssociationRegistryWriter writer, string executablePath)
+        : this(writer, executablePath, isPackaged: false, openDefaultAppsSettings: null)
+    {
+    }
+
+    public ShellAssociationService(
+        IAssociationRegistryWriter writer,
+        string executablePath,
+        bool isPackaged,
+        Func<CancellationToken, Task>? openDefaultAppsSettings)
     {
         _writer = writer;
         _executablePath = executablePath;
+        _isPackaged = isPackaged;
+        _openDefaultAppsSettings = openDefaultAppsSettings;
     }
 
     public ShellAssociationStatus GetStatus()
     {
+        // MSIX-packaged builds register associations through the appxmanifest at install time,
+        // not by writing to HKCU\Software\Classes. The HKCU entries this service checks would
+        // always read as empty under a packaged container, so we trust the manifest instead.
+        if (_isPackaged)
+        {
+            return new ShellAssociationStatus(true, true);
+        }
+
         var torrent = string.Equals(
             _writer.ReadClassDefault(TorrentExtension),
             TorrentProgId,
@@ -35,8 +56,20 @@ public sealed class ShellAssociationService : IShellAssociationService
         return new ShellAssociationStatus(torrent, magnet);
     }
 
-    public Task RegisterAsync(bool torrent, bool magnet, CancellationToken ct = default)
+    public async Task RegisterAsync(bool torrent, bool magnet, CancellationToken ct = default)
     {
+        if (_isPackaged)
+        {
+            // Programmatic registration is a no-op for MSIX — Windows pulls associations from
+            // the manifest at install time. The best we can do is route the user to the
+            // Default apps page so they can pick WinBit as the default handler.
+            if (_openDefaultAppsSettings is not null)
+            {
+                await _openDefaultAppsSettings(ct).ConfigureAwait(false);
+            }
+            return;
+        }
+
         if (torrent)
         {
             WriteTorrentHandler();
@@ -45,11 +78,16 @@ public sealed class ShellAssociationService : IShellAssociationService
         {
             WriteMagnetHandler();
         }
-        return Task.CompletedTask;
     }
 
     public Task UnregisterAsync(bool torrent, bool magnet, CancellationToken ct = default)
     {
+        if (_isPackaged)
+        {
+            // Can't remove manifest-declared associations from within the app.
+            return Task.CompletedTask;
+        }
+
         if (torrent)
         {
             _writer.DeleteClassKey(TorrentExtension);

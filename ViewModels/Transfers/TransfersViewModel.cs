@@ -27,6 +27,8 @@ public sealed partial class TransfersViewModel : ObservableObject
     private readonly ObservableCollection<TransferRowViewModel> _rows = new();
     private readonly Dictionary<TorrentId, TransferRowViewModel> _rowsById = new();
 
+    public TorrentPropertiesViewModel Properties { get; }
+
     public AdvancedCollectionView Rows { get; }
 
     [ObservableProperty]
@@ -47,6 +49,12 @@ public sealed partial class TransfersViewModel : ObservableObject
     [ObservableProperty]
     private TransferFilter selectedFilter = TransferFilter.All;
 
+    [ObservableProperty]
+    private object? selectedTorrentRow;
+
+    partial void OnSelectedTorrentRowChanged(object? value) =>
+        Properties.SetSelectedTorrent((value as TransferRowViewModel)?.Id);
+
     public TransfersViewModel(
         ITorrentSessionService session,
         IDispatcherQueueProvider dispatcher,
@@ -57,6 +65,8 @@ public sealed partial class TransfersViewModel : ObservableObject
         _dispatcher = dispatcher;
         _categories = categories;
         _tags = tags;
+
+        Properties = new TorrentPropertiesViewModel(session, dispatcher);
 
         Rows = new AdvancedCollectionView(_rows, isLiveShaping: true)
         {

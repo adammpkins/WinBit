@@ -69,12 +69,15 @@ public sealed class TorrentCompletionNotifier : IHostedService
             return;
         }
 
-        foreach (var id in justCompleted)
+        _ = Task.Run(async () =>
         {
-            var name = _session.GetName(id) ?? id.ToString();
-            var savePath = _session.GetSavePath(id) ?? string.Empty;
-            _ = FireAsync(name, savePath);
-        }
+            foreach (var id in justCompleted)
+            {
+                var name = _session.GetName(id) ?? id.ToString();
+                var savePath = _session.GetSavePath(id) ?? string.Empty;
+                await FireAsync(name, savePath);
+            }
+        });
     }
 
     private async Task FireAsync(string name, string savePath)

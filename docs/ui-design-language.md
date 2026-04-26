@@ -31,7 +31,7 @@ The concrete rules behind "modern and beautiful."
 - **Settings:** `SettingsCard` / `SettingsExpander` from `CommunityToolkit.WinUI.Controls`. Every toggle, slider, combo, picker lives inside one — no bare labels.
 - **Transfer list:** CommunityToolkit DataGrid in M4 with heavy restyling (custom header, row hover, selection accent tint, inline Win2D progress). Revisit in M12 for a bespoke `ItemsRepeater` layout if the generic look holds us back.
 - **Buttons:** Primary actions use accent fill. Secondary use outline. No flat text buttons except in nav flyouts.
-- **Dialogs:** `ContentDialog` with acrylic backdrop. Minimum 70% of window for editor dialogs (Add-Torrent). No narrow modal strips.
+- **Dialogs:** `ContentDialog` with acrylic backdrop. Minimum 70% of window for editor dialogs (Add-Torrent). No narrow modal strips. Size via `ContentDialogMinWidth` / `ContentDialogMaxWidth` resource keys — **never** `MinWidth` on the inner Grid (that fights the dialog's clip boundary and pushes buttons off-screen). See [WinUI control gotchas](#winui-control-gotchas) below.
 - **Chips:** Tags, trackers, and states render as pills — rounded 12–24 px, theme-background, inline icon optional.
 - **Progress:** Inline bars use `AccentFillColorDefaultBrush`, 6 px height, 3 px radius. Paused/errored states use subdued or error brushes.
 
@@ -62,6 +62,45 @@ Illustrations live in `WinBit/Assets/EmptyStates/` and are theme-aware SVGs (exp
 - WCAG AA contrast in both themes — verified per-resource, not ad hoc.
 - Grid rows are keyboard-navigable with arrow keys; Enter opens properties.
 - Narrator announces state changes (download completed, error).
+
+## WinUI control gotchas
+
+Hard-won patterns — read these before touching the relevant controls.
+
+### ContentDialog width
+
+Size via **resource keys** on the `ContentDialog`, not `MinWidth` on the inner `Grid`. `MinWidth` on the content overflows the dialog's own clip boundary and pushes buttons off the right edge.
+
+```xml
+<ContentDialog>
+    <ContentDialog.Resources>
+        <x:Double x:Key="ContentDialogMinWidth">560</x:Double>
+        <x:Double x:Key="ContentDialogMaxWidth">960</x:Double>
+    </ContentDialog.Resources>
+    <Grid Height="520">...</Grid>
+</ContentDialog>
+```
+
+### WinUI.TableView — detecting a left-click on a row
+
+`Tapped="..."` in XAML and standard `+=` subscriptions do **not** fire on the first left-click. WinUI.TableView marks `Tapped` as `Handled` in its internal cell-selection code before the event bubbles. The second click of a double-click reaches the handler because the cell is already focused. Two-way `{x:Bind}` on `SelectedItem` also does not fire reliably.
+
+**Fix:** use `AddHandler` with `handledEventsToo: true` in `OnLoaded`, and cache the delegate as a field so `RemoveHandler` in `OnUnloaded` matches it exactly:
+
+```csharp
+private readonly TappedEventHandler _gridTappedHandler;
+
+// ctor:
+_gridTappedHandler = new TappedEventHandler(OnGridTapped);
+
+// OnLoaded:
+Grid.AddHandler(UIElement.TappedEvent, _gridTappedHandler, handledEventsToo: true);
+
+// OnUnloaded:
+Grid.RemoveHandler(UIElement.TappedEvent, _gridTappedHandler);
+```
+
+Do **not** also put `Tapped="..."` in XAML — the XAML version won't receive handled events and fires redundantly on double-click.
 
 ## Anti-patterns (don't)
 

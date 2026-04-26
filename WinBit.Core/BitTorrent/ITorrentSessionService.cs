@@ -1,3 +1,4 @@
+using MonoTorrent.Dht;
 using WinBit.Core.Common;
 using WinBit.Core.Sharing;
 
@@ -13,6 +14,26 @@ public interface ITorrentSessionService : IAsyncDisposable
     Task StopAsync(CancellationToken ct = default);
 
     IReadOnlyList<TorrentId> Torrents { get; }
+
+    /// <summary>
+    /// Raised on every transition of MonoTorrent's DHT engine state (NotReady → Initialising
+    /// → Ready and back). Used by diagnostic tooling (<c>DhtNetworkProbe</c>) to time its
+    /// loopback probe so the engine's UDP listener is actually bound when the probe fires.
+    /// Equivalent to <c>IDhtEngine.StateChanged</c> re-raised from this service. Null-safe:
+    /// no events fire while the engine isn't running. Default implementation is a no-op so
+    /// test stubs that don't exercise DHT don't need to wire this up.
+    /// </summary>
+    event EventHandler? DhtStateChanged
+    {
+        add { }
+        remove { }
+    }
+
+    /// <summary>Current DHT state; <c>NotReady</c> when the engine hasn't started.</summary>
+    DhtState CurrentDhtState => DhtState.NotReady;
+
+    /// <summary>Current DHT routing-table node count; <c>0</c> when the engine hasn't started.</summary>
+    int CurrentDhtNodeCount => 0;
 
     /// <summary>
     /// Raised once per <c>StatusPollingLoop</c> tick with a batch of snapshots for every active
@@ -55,6 +76,12 @@ public interface ITorrentSessionService : IAsyncDisposable
     /// </summary>
     Task<Result> RemoveAsync(TorrentId id, bool deleteContent = false, CancellationToken ct = default);
 
+    /// <summary>
+    /// Persists a user-assigned display name for the torrent. Empty or whitespace names are
+    /// rejected. The new name surfaces on the next polling tick without any explicit refresh.
+    /// </summary>
+    Task<Result> SetNameAsync(TorrentId id, string name, CancellationToken ct = default);
+
     /// <summary>Pauses the identified torrent (downloading/seeding → paused).</summary>
     Task<Result> PauseAsync(TorrentId id, CancellationToken ct = default);
 
@@ -82,6 +109,20 @@ public interface ITorrentSessionService : IAsyncDisposable
     /// tracker's announce URI; duplicates across tiers collapse into one entry.
     /// </summary>
     IReadOnlyList<string> GetTrackerHosts(TorrentId id);
+
+    /// <summary>
+    /// Returns a snapshot of all currently connected peers for the identified torrent.
+    /// Called at 3 s by <c>TorrentPropertiesViewModel</c> only while the Peers tab is visible.
+    /// Returns an empty list when the torrent is unknown or has no open connections.
+    /// </summary>
+    Task<IReadOnlyList<PeerInfo>> GetPeersAsync(TorrentId id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns a snapshot of all trackers for the identified torrent.
+    /// Called at 3 s by <c>TorrentPropertiesViewModel</c> only while the Trackers tab is visible.
+    /// Returns an empty list when the torrent is unknown or has no trackers.
+    /// </summary>
+    Task<IReadOnlyList<TrackerInfo>> GetTrackersAsync(TorrentId id, CancellationToken ct = default);
 
     /// <summary>Reads the torrent's current per-torrent max down/up rate (bytes/sec). Null = torrent unknown.</summary>
     (long DownloadBps, long UploadBps)? GetSpeedLimits(TorrentId id);

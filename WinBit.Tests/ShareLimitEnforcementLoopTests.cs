@@ -299,6 +299,8 @@ public sealed class ShareLimitEnforcementLoopTests
         public Task<Result<TorrentId>> AddAsync(AddTorrentParams parameters, CancellationToken ct = default)
             => throw new NotImplementedException();
 
+        public Task<Result> SetNameAsync(TorrentId id, string name, CancellationToken ct = default) => Task.FromResult(Result.Success());
+
         public Task<Result> RemoveAsync(TorrentId id, bool deleteContent = false, CancellationToken ct = default)
         {
             RemoveCalls.Add((id, deleteContent));
@@ -351,6 +353,12 @@ public sealed class ShareLimitEnforcementLoopTests
 
         public ShareLimitSnapshot? GetShareLimitSnapshot(TorrentId id)
             => Snapshots.TryGetValue(id, out var s) ? s : null;
+
+        public Task<IReadOnlyList<PeerInfo>> GetPeersAsync(TorrentId id, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<PeerInfo>>(Array.Empty<PeerInfo>());
+
+        public Task<IReadOnlyList<TrackerInfo>> GetTrackersAsync(TorrentId id, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<TrackerInfo>>(Array.Empty<TrackerInfo>());
 
         public SessionStats GetSessionStats() => default;
 

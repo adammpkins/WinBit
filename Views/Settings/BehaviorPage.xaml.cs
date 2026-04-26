@@ -19,14 +19,14 @@ public sealed partial class BehaviorPage : Page
     private readonly ISettingsService _settings;
     private readonly IShellAssociationService? _associations;
     private readonly IThemeService _themes;
-    private bool _loading;
+    private bool _loading = true;
 
     public BehaviorPage()
     {
-        InitializeComponent();
         _settings = App.Services.GetRequiredService<ISettingsService>();
         _associations = App.Services.GetService<IShellAssociationService>();
         _themes = App.Services.GetRequiredService<IThemeService>();
+        InitializeComponent();
         Loaded += OnLoaded;
     }
 
@@ -114,7 +114,7 @@ public sealed partial class BehaviorPage : Page
         AccentPaletteStack.Children.Clear();
         var current = _settings.Current.UiState.AccentColor;
 
-        AccentPaletteStack.Children.Add(BuildSwatch(null, "System", current is null));
+        AccentPaletteStack.Children.Add(BuildSwatch(null, "System default", current is null));
         foreach (var swatch in AccentPalette.Swatches)
         {
             var selected = string.Equals(current, swatch.Hex, StringComparison.OrdinalIgnoreCase);
@@ -131,9 +131,9 @@ public sealed partial class BehaviorPage : Page
             Height = 28,
             CornerRadius = new CornerRadius(14),
             BorderThickness = new Thickness(selected ? 2 : 1),
-            BorderBrush = new SolidColorBrush((Color)Application.Current.Resources["TextFillColorPrimary"]),
+            BorderBrush = new SolidColorBrush(ResolveColor("TextFillColorPrimary", Colors.Gray)),
             Background = hex is null
-                ? new SolidColorBrush((Color)Application.Current.Resources["SystemAccentColor"]) { Opacity = 0.15 }
+                ? new SolidColorBrush(ResolveColor("SystemAccentColor", Colors.SteelBlue)) { Opacity = 0.15 }
                 : new SolidColorBrush(color),
             Tag = hex,
         };
@@ -141,17 +141,33 @@ public sealed partial class BehaviorPage : Page
         border.PointerPressed += OnSwatchPressed;
         if (hex is null)
         {
-            // Render a small "Aa" glyph so the "System" swatch is distinguishable from
-            // an uncolored circle.
             border.Child = new TextBlock
             {
                 Text = "—",
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground = new SolidColorBrush((Color)Application.Current.Resources["TextFillColorSecondary"]),
+                Foreground = new SolidColorBrush(ResolveColor("TextFillColorSecondary", Colors.DimGray)),
             };
         }
         return border;
+    }
+
+    private static Color ResolveColor(string key, Color fallback)
+    {
+        var resources = Application.Current.Resources;
+        if (resources.TryGetValue(key, out var direct) && direct is Color dc)
+        {
+            return dc;
+        }
+        var themeName = Application.Current.RequestedTheme == ApplicationTheme.Dark ? "Dark" : "Light";
+        if (resources.ThemeDictionaries.TryGetValue(themeName, out var themeObj)
+            && themeObj is ResourceDictionary theme
+            && theme.TryGetValue(key, out var themed)
+            && themed is Color tc)
+        {
+            return tc;
+        }
+        return fallback;
     }
 
     private async void OnSwatchPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -161,13 +177,31 @@ public sealed partial class BehaviorPage : Page
             return;
         }
         var hex = border.Tag as string;
-        if (string.Equals(_settings.Current.UiState.AccentColor, hex, StringComparison.OrdinalIgnoreCase))
+        var current = _settings.Current.UiState.AccentColor;
+        if (string.Equals(current, hex, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
         await _settings.UpdateAsync(s => s.UiState.AccentColor = hex);
+        AccentService.Apply(hex);
+        ForceThemeResourceRefresh();
         PopulateAccentPalette();
-        AccentRestartBar.IsOpen = true;
+    }
+
+    private static void ForceThemeResourceRefresh()
+    {
+        // WinUI 3 controls latch their accent brush at construction. Toggling RequestedTheme
+        // forces every {ThemeResource …} lookup in the live visual tree to re-resolve, which
+        // picks up the new SystemAccentColor* we just wrote. Restoring the original value in
+        // the same pump keeps the user on whichever light/dark they picked.
+        if (App.MainWindow?.Content is not FrameworkElement root)
+        {
+            return;
+        }
+        var original = root.RequestedTheme;
+        var pivot = original == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
+        root.RequestedTheme = pivot;
+        root.RequestedTheme = original;
     }
 
     private async void OnCheckUpdatesClicked(object sender, RoutedEventArgs e)

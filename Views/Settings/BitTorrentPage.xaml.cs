@@ -9,12 +9,12 @@ namespace WinBit.Views.Settings;
 public sealed partial class BitTorrentPage : Page
 {
     private readonly ISettingsService _settings;
-    private bool _loading;
+    private bool _loading = true;
 
     public BitTorrentPage()
     {
-        InitializeComponent();
         _settings = App.Services.GetRequiredService<ISettingsService>();
+        InitializeComponent();
         Loaded += OnLoaded;
     }
 

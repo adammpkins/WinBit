@@ -10,12 +10,12 @@ public sealed partial class SpeedPage : Page
     private const int BytesPerKilobyte = 1024;
 
     private readonly ISettingsService _settings;
-    private bool _loading;
+    private bool _loading = true;
 
     public SpeedPage()
     {
-        InitializeComponent();
         _settings = App.Services.GetRequiredService<ISettingsService>();
+        InitializeComponent();
         Loaded += OnLoaded;
     }
 

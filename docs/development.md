@@ -14,9 +14,11 @@ Build, run, test, package, release.
 
 ```
 WinBit.slnx
-├── WinBit.Core/        class library (net8.0, engine, persistence, search, WebUI)
-├── WinBit.Tests/       xUnit test project referencing WinBit.Core only
-└── WinBit.csproj       WinUI 3 desktop app (net8.0-windows10.0.22621.0)
+├── WinBit.csproj                              WinUI 3 desktop app (net8.0-windows10.0.22621.0) — csproj at repo root
+├── WinBit.Core/                               class library (net8.0, engine, persistence, search, WebUI)
+├── WinBit.Tests/                              xUnit test project referencing WinBit.Core only
+├── libtorrentsharp/LibtorrentSharp/           C# binding to libtorrent (post-M12 engine, standalone NuGet candidate)
+└── libtorrentsharp/LibtorrentSharp.Tests/     xUnit for the binding (opt-in Network-category integration tests)
 ```
 
 Details in [`docs/architecture.md`](./architecture.md).
@@ -55,9 +57,13 @@ Command-line arguments are forwarded to the running instance (see M11 single-ins
 
 ## Test
 
+Brief to `build-runner`:
+
 ```pwsh
 dotnet test WinBit.slnx
 ```
+
+(Or scoped: `dotnet test WinBit.Tests/WinBit.Tests.csproj` / `dotnet test libtorrentsharp/LibtorrentSharp.Tests/LibtorrentSharp.Tests.csproj`.) The agent returns a structured pass/fail summary instead of dumping raw xUnit output into the main session.
 
 Unit tests live in `WinBit.Tests` and target `WinBit.Core` only. Major suites:
 
@@ -142,8 +148,31 @@ Supported runtime identifiers:
 - **Accent color change doesn't apply** — resource overrides need a restart; the Settings page surfaces this via an InfoBar.
 - **`.torrent` / `magnet:` click opens a different app** — run Settings → Behavior → "Register WinBit" or use the Default apps deep link to let Windows pick us up.
 - **Tray icon missing** — check `notifyiconmenu` registry permissions; H.NotifyIcon.WinUI creates the icon lazily on first `ForceCreate`.
+- **Add dialog freezes for ~25 s under VS debugger (libtorrent engine)** — `System.Diagnostics.Debug.WriteLine` (and any `OutputDebugString`-based call) serializes every calling thread through the global `DBWinMutex` kernel object while the VS debugger is attached. The libtorrent alert pump generates 100+ log entries per second during torrent startup; a single `Debug.WriteLine` in `LogService.Write` stalled the UI thread completing the dialog deferral for ~25 s. Fix: `Debug.WriteLine` was removed from `LogService.Write`. The file log (`FileLogSink` → `%LOCALAPPDATA%\WinBit\logs\winbit-YYYY-MM-DD.log`) is the intended developer-facing log. Do not re-add `Debug.WriteLine` or `Trace.Write` to any path that may be called at high frequency.
 
 ## Workflow for new features
+
+### Architecture-level changes — doc first
+
+For decisions that shape the project (new subsystem, engine swap, dependency pivot, public-API shape), the commit sequence is fixed:
+
+1. **Research commit** — findings in `docs/<area>.md`, no code.
+2. **Design doc commit** — architecture proposal in the same doc, readable before any code lands.
+3. **Scaffolding commit** — project shells, folder structure, no logic.
+4. **Implementation commits** — actual code.
+
+This order lets the user redirect at step 2 without tearing down code. For routine bug fixes and single-feature additions, skip directly to implementation.
+
+### All verification gates must be CLI-invocable
+
+Every gate an agent checks must be runnable from a shell command and produce machine-readable output. Concretely:
+
+- **Tests:** `dotnet test` with `--logger console;verbosity=detailed` — not Test Explorer.
+- **Native builds:** `cmake --build` from CLI with artifacts at predictable paths.
+- **Fixtures:** committed in-repo, not downloaded out-of-band.
+- **Feature validation:** prefer a headless integration test over launching the WinBit desktop app. If a UI check is genuinely unavoidable, mark it "Deferred verification — manual UI check" in the commit message and TASKS.md — do not fake success.
+
+No IDE steps. No debug output window. No screenshots as verification.
 
 ## Search plugins (M12)
 

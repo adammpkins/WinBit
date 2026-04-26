@@ -61,5 +61,6 @@ public sealed partial class StatePill : UserControl
         [TorrentState.Completed]   = new("\uE930", "Completed",   "SystemFillColorSuccessBackgroundBrush", "SystemFillColorSuccessBrush",   "TextFillColorPrimaryBrush"),
         [TorrentState.Error]       = new("\uE783", "Error",       "SystemFillColorCriticalBackgroundBrush","SystemFillColorCriticalBrush",  "TextFillColorPrimaryBrush"),
         [TorrentState.Stopped]     = new("\uE71A", "Stopped",     "ControlAltFillColorTertiaryBrush",      "ControlStrokeColorDefaultBrush", "TextFillColorSecondaryBrush"),
+        [TorrentState.Metadata]    = new("\uE895", "Fetching metadata", "ControlAltFillColorTertiaryBrush", "ControlStrokeColorDefaultBrush", "TextFillColorSecondaryBrush"),
     };
 }

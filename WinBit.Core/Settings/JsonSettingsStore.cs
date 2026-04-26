@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 using WinBit.Core.Hosting;
 using WinBit.Core.Persistence;
@@ -17,6 +18,7 @@ public sealed class JsonSettingsStore : ISettingsStore
     {
         WriteIndented = true,
         PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter(allowIntegerValues: true) },
     };
 
     private readonly Paths _paths;

@@ -47,6 +47,12 @@ public sealed class StubTorrentSession : ITorrentSessionService
         return Task.FromResult(Result.Success());
     }
 
+    public Task<Result> SetNameAsync(TorrentId id, string name, CancellationToken ct = default)
+    {
+        Names[id.Value] = name;
+        return Task.FromResult(Result.Success());
+    }
+
     public Task<Result> PauseAsync(TorrentId id, CancellationToken ct = default)
     {
         ControlCalls.Add(("pause", id));
@@ -80,6 +86,12 @@ public sealed class StubTorrentSession : ITorrentSessionService
     public Task<Result> SetEncryptionModeAsync(EncryptionMode mode, CancellationToken ct = default) => Task.FromResult(Result.Success());
     public Task<Result> SetPeerDiscoveryAsync(bool dht, bool pex, bool lsd, CancellationToken ct = default) => Task.FromResult(Result.Success());
     public ShareLimitSnapshot? GetShareLimitSnapshot(TorrentId id) => null;
+
+    public Task<IReadOnlyList<PeerInfo>> GetPeersAsync(TorrentId id, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<PeerInfo>>(Array.Empty<PeerInfo>());
+
+    public Task<IReadOnlyList<TrackerInfo>> GetTrackersAsync(TorrentId id, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<TrackerInfo>>(Array.Empty<TrackerInfo>());
 
     public SessionStats CurrentStats { get; set; }
     public SessionStats GetSessionStats() => CurrentStats;

@@ -1,7 +1,9 @@
 {
   "profiles": {
     "WinBit (Package)": {
-      "commandName": "MsixPackage"
+      "commandName": "MsixPackage",
+      "doNotLaunchApp": false,
+      "nativeDebugging": true
     },
     "WinBit (Unpackaged)": {
       "commandName": "Project"

@@ -33,5 +33,19 @@ public static class AccentService
         {
             resources[key] = color;
         }
+        // Fluent theme dictionaries also carry SystemAccentColor keys; without overriding them
+        // too, {ThemeResource SystemAccentColor} lookups resolve to the theme-dictionary copy
+        // and our app-scope override is ignored.
+        foreach (var themeName in new[] { "Light", "Dark", "Default", "HighContrast" })
+        {
+            if (resources.ThemeDictionaries.TryGetValue(themeName, out var value)
+                && value is Microsoft.UI.Xaml.ResourceDictionary theme)
+            {
+                foreach (var key in SystemAccentKeys)
+                {
+                    theme[key] = color;
+                }
+            }
+        }
     }
 }

@@ -38,6 +38,8 @@ public sealed class Paths
 
     public string WatchedFoldersFile => Path.Combine(_root, "watched-folders.json");
 
+    public string CustomNamesFile => Path.Combine(_root, "custom-names.json");
+
     public string RssDir => Path.Combine(_root, "rss");
 
     public string LogsDir => Path.Combine(_root, "logs");

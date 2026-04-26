@@ -85,13 +85,6 @@
                             AutomationProperties.Name="Accent color swatches" />
             </controls:SettingsCard>
 
-            <InfoBar x:Name="AccentRestartBar"
-                     Severity="Informational"
-                     IsOpen="False"
-                     IsClosable="True"
-                     Title="Restart required"
-                     Message="Restart WinBit for the accent color to take effect." />
-
             <controls:SettingsCard Header="Language"
                                    Description="Restart WinBit after changing the language.">
                 <controls:SettingsCard.HeaderIcon>

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using WinBit.Core.Notifications;
+using WinBit.Core.Shell;
 using WinBit.Services;
 using WinBit.ViewModels.Logs;
 using WinBit.ViewModels.Search;
@@ -26,6 +27,14 @@ public static class Bootstrap
         services.AddSingleton<IThemeService, ThemeService>();
 
         services.Replace(ServiceDescriptor.Singleton<INotificationService, AppToastNotificationService>());
+
+        services.AddSingleton<IShellAssociationService>(sp =>
+        {
+            var writer = sp.GetRequiredService<IAssociationRegistryWriter>();
+            var exe = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                ?? throw new InvalidOperationException("Cannot determine current executable path.");
+            return new ShellAssociationService(writer, exe, IsPackaged(), OpenDefaultAppsSettingsAsync);
+        });
 
         services.AddTransient<ShellViewModel>();
         services.AddSingleton<ShellStatusViewModel>();
@@ -53,5 +62,30 @@ public static class Bootstrap
         services.AddTransient<SearchPage>();
 
         return services;
+    }
+
+    private static bool IsPackaged()
+    {
+        try
+        {
+            _ = Windows.ApplicationModel.Package.Current;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task OpenDefaultAppsSettingsAsync(CancellationToken _)
+    {
+        try
+        {
+            await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:defaultapps?registeredAppUser=WinBit"));
+        }
+        catch
+        {
+            // ms-settings URIs require Windows 10+; best-effort only.
+        }
     }
 }

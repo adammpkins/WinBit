@@ -290,3 +290,26 @@ Features we deliberately hold until after feature parity ships:
 - Plugin SDK for C# search providers.
 - ARM64 first-class support and NativeAOT publishing.
 - `Python.NET` embedding of qBittorrent's Nova3 plugins. Deferred from M12 — blocked on user decisions about bundled vs system Python, plugin curation, and in-process sandboxing. Torznab (shipped) satisfies the M12 verification gate.
+- libtorrent-rasterbar engine bindings. Post-M12 engine initiative on `engine/libtorrent-bindings` (branched from the original `spike/libtorrent-rasterbar-eval`). Own a comprehensive .NET binding that wraps the existing **C++ libtorrent-rasterbar library** over a C ABI + P/Invoke — not a C# reimplementation of the protocol. Initial wrapper triage (see the appendix in `docs/torrent-engine.md`) showed every existing C# wrapper has material gaps; pivoting to an owned binding starting from `aspriddell/csdl` (Apache-2.0) as a reference. Production `main` stays on MonoTorrent until the binding proves out end-to-end. Driven by (a) MonoTorrent's one-maintainer bus-factor risk and (b) the desire to run the same engine qBittorrent uses. See `docs/torrent-engine.md#engine-alternatives-evaluation-2026-04` for the decision record that prompted this.
+
+  **WinBit integration gaps (engine/libtorrent-bindings — must close before `g-flip`):**
+  - [x] Cold-start torrent loader: on `StartAsync`, call `ITorrentStateStore.GetAllAsync()` and re-add each saved torrent with its stored fast-resume blob; handle missing save path (re-check fallback) and missing torrent file gracefully per-torrent.
+  - [x] Peers tab: surface `TorrentHandle.GetPeers()` through `ITorrentSessionService` → `TorrentPropertiesViewModel` → Peers pivot (IP, client string, flags, upload/download speed, progress).
+  - [x] Trackers tab: surface tracker URL, working state, seeds/leechers/downloaded counts via tracker alerts and `GetTrackers()`.
+  - [ ] Content tab: surface per-file list, progress, and priority for multi-file torrents from the libtorrent engine.
+  - [ ] Pieces tab: feed piece availability map from libtorrent into the existing `PiecesBar` Win2D control.
+  - [ ] `SetPeerDiscoveryAsync` PEX: `LibTorrentSessionService` should call `TorrentHandle.UnsetFlags(TorrentFlags.DisablePex)` / `SetFlags` — the binding already exposes these (`f-handle-flags` complete) but the service doesn't use them.
+  - [x] `SessionStats.OpenConnections` / `DhtNodes` always zero: wire session-stats alert parsing into `GetSessionStats()` so the status bar shows live peer-connection and DHT-node counts.
+
+- **qBittorrent feature parity gaps** — user-visible actions missing from WinBit:
+  - [x] Rename torrent (post-add).
+  - [ ] Rename file / folder within a torrent (post-add).
+  - [ ] Per-file download priority (selective download) — set file to Normal / High / Maximum / Do Not Download after the torrent is added.
+  - [ ] Sequential download toggle (post-add) — mirrors the existing `AddTorrentParams.Sequential` but there's no UI action to toggle it on a running torrent.
+  - [ ] First/last piece priority toggle (post-add) — same gap as sequential.
+  - [ ] Relocate save path for an existing torrent (move storage).
+  - [ ] Force-start per torrent (bypass the download queue limit).
+  - [ ] Add / edit / remove trackers on an existing torrent.
+  - [ ] Add / edit / remove web seeds on an existing torrent.
+  - [ ] Export `.torrent` file from an added torrent.
+  - [ ] Manually add peers to a torrent.
