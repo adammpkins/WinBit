@@ -13,7 +13,12 @@
     CornerRadius="8"
     Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
 
-    <Grid MinWidth="520" MaxWidth="720">
+    <ContentDialog.Resources>
+        <x:Double x:Key="ContentDialogMinWidth">560</x:Double>
+        <x:Double x:Key="ContentDialogMaxWidth">720</x:Double>
+    </ContentDialog.Resources>
+
+    <Grid>
         <StackPanel Spacing="12">
             <TextBlock Text="Paste a magnet: URI and choose a destination folder."
                        Style="{ThemeResource BodyTextBlockStyle}"

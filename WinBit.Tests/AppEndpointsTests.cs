@@ -65,7 +65,7 @@ public sealed class AppEndpointsTests : IAsyncLifetime
         {
             json.TryGetProperty(key, out _).Should().BeTrue($"buildInfo should expose '{key}'");
         }
-        json.GetProperty("libtorrent").GetString().Should().Contain("MonoTorrent");
+        json.GetProperty("libtorrent").GetString().Should().Contain("libtorrent-rasterbar");
         json.GetProperty("platform").GetString().Should().Be("windows");
         json.GetProperty("bitness").GetInt32().Should().BeOneOf(32, 64);
     }

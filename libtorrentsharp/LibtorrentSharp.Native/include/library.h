@@ -306,6 +306,21 @@ extern "C" {
         int32_t message_len,
         const uint8_t* public_key32);
 
+    // Returns the total piece count for a torrent handle (works for both fully-
+    // added TorrentHandle and resume-loaded MagnetHandle with embedded metadata).
+    // Returns 0 when metadata hasn't resolved yet (pre-metadata magnet).
+    LTS_EXPORT int32_t lts_num_pieces(lt::torrent_handle* torrent);
+
+    // Total size of all files in the torrent in bytes. Works for TorrentHandle and
+    // resume-loaded MagnetHandle with embedded metadata. Returns 0 when metadata
+    // hasn't resolved yet (pre-metadata magnet).
+    LTS_EXPORT int64_t lts_total_size(lt::torrent_handle* torrent);
+
+    // Gets the file list for a torrent handle directly. Works for TorrentHandle and
+    // resume-loaded MagnetHandle with embedded metadata. Caller must free with
+    // destroy_torrent_file_list.
+    LTS_EXPORT void lts_torrent_handle_file_list(lt::torrent_handle* torrent, torrent_file_list* file_list);
+
     // Toggle sequential download mode. When enabled, libtorrent requests pieces
     // in order rather than rarest-first — useful for streaming / progressive UX.
     LTS_EXPORT void lts_set_sequential(lt::torrent_handle* torrent, bool enabled);
@@ -328,7 +343,7 @@ extern "C" {
     LTS_EXPORT void destroy_torrent_info(torrent_metadata* info);
 
     // file listing
-    LTS_EXPORT void get_torrent_file_list(lt::torrent_info* torrent, torrent_file_list* file_list);
+    LTS_EXPORT void get_torrent_file_list(const lt::torrent_info* torrent, torrent_file_list* file_list);
     LTS_EXPORT void destroy_torrent_file_list(torrent_file_list* file_list);
 
     // file_storage scalar accessors. All return 0 on null / invalid inputs.

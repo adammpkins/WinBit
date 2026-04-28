@@ -36,3 +36,6 @@ Desktop.ini
 # Claude Code local settings and runtime state (per-developer, not checked in)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# MCP server config (exe paths are machine-specific)
+.mcp.json

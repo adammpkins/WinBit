@@ -9,8 +9,14 @@
     mc:Ignorable="d"
     Background="Transparent">
 
-    <ScrollViewer Padding="32,24,32,48">
-        <StackPanel Spacing="12" MaxWidth="880">
+    <ScrollViewer HorizontalScrollMode="Disabled">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="32" />
+                <ColumnDefinition Width="*" MaxWidth="880" />
+                <ColumnDefinition Width="32" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="1" Spacing="12" Margin="0,24,0,48">
             <TextBlock Text="Downloads" Style="{ThemeResource TitleLargeTextBlockStyle}" />
             <TextBlock Text="Default save location, torrent management, and on-disk behavior."
                        Style="{ThemeResource BodyTextBlockStyle}"
@@ -54,5 +60,6 @@
                 <ToggleSwitch x:Name="PreAllocateToggle" />
             </controls:SettingsCard>
         </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>

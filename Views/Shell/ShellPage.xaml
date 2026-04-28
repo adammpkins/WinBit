@@ -12,7 +12,7 @@
     <NavigationView x:Name="NavView"
                     IsBackButtonVisible="Collapsed"
                     IsSettingsVisible="False"
-                    PaneDisplayMode="Left"
+                    PaneDisplayMode="Auto"
                     OpenPaneLength="240"
                     IsPaneToggleButtonVisible="True"
                     SelectionChanged="OnSelectionChanged"

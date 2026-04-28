@@ -15,6 +15,6 @@
         <canvas:CanvasControl x:Name="Canvas"
                               Draw="OnDraw"
                               ClearColor="Transparent"
-                              Height="14" />
+                              Height="24" />
     </Border>
 </UserControl>

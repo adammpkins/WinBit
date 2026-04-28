@@ -5,8 +5,8 @@ using WinBit.Core.Common;
 namespace WinBit.Views.Dialogs;
 
 /// <summary>
-/// Edits per-torrent MaximumDownloadRate / MaximumUploadRate on the MonoTorrent
-/// <c>TorrentManager</c>. UI exposes KB/s for sanity; we convert to bytes at save time.
+/// Edits per-torrent download / upload rate caps on the engine's torrent handle.
+/// UI exposes KB/s for sanity; we convert to bytes at save time.
 /// </summary>
 public sealed partial class PerTorrentSpeedLimitDialog : ContentDialog
 {
@@ -22,7 +22,7 @@ public sealed partial class PerTorrentSpeedLimitDialog : ContentDialog
         _targets = targets;
 
         TargetLabel.Text = targets.Count == 1
-            ? $"Editing 1 torrent ({targets[0].Value[..8]}…)"
+            ? $"Editing 1 torrent ({_session.GetName(targets[0]) ?? targets[0].Value[..8]}…)"
             : $"Editing {targets.Count} torrents.";
 
         if (_targets.Count > 0)

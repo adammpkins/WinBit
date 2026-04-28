@@ -44,7 +44,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDispatcherQueueProvider, InlineDispatcherQueueProvider>();
         services.AddSingleton<ILogService, LogService>();
         services.AddHostedService<FileLogSink>();
-        services.AddHostedService<BitTorrent.DhtNetworkProbe>();
         services.AddSingleton<IPeerLogService, PeerLogService>();
         services.AddSingleton<ISettingsStore, JsonSettingsStore>();
         services.AddSingleton<ISettingsService, SettingsService>();
@@ -58,17 +57,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IHttpClientProvider, HttpClientProvider>();
         services.AddSingleton<UrlDownloader>();
         services.AddSingleton<IIpFilterService, IpFilterService>();
-        services.AddSingleton<TorrentSessionService>();
-        services.AddSingleton<LibTorrentSessionService>();
-        services.AddSingleton<ITorrentSessionService>(sp =>
-        {
-            // Dev-only toggle. Default path is MonoTorrent; the libtorrent adapter is a
-            // skeleton today and the flag stays off on main until the adapter ships.
-            var settings = sp.GetRequiredService<ISettingsService>();
-            return settings.Current.Advanced.UseLibtorrentEngine
-                ? sp.GetRequiredService<LibTorrentSessionService>()
-                : sp.GetRequiredService<TorrentSessionService>();
-        });
+        services.AddSingleton<ITorrentSessionService, LibTorrentSessionService>();
         services.AddSingleton<ITorrentCreatorService, TorrentCreatorService>();
         services.AddSingleton<ITorrentCreatorQueue, TorrentCreatorQueue>();
         services.AddSingleton<IRssService, RssService>();

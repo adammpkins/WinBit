@@ -98,7 +98,7 @@ public static class TorrentsEndpoints
                 }
             }
 
-            // .torrent file uploads — spool to a temp file so MonoTorrent can open it by path.
+            // .torrent file uploads — spool to a temp file so the engine can open it by path.
             foreach (var file in form.Files.Where(f => f.Length > 0))
             {
                 var tempPath = Path.Combine(Path.GetTempPath(),

@@ -149,6 +149,8 @@ public sealed partial class TransfersViewModel : ObservableObject
             row.Eta = snap.Eta;
             row.Seeds = snap.Seeds;
             row.Peers = snap.Peers;
+            row.IsSequentialDownload = snap.IsSequentialDownload;
+            row.TotalSize = snap.TotalSize;
         }
 
         for (var i = _rows.Count - 1; i >= 0; i--)

@@ -9,8 +9,14 @@
     mc:Ignorable="d"
     Background="Transparent">
 
-    <ScrollViewer Padding="32,24,32,48">
-        <StackPanel Spacing="12" MaxWidth="880">
+    <ScrollViewer HorizontalScrollMode="Disabled">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="32" />
+                <ColumnDefinition Width="*" MaxWidth="880" />
+                <ColumnDefinition Width="32" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="1" Spacing="12" Margin="0,24,0,48">
             <TextBlock Text="Connection" Style="{ThemeResource TitleLargeTextBlockStyle}" />
             <TextBlock Text="Listen port, port forwarding, and proxy configuration."
                        Style="{ThemeResource BodyTextBlockStyle}"
@@ -41,7 +47,7 @@
             </controls:SettingsCard>
 
             <controls:SettingsExpander Header="Proxy"
-                                       Description="Route .torrent downloads and other HTTP calls through a proxy. MonoTorrent peer sockets do not route through this proxy.">
+                                       Description="Route .torrent downloads and other HTTP calls through a proxy. Engine peer sockets do not route through this proxy.">
                 <controls:SettingsExpander.HeaderIcon>
                     <FontIcon Glyph="&#xE774;" />
                 </controls:SettingsExpander.HeaderIcon>
@@ -84,5 +90,6 @@
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
         </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>

@@ -67,13 +67,11 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- Trimming breaks MonoTorrent: DHT bootstrap and tracker protocol serialization
-         rely on reflection paths the static trimmer can't see, so the Release build silently
-         loses peer discovery. Keep trimming off until we audit MonoTorrent for trim safety. -->
+    <!-- Trimming and R2R are gated until verified against the LibtorrentSharp native
+         loader and Microsoft.Data.Sqlite's reflection paths. The previous engine adapter
+         silently lost DHT bootstrap under the static trimmer (Release-only regression),
+         so re-enable only after a deliberate audit on the live engine. -->
     <PublishTrimmed>false</PublishTrimmed>
-    <!-- R2R is also suspected of interacting badly with MonoTorrent's reflection paths;
-         the Release MSIX installed fine but DHT stayed NotReady while the Debug-deployed
-         build worked. Keep off until we confirm it isn't the culprit. -->
     <PublishReadyToRun>false</PublishReadyToRun>
   </PropertyGroup>
 </Project>

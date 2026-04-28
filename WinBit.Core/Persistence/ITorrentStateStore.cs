@@ -3,7 +3,7 @@ using WinBit.Core.Common;
 namespace WinBit.Core.Persistence;
 
 /// <summary>
-/// Persistence surface for torrent metadata and MonoTorrent fast-resume blobs.
+/// Persistence surface for torrent metadata and engine-opaque fast-resume blobs.
 /// <see cref="SaveFastResumeAsync"/> writes the blob alongside a version number; on load,
 /// a version mismatch returns <c>null</c> so the caller discards the stale blob and re-checks.
 /// Autosave every 60 s + on graceful shutdown is wired in a later M3 deliverable.
@@ -28,4 +28,6 @@ public interface ITorrentStateStore
     Task<byte[]?> LoadFastResumeAsync(TorrentId id, int expectedVersion, CancellationToken ct = default);
 
     Task<IReadOnlyList<TorrentStateRecord>> GetAllAsync(CancellationToken ct = default);
+
+    Task<TorrentStateRecord?> GetByIdAsync(TorrentId id, CancellationToken ct = default);
 }

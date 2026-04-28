@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 using LibtorrentSharp.Enums;
@@ -338,6 +339,18 @@ public sealed class MagnetHandle
     }
 
     /// <summary>
+    /// Total number of pieces in this torrent. Returns 0 when metadata has not yet
+    /// resolved (pre-metadata magnet or resume-loaded handle before checking completes).
+    /// </summary>
+    public int NumPieces => IsValid ? NativeMethods.TorrentHandleNumPieces(Handle) : 0;
+
+    /// <summary>
+    /// Total size of all files in bytes. Returns 0 when metadata has not yet
+    /// resolved (pre-metadata magnet or resume-loaded handle before checking completes).
+    /// </summary>
+    public long TotalSize => IsValid ? NativeMethods.TorrentHandleTotalSize(Handle) : 0;
+
+    /// <summary>
     /// True when the piece is fully downloaded and verified on disk. Returns
     /// false when the handle is invalid, metadata hasn't resolved yet, or the
     /// index is out of range.
@@ -407,6 +420,58 @@ public sealed class MagnetHandle
         }
 
         NativeMethods.RenameFile(Handle, fileIndex, newName);
+    }
+
+    /// <summary>
+    /// Returns file entries backed by this torrent handle, using metadata from
+    /// <paramref name="info"/>. For resume-loaded torrents the metadata is
+    /// embedded in the resume blob; pass the original <see cref="TorrentInfo"/>
+    /// that was used when the torrent was first added.
+    /// </summary>
+    public IReadOnlyList<TorrentHandle.TorrentManagerFile> GetFiles(TorrentInfo info)
+    {
+        return info.Files
+            .Select(x => new TorrentHandle.TorrentManagerFile(Handle, SavePath, x))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Returns file entries directly from the native handle without requiring a
+    /// separate <see cref="TorrentInfo"/> object. Works for resume-loaded handles
+    /// (cold-start torrents). Returns an empty list when the handle is invalid or
+    /// metadata hasn't resolved yet.
+    /// </summary>
+    public IReadOnlyList<TorrentHandle.TorrentManagerFile> GetFiles()
+    {
+        if (!IsValid)
+        {
+            return Array.Empty<TorrentHandle.TorrentManagerFile>();
+        }
+
+        NativeMethods.GetTorrentHandleFileList(Handle, out var list);
+        try
+        {
+            if (list.length <= 0 || list.items == IntPtr.Zero)
+            {
+                return Array.Empty<TorrentHandle.TorrentManagerFile>();
+            }
+
+            var size = Marshal.SizeOf<NativeStructs.TorrentFile>();
+            var files = new List<TorrentHandle.TorrentManagerFile>(list.length);
+
+            for (var i = 0; i < list.length; i++)
+            {
+                var nf = Marshal.PtrToStructure<NativeStructs.TorrentFile>(list.items + (size * i));
+                var fi = new TorrentFileInfo(nf.index, nf.offset, nf.file_name, nf.file_path, nf.file_size, nf.pad_file);
+                files.Add(new TorrentHandle.TorrentManagerFile(Handle, SavePath, fi));
+            }
+
+            return files;
+        }
+        finally
+        {
+            NativeMethods.FreeTorrentFileList(ref list);
+        }
     }
 
     /// <summary>

@@ -18,7 +18,7 @@ public sealed class WinBitCoreOptions
     public TimeSpan SettingsSaveDebounce { get; set; } = TimeSpan.FromMilliseconds(500);
 
     /// <summary>
-    /// TCP/UDP port the MonoTorrent engine listens on. 0 = do not set an explicit endpoint.
+    /// TCP/UDP port the libtorrent engine listens on. 0 = do not set an explicit endpoint.
     /// M7 wires this through the Settings/Connection page.
     /// </summary>
     public int ListenPort { get; set; } = 6881;

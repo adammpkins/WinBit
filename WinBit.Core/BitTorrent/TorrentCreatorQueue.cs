@@ -72,19 +72,32 @@ public sealed class TorrentCreatorQueue : ITorrentCreatorQueue, IAsyncDisposable
             record.TimeStartedUtc = DateTime.UtcNow;
 
             var progress = new Progress<TorrentCreateProgress>(p => record.Progress = p.OverallCompletion);
-            var result = await _creator.CreateAsync(effective, progress, CancellationToken.None)
-                .ConfigureAwait(false);
+            try
+            {
+                var result = await _creator.CreateAsync(effective, progress, CancellationToken.None)
+                    .ConfigureAwait(false);
 
-            record.TimeFinishedUtc = DateTime.UtcNow;
-            if (result.IsSuccess)
-            {
-                record.State = TorrentCreatorTaskState.Finished;
-                record.Progress = 1.0;
+                record.TimeFinishedUtc = DateTime.UtcNow;
+                if (result.IsSuccess)
+                {
+                    record.State = TorrentCreatorTaskState.Finished;
+                    record.Progress = 1.0;
+                }
+                else
+                {
+                    record.State = TorrentCreatorTaskState.Failed;
+                    record.Error = result.Error;
+                }
             }
-            else
+            catch (Exception ex)
             {
+                // The libtorrent binding can't yet build .torrent files, so the production
+                // service throws NotSupportedException. Treat any thrown exception the same
+                // way the failure-Result path does — the queue must never leave a task in
+                // Running and never fault its Completion task; WaitForTaskAsync awaits it.
+                record.TimeFinishedUtc = DateTime.UtcNow;
                 record.State = TorrentCreatorTaskState.Failed;
-                record.Error = result.Error;
+                record.Error = ex.Message;
             }
         });
 

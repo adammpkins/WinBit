@@ -28,7 +28,7 @@
 
             <TextBlock TextWrapping="Wrap"
                        Style="{ThemeResource BodyTextBlockStyle}"
-                       Text="A modern, Windows-native rebuild of qBittorrent with a WinUI 3 front end and MonoTorrent under the hood." />
+                       Text="A modern, Windows-native rebuild of qBittorrent with a WinUI 3 front end and libtorrent-rasterbar under the hood." />
 
             <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
                     BorderThickness="1"
@@ -38,7 +38,7 @@
                 <StackPanel Spacing="6">
                     <TextBlock Text="Built with"
                                Style="{ThemeResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Text="• MonoTorrent — BitTorrent engine"
+                    <TextBlock Text="• libtorrent-rasterbar (via LibtorrentSharp) — BitTorrent engine"
                                Style="{ThemeResource CaptionTextBlockStyle}" />
                     <TextBlock Text="• CommunityToolkit.WinUI — Fluent controls and SettingsCards"
                                Style="{ThemeResource CaptionTextBlockStyle}" />

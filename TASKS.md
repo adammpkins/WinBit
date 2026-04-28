@@ -290,22 +290,41 @@ Features we deliberately hold until after feature parity ships:
 - Plugin SDK for C# search providers.
 - ARM64 first-class support and NativeAOT publishing.
 - `Python.NET` embedding of qBittorrent's Nova3 plugins. Deferred from M12 — blocked on user decisions about bundled vs system Python, plugin curation, and in-process sandboxing. Torznab (shipped) satisfies the M12 verification gate.
-- libtorrent-rasterbar engine bindings. Post-M12 engine initiative on `engine/libtorrent-bindings` (branched from the original `spike/libtorrent-rasterbar-eval`). Own a comprehensive .NET binding that wraps the existing **C++ libtorrent-rasterbar library** over a C ABI + P/Invoke — not a C# reimplementation of the protocol. Initial wrapper triage (see the appendix in `docs/torrent-engine.md`) showed every existing C# wrapper has material gaps; pivoting to an owned binding starting from `aspriddell/csdl` (Apache-2.0) as a reference. Production `main` stays on MonoTorrent until the binding proves out end-to-end. Driven by (a) MonoTorrent's one-maintainer bus-factor risk and (b) the desire to run the same engine qBittorrent uses. See `docs/torrent-engine.md#engine-alternatives-evaluation-2026-04` for the decision record that prompted this.
+- ~~libtorrent-rasterbar engine bindings~~ **SHIPPED (2026-04-27)** — LibtorrentSharp is now the active engine on `main`; MonoTorrent has been removed. See `docs/torrent-engine.md` for the full decision record.
+
+- **MonoTorrent removal** *(complete 2026-04-27)* — clean up all MonoTorrent code now that LibtorrentSharp is the active engine:
+  - [x] Delete `WinBit.Core/BitTorrent/TorrentSessionService.cs` (743-line MonoTorrent implementation).
+  - [x] Port `WinBit.Core/BitTorrent/EncryptionMapper.cs` to libtorrent `settings_pack` encryption keys; update callers. (No live callers after deletion; `LibTorrentSessionService` maps inline. File deleted.)
+  - [x] Port `WinBit.Core/BitTorrent/TorrentErrorFormatter.cs` to libtorrent error codes; update callers. (No live callers; `LibTorrentSessionService` formats inline. File deleted.)
+  - [x] Delete or port `WinBit.Core/Networking/DhtBootstrapSeeder.cs` (used MonoTorrent's `IDhtEngine`). Deleted.
+  - [x] Delete or port `WinBit.Core/Networking/DhtNetworkProbe.cs` (used MonoTorrent's `IDhtEngine`; currently broken on libtorrent — hangs on "NotReady" forever). Deleted.
+  - [x] Remove `<PackageReference Include="MonoTorrent" />` from `WinBit.Core/WinBit.Core.csproj`.
+  - [x] Remove `AdvancedSettings.UseLibtorrentEngine` flag from `AppSettings` and DI registration conditional.
+  - [x] Delete/update tests: `TorrentErrorFormatterTests.cs`, `EncryptionMapperTests.cs`, `TorrentCreatorServiceTests.cs`, MonoTorrent-specific blocks in `SqliteStoreTests.cs`.
+  - [x] `TorrentCreatorService.cs` — stub out (disable UI entry point, log "not yet supported") until Phase G of `LIBTORRENT_TASKS.md` ships.
 
   **WinBit integration gaps (engine/libtorrent-bindings — must close before `g-flip`):**
   - [x] Cold-start torrent loader: on `StartAsync`, call `ITorrentStateStore.GetAllAsync()` and re-add each saved torrent with its stored fast-resume blob; handle missing save path (re-check fallback) and missing torrent file gracefully per-torrent.
   - [x] Peers tab: surface `TorrentHandle.GetPeers()` through `ITorrentSessionService` → `TorrentPropertiesViewModel` → Peers pivot (IP, client string, flags, upload/download speed, progress).
   - [x] Trackers tab: surface tracker URL, working state, seeds/leechers/downloaded counts via tracker alerts and `GetTrackers()`.
-  - [ ] Content tab: surface per-file list, progress, and priority for multi-file torrents from the libtorrent engine.
-  - [ ] Pieces tab: feed piece availability map from libtorrent into the existing `PiecesBar` Win2D control.
-  - [ ] `SetPeerDiscoveryAsync` PEX: `LibTorrentSessionService` should call `TorrentHandle.UnsetFlags(TorrentFlags.DisablePex)` / `SetFlags` — the binding already exposes these (`f-handle-flags` complete) but the service doesn't use them.
+  - [x] Content tab: surface per-file list and priority (display) for multi-file torrents from the libtorrent engine.
+  - [ ] Content tab: per-file download progress (requires lt_file_progress native binding — tracked in LIBTORRENT_TASKS.md).
+  - [x] Content tab empty state: when a torrent is selected but files haven't polled yet, it shows "Select a torrent to view its contents" — change text to "Loading…" or similar so the two states are distinguishable.
+  - [x] Pieces tab: feed piece availability map from libtorrent into the existing `PiecesBar` Win2D control.
+  - [ ] Bulk piece-bitfield API in LibtorrentSharp — `GetPiecesAsync` currently calls `HavePiece(i)` in a loop (O(n) P/Invoke calls); a native bulk bitfield copy would be O(1). Tracked here so it's not rediscovered. See LIBTORRENT_TASKS.md Phase G for the binding expansion.
+  - [x] `SetPeerDiscoveryAsync` PEX: `LibTorrentSessionService` should call `TorrentHandle.UnsetFlags(TorrentFlags.DisablePex)` / `SetFlags` — the binding already exposes these (`f-handle-flags` complete) but the service doesn't use them.
   - [x] `SessionStats.OpenConnections` / `DhtNodes` always zero: wire session-stats alert parsing into `GetSessionStats()` so the status bar shows live peer-connection and DHT-node counts.
+
+- [x] **Transfers page horizontal scrollbar does nothing** — the `WinUI.TableView` renders a horizontal scrollbar when columns overflow, but scrolling it has no effect. Investigate whether `TableView` requires a fixed-width container, a custom `ScrollViewer` template, or explicit column-width bindings to make horizontal scroll work; fix and verify via FlaUI (`windows_scroll` or drag) and screenshot.
+
+- [x] **General tab** — fill in real torrent metadata (info hash, save path, comment, creation date, fast-resume status). The tab currently shows a placeholder from M4 that was never wired up.
 
 - **qBittorrent feature parity gaps** — user-visible actions missing from WinBit:
   - [x] Rename torrent (post-add).
-  - [ ] Rename file / folder within a torrent (post-add).
-  - [ ] Per-file download priority (selective download) — set file to Normal / High / Maximum / Do Not Download after the torrent is added.
-  - [ ] Sequential download toggle (post-add) — mirrors the existing `AddTorrentParams.Sequential` but there's no UI action to toggle it on a running torrent.
+  - [x] Rename file within a torrent (post-add).
+  - [x] Rename folder within a torrent (post-add) — libtorrent has no native folder rename; requires renaming all files whose RelativePath starts with the old folder prefix.
+  - [x] Per-file download priority (selective download) — set file to Normal / High / Maximum / Do Not Download after the torrent is added.
+  - [x] Sequential download toggle (post-add) — mirrors the existing `AddTorrentParams.Sequential` but there's no UI action to toggle it on a running torrent.
   - [ ] First/last piece priority toggle (post-add) — same gap as sequential.
   - [ ] Relocate save path for an existing torrent (move storage).
   - [ ] Force-start per torrent (bypass the download queue limit).

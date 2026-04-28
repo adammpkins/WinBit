@@ -10,8 +10,8 @@ namespace WinBit.Core.Sharing;
 /// Background loop that evaluates per-torrent share limits and dispatches the configured
 /// action. Ports the role of qBittorrent's seeding-limit timer (see
 /// <c>qbittorrent/src/base/bittorrent/sessionimpl.cpp</c>, <c>processTorrentShareLimits</c>).
-/// Seeding time and inactive-seeding time are derived from successive ticks — MonoTorrent
-/// doesn't track them itself.
+/// Seeding time and inactive-seeding time are derived from successive ticks — neither is
+/// tracked directly by the engine adapter.
 /// </summary>
 public sealed class ShareLimitEnforcementLoop : BackgroundService
 {

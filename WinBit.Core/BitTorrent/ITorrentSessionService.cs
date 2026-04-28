@@ -1,11 +1,11 @@
-using MonoTorrent.Dht;
 using WinBit.Core.Common;
 using WinBit.Core.Sharing;
 
 namespace WinBit.Core.BitTorrent;
 
 /// <summary>
-/// Wraps the BitTorrent engine (MonoTorrent). Full surface arrives in M3; M1 defines the contract.
+/// Wraps the BitTorrent engine (libtorrent-rasterbar via LibtorrentSharp). M1 defined the
+/// contract; subsequent milestones expanded the surface.
 /// </summary>
 public interface ITorrentSessionService : IAsyncDisposable
 {
@@ -14,26 +14,6 @@ public interface ITorrentSessionService : IAsyncDisposable
     Task StopAsync(CancellationToken ct = default);
 
     IReadOnlyList<TorrentId> Torrents { get; }
-
-    /// <summary>
-    /// Raised on every transition of MonoTorrent's DHT engine state (NotReady → Initialising
-    /// → Ready and back). Used by diagnostic tooling (<c>DhtNetworkProbe</c>) to time its
-    /// loopback probe so the engine's UDP listener is actually bound when the probe fires.
-    /// Equivalent to <c>IDhtEngine.StateChanged</c> re-raised from this service. Null-safe:
-    /// no events fire while the engine isn't running. Default implementation is a no-op so
-    /// test stubs that don't exercise DHT don't need to wire this up.
-    /// </summary>
-    event EventHandler? DhtStateChanged
-    {
-        add { }
-        remove { }
-    }
-
-    /// <summary>Current DHT state; <c>NotReady</c> when the engine hasn't started.</summary>
-    DhtState CurrentDhtState => DhtState.NotReady;
-
-    /// <summary>Current DHT routing-table node count; <c>0</c> when the engine hasn't started.</summary>
-    int CurrentDhtNodeCount => 0;
 
     /// <summary>
     /// Raised once per <c>StatusPollingLoop</c> tick with a batch of snapshots for every active
@@ -124,6 +104,21 @@ public interface ITorrentSessionService : IAsyncDisposable
     /// </summary>
     Task<IReadOnlyList<TrackerInfo>> GetTrackersAsync(TorrentId id, CancellationToken ct = default);
 
+    /// <summary>
+    /// Returns file entries for all non-pad files in the identified torrent.
+    /// Called at 3 s by <c>TorrentPropertiesViewModel</c> only while the Content tab is visible.
+    /// Returns an empty list when the torrent is unknown, is a magnet with unresolved metadata, or is a single-file torrent.
+    /// </summary>
+    Task<IReadOnlyList<TorrentFileEntry>> GetTorrentFilesAsync(TorrentId id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the have/missing state of every piece in the identified torrent.
+    /// <c>true</c> = piece is fully downloaded and hash-verified; <c>false</c> = missing or in-progress.
+    /// Called at 3 s by <c>TorrentPropertiesViewModel</c> only while the Pieces tab is visible.
+    /// Returns an empty list when the torrent is unknown or metadata has not yet resolved.
+    /// </summary>
+    Task<IReadOnlyList<bool>> GetPiecesAsync(TorrentId id, CancellationToken ct = default);
+
     /// <summary>Reads the torrent's current per-torrent max down/up rate (bytes/sec). Null = torrent unknown.</summary>
     (long DownloadBps, long UploadBps)? GetSpeedLimits(TorrentId id);
 
@@ -155,9 +150,9 @@ public interface ITorrentSessionService : IAsyncDisposable
     Task<Result> SetEncryptionModeAsync(WinBit.Core.Settings.EncryptionMode mode, CancellationToken ct = default);
 
     /// <summary>
-    /// Sets global peer-discovery flags. LSD is an engine-level setting; DHT and PEX are
-    /// per-torrent in MonoTorrent, so this method pushes the flags to every currently-loaded
-    /// manager. Newly-added torrents inherit MonoTorrent defaults until the next apply tick.
+    /// Sets global peer-discovery flags. LSD/DHT/PEX live in libtorrent's <c>settings_pack</c>
+    /// at the session level; the call rewrites those keys and the engine applies them
+    /// uniformly across loaded torrents.
     /// </summary>
     Task<Result> SetPeerDiscoveryAsync(bool dht, bool pex, bool lsd, CancellationToken ct = default);
 
@@ -168,6 +163,28 @@ public interface ITorrentSessionService : IAsyncDisposable
     /// no-op from the peer's perspective.
     /// </summary>
     Task<Result> SetSuperSeedingAsync(TorrentId id, bool enabled, CancellationToken ct = default);
+
+    /// <summary>
+    /// Enables or disables sequential piece ordering on a running torrent. Sequential mode
+    /// downloads pieces in order rather than rarest-first, which makes partial files usable
+    /// during download (e.g. video playback from the start before completion).
+    /// </summary>
+    Task<Result> SetSequentialDownloadAsync(TorrentId id, bool enabled, CancellationToken ct = default);
+
+    /// <summary>
+    /// Renames a single file within a torrent by its zero-based index. Fire-and-forget at
+    /// the libtorrent level — the engine emits a <c>FileRenamedAlert</c> asynchronously;
+    /// the next Content tab poll will surface the new path automatically.
+    /// </summary>
+    /// <param name="newRelativePath">Torrent-relative path using forward slashes (e.g. "dir/file.iso").</param>
+    Task RenameFileAsync(TorrentId id, int fileIndex, string newRelativePath, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets the download priority of a single file by its zero-based index. Applied immediately
+    /// by libtorrent; the next Content tab poll surfaces the updated priority automatically.
+    /// No-op when the torrent is not loaded or the file index has no match.
+    /// </summary>
+    Task SetFilePriorityAsync(TorrentId id, int fileIndex, FileDownloadPriority priority, CancellationToken ct = default);
 
     /// <summary>
     /// Reads the enforcement-loop inputs for a torrent. Null if the torrent isn't loaded.
@@ -181,4 +198,10 @@ public interface ITorrentSessionService : IAsyncDisposable
     /// zeroed snapshot while the engine isn't running.
     /// </summary>
     SessionStats GetSessionStats();
+
+    /// <summary>
+    /// Returns static torrent metadata for the General detail tab. Returns null when the
+    /// torrent is not loaded or its persistence record is missing.
+    /// </summary>
+    Task<TorrentDetailInfo?> GetTorrentDetailAsync(TorrentId id, CancellationToken ct = default);
 }

@@ -541,6 +541,30 @@ internal static partial class NativeMethods
     public static partial int TorrentInfoPieceLength(IntPtr torrentInfoHandle);
 
     /// <summary>
+    /// Returns the piece count for a torrent handle. Works for TorrentHandle and for
+    /// resume-loaded MagnetHandle with embedded metadata. Returns 0 when metadata has
+    /// not yet resolved (pre-metadata magnet).
+    /// </summary>
+    [LibraryImport(LibraryName, EntryPoint = "lts_num_pieces")]
+    public static partial int TorrentHandleNumPieces(IntPtr torrentHandle);
+
+    /// <summary>
+    /// Total size of all files in the torrent in bytes. Works for TorrentHandle and
+    /// resume-loaded MagnetHandle with embedded metadata. Returns 0 when metadata
+    /// has not yet resolved.
+    /// </summary>
+    [LibraryImport(LibraryName, EntryPoint = "lts_total_size")]
+    public static partial long TorrentHandleTotalSize(IntPtr torrentHandle);
+
+    /// <summary>
+    /// Gets the file list for a torrent handle directly. Works for TorrentHandle and
+    /// resume-loaded MagnetHandle with embedded metadata. Caller must free with
+    /// <see cref="FreeTorrentFileList"/>.
+    /// </summary>
+    [LibraryImport(LibraryName, EntryPoint = "lts_torrent_handle_file_list")]
+    public static partial void GetTorrentHandleFileList(IntPtr torrentHandle, out NativeStructs.TorrentFileList files);
+
+    /// <summary>
     /// Total number of pieces in the torrent. Returns 0 on invalid handle.
     /// </summary>
     [LibraryImport(LibraryName, EntryPoint = "lts_torrent_info_num_pieces")]

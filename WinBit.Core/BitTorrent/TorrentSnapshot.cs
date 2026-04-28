@@ -39,4 +39,8 @@ public readonly record struct TorrentSnapshot
     /// rather than a generic "stopped due to an error" string.
     /// </summary>
     public string? ErrorMessage { get; init; }
+
+    public bool IsSequentialDownload { get; init; }
+
+    public long TotalSize { get; init; }
 }

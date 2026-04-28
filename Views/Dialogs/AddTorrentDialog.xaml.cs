@@ -130,9 +130,12 @@ public sealed partial class AddTorrentDialog : ContentDialog
 
         try
         {
-            var torrent = await MonoTorrent.Torrent.LoadAsync(path);
-            TorrentNameText.Text = torrent.Name;
-            PopulatePreview(torrent);
+            // LibtorrentSharp.TorrentInfo's ctor parses the .torrent file synchronously via
+            // a P/Invoke into libtorrent. Hop off the UI thread so a multi-MiB metadata file
+            // (large multi-file v2 torrents) doesn't stall the dialog.
+            var info = await Task.Run(() => new LibtorrentSharp.TorrentInfo(path));
+            TorrentNameText.Text = info.Metadata.Name;
+            PopulatePreview(info);
         }
         catch (Exception ex)
         {
@@ -142,12 +145,12 @@ public sealed partial class AddTorrentDialog : ContentDialog
         }
     }
 
-    private void PopulatePreview(MonoTorrent.Torrent torrent)
+    private void PopulatePreview(LibtorrentSharp.TorrentInfo info)
     {
         _previewRoots.Clear();
-        var root = new PreviewNode { Name = torrent.Name, IconGlyph = "\uE8B7" };
+        var root = new PreviewNode { Name = info.Metadata.Name, IconGlyph = "\uE8B7" };
 
-        foreach (var file in torrent.Files)
+        foreach (var file in info.Files)
         {
             var parts = file.Path.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
             var current = root;
@@ -162,7 +165,7 @@ public sealed partial class AddTorrentDialog : ContentDialog
                     {
                         Name = name,
                         IconGlyph = isFile ? "\uE7C3" : "\uE8B7",
-                        SizeText = isFile ? FormatBytes(file.Length) : string.Empty,
+                        SizeText = isFile ? FormatBytes(file.FileSize) : string.Empty,
                     };
                     current.Children.Add(existing);
                 }

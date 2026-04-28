@@ -103,12 +103,6 @@ public partial class App : Application
         // and peers read AppSettings in StartAsync and pin to whatever they see on the first
         // read. Without this ordering, enabling WebUI (or tweaking encryption, etc.) requires
         // a restart because the services silently latched the defaults.
-        //
-        // The ITorrentSessionService factory also reads AdvancedSettings.UseLibtorrentEngine at
-        // resolution time, and hosted services take ITorrentSessionService via ctor injection —
-        // so StartAsync eagerly forces the factory to run. If LoadAsync were sequenced after
-        // StartAsync, the factory would see default(AppSettings) and always pick MonoTorrent
-        // regardless of what's on disk.
         await _host.Services.GetRequiredService<ISettingsService>().LoadAsync();
         await _host.StartAsync();
 

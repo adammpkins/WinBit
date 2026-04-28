@@ -51,6 +51,35 @@ public sealed class LibTorrentSessionServiceTests
         result.Error.Should().Contain("not running");
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task RenameFileAsync_throws_ArgumentException_on_null_or_whitespace_newRelativePath(string? badPath)
+    {
+        // Validation fires before the engine-running check so no StartAsync is needed.
+        using var temp = new TempDirectory();
+        await using var service = CreateService(temp);
+        var anyId = TorrentId.FromInfoHash(new string('a', 40));
+
+        var act = () => service.RenameFileAsync(anyId, fileIndex: 0, newRelativePath: badPath!);
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task SetFilePriorityAsync_NegativeFileIndex_ThrowsArgumentOutOfRange()
+    {
+        // Validation fires before the engine-running check so no StartAsync is needed.
+        using var temp = new TempDirectory();
+        await using var service = CreateService(temp);
+        var anyId = TorrentId.FromInfoHash(new string('a', 40));
+
+        var act = () => service.SetFilePriorityAsync(anyId, fileIndex: -1, FileDownloadPriority.Normal);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
     /// <summary>
     /// All start/stop assertions in one test so the test process spins up exactly one
     /// extra LibtorrentSession for the entire lifecycle suite (the AddRemove tests share a
@@ -154,6 +183,9 @@ public sealed class InMemoryTorrentStateStore : ITorrentStateStore
 
     public Task<IReadOnlyList<TorrentStateRecord>> GetAllAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<TorrentStateRecord>>(_records.Values.ToList());
+
+    public Task<TorrentStateRecord?> GetByIdAsync(TorrentId id, CancellationToken ct = default) =>
+        Task.FromResult(_records.TryGetValue(id, out var record) ? record : null);
 }
 
 /// <summary>
@@ -621,13 +653,15 @@ public sealed class LibTorrentSessionServiceAddRemoveTests : IClassFixture<LibTo
     }
 
     /// <summary>
-    /// Passes in isolation but is the flakiest case under full-suite load — the
-    /// AttachTorrent/DetachTorrent path interacts poorly with WinBit.Tests' MonoTorrent
-    /// ClientEngine smoke tests when both touch native sockets in the same test process.
-    /// Re-enable once the LibtorrentSharp session lifecycle is hardened (Phase E polish
-    /// or earlier — tracked in docs/libtorrent-binding.md → "Adapter testing fragility").
+    /// Passes in isolation but flakes under full-suite native socket load. Also currently
+    /// blocked because <see cref="TorrentCreatorService"/> is stubbed (Phase G of
+    /// <c>LIBTORRENT_TASKS.md</c>) and the test built its fixture by calling
+    /// <c>CreateAsync</c>; once the libtorrent <c>create_torrent</c> wrapper lands, swap
+    /// the fixture build for a binding-native call and lift the skip alongside the
+    /// LibtorrentSharp session-lifecycle hardening tracked in
+    /// <c>docs/libtorrent-binding.md → "Adapter testing fragility"</c>.
     /// </summary>
-    [Fact(Skip = "Flaky under full-suite native socket load; runs green in isolation. See remarks for the underlying LibtorrentSharp lifecycle gap.")]
+    [Fact(Skip = "TorrentCreatorService is stubbed pending Phase G of LIBTORRENT_TASKS.md; also flaky under full-suite native socket load.")]
     public async Task AddAsync_then_RemoveAsync_round_trip_for_torrent_file()
     {
         var sourceDir = Path.Combine(_fixture.Temp.Path, $"payload-{Guid.NewGuid():N}");

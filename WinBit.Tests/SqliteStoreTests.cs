@@ -259,27 +259,27 @@ public sealed class SqliteStoreTests
     }
 
     [Fact]
-    public async Task FastResume_blob_round_trips_from_MonoTorrent_through_store_back_into_FastResume()
+    public async Task FastResume_blob_round_trips_byte_for_byte_through_store()
     {
-        // End-to-end: MonoTorrent FastResume → Encode → ITorrentStateStore →
-        // LoadFastResumeAsync → FastResume.TryLoad → matching InfoHashes.
-        // MonoTorrent's LoadFastResumeAsync trusts a TryLoad-valid FastResume and skips the
-        // hash check (docs/torrent-engine.md "Fast-resume"), so a clean round-trip here
-        // proves the "no re-check" path.
+        // The store is engine-agnostic: it stores the resume blob as opaque bytes paired
+        // with a version tag. Pinning a byte-for-byte round-trip here guards the SQLite
+        // BLOB column type (no string coercion, no truncation) and the version-mismatch
+        // contract — both invariants the engine adapters depend on for a "no re-check"
+        // restart. See docs/persistence.md "Fast-resume".
         using var temp = new TempDirectory();
         var paths = new Paths(Options.Create(new WinBitCoreOptions { DataRoot = temp.Path }));
         await using var store = new SqliteTorrentStateStore(paths, new LogService());
 
-        var sha1 = new byte[20];
-        new Random(42).NextBytes(sha1);
-        var infoHashes = MonoTorrent.InfoHashes.FromV1(new MonoTorrent.InfoHash(sha1));
+        var blob = new byte[2048];
+        new Random(42).NextBytes(blob);
+        // Embed sentinel bytes the SQLite layer is most likely to mishandle (NUL, high
+        // bytes, mid-blob zeros). Random fill alone won't reliably hit zero bytes.
+        blob[0] = 0x00;
+        blob[1] = 0xFF;
+        blob[1024] = 0x00;
+        blob[^1] = 0xFE;
 
-        var bitfield = new MonoTorrent.ReadOnlyBitField(8);
-        var original = new MonoTorrent.Client.FastResume(infoHashes, bitfield, bitfield);
-        byte[] blob = original.Encode();
-        blob.Length.Should().BeGreaterThan(0);
-
-        var id = WinBit.Core.Common.TorrentId.FromInfoHash(infoHashes.V1!.ToHex());
+        var id = WinBit.Core.Common.TorrentId.FromInfoHash(new string('a', 40));
 
         ITorrentStateStore typed = store;
         await typed.UpsertTorrentAsync(new TorrentStateRecord
@@ -294,10 +294,10 @@ public sealed class SqliteStoreTests
         var reloaded = await typed.LoadFastResumeAsync(id, expectedVersion: 1);
         reloaded.Should().NotBeNull().And.Equal(blob);
 
-        using var stream = new MemoryStream(reloaded!);
-        MonoTorrent.Client.FastResume.TryLoad(stream, out var rehydrated).Should().BeTrue("round-tripped bytes must parse back into a FastResume");
-        rehydrated.Should().NotBeNull();
-        rehydrated!.InfoHashes.V1!.ToHex().Should().Be(infoHashes.V1!.ToHex(), "the rehydrated FastResume must carry the same info-hash MonoTorrent keys by");
+        // Mismatched version returns null so a stale blob from an older binary triggers
+        // a fresh re-check rather than silently feeding garbage to the new engine.
+        var stale = await typed.LoadFastResumeAsync(id, expectedVersion: 2);
+        stale.Should().BeNull();
     }
 
     [Fact]

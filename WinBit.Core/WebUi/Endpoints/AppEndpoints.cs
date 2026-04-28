@@ -31,7 +31,7 @@ public static class AppEndpoints
         app.MapGet("/api/v2/app/buildInfo", () => Results.Json(new
         {
             qt = "",
-            libtorrent = "MonoTorrent/3.0.2",
+            libtorrent = "libtorrent-rasterbar (LibtorrentSharp)",
             boost = "",
             openssl = "",
             zlib = "",

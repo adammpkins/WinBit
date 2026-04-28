@@ -4,7 +4,7 @@ namespace WinBit.Core.Networking;
 /// Orchestrates engine-level UPnP / NAT-PMP port mapping. Tracked against
 /// <c>AppSettings.Connection.Upnp</c> — a user flip on the Connection settings page routes
 /// through <see cref="ISettingsService.Changed"/> into <see cref="ApplyAsync"/>, which in turn
-/// updates the MonoTorrent engine via <c>ITorrentSessionService.SetPortForwardingAsync</c>.
+/// updates the engine via <c>ITorrentSessionService.SetPortForwardingAsync</c>.
 /// </summary>
 public interface IPortForwardingService
 {

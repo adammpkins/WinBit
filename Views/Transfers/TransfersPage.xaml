@@ -9,8 +9,14 @@
     xmlns:controls="using:WinBit.Controls"
     xmlns:tv="using:WinUI.TableView"
     xmlns:vm="using:WinBit.ViewModels.Transfers"
+    xmlns:converters="using:WinBit.Infrastructure.Converters"
     mc:Ignorable="d"
     Background="Transparent">
+
+    <Page.Resources>
+        <converters:FileDownloadPriorityToStringConverter x:Key="PriorityToString" />
+        <converters:FileSizeConverter x:Key="FileSizeConverter" />
+    </Page.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
@@ -95,6 +101,13 @@
                         <MenuFlyoutItem Text="Force reannounce" Click="OnForceReannounceClicked">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8EE;" /></MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
+                        <ToggleMenuFlyoutItem x:Name="SequentialMenuItem"
+                                              Text="Sequential download"
+                                              Click="OnSequentialDownloadClicked">
+                            <ToggleMenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE761;" />
+                            </ToggleMenuFlyoutItem.Icon>
+                        </ToggleMenuFlyoutItem>
                         <MenuFlyoutSeparator />
                         <MenuFlyoutItem Text="Speed limits…" Click="OnSpeedLimitsClicked">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEC4A;" /></MenuFlyoutItem.Icon>
@@ -182,14 +195,72 @@
                    Padding="16,8,16,16"
                    Background="Transparent">
                 <PivotItem Header="General">
-                    <ScrollViewer>
-                        <StackPanel Spacing="6" MaxWidth="720" HorizontalAlignment="Left">
-                            <TextBlock Text="Torrent details"
-                                       Style="{ThemeResource SubtitleTextBlockStyle}" />
-                            <TextBlock Text="Info hash, save path, comment, creation date, and fast-resume status populate in a later M4 deliverable."
-                                       Style="{ThemeResource BodyTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       TextWrapping="Wrap" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" Padding="0,8,0,0">
+                        <StackPanel Spacing="16" Padding="12,8,12,24">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Info hash"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.Properties.GeneralInfoHash, Mode=OneWay}"
+                                           Style="{ThemeResource BodyTextBlockStyle}"
+                                           IsTextSelectionEnabled="True"
+                                           FontFamily="Consolas"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Save path"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.Properties.GeneralSavePath, Mode=OneWay}"
+                                           Style="{ThemeResource BodyTextBlockStyle}"
+                                           IsTextSelectionEnabled="True"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Comment"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.Properties.GeneralComment, Mode=OneWay}"
+                                           Style="{ThemeResource BodyTextBlockStyle}"
+                                           IsTextSelectionEnabled="True"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Created by"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.Properties.GeneralCreator, Mode=OneWay}"
+                                           Style="{ThemeResource BodyTextBlockStyle}"
+                                           IsTextSelectionEnabled="True" />
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Creation date"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.Properties.GeneralCreationDate, Mode=OneWay}"
+                                           Style="{ThemeResource BodyTextBlockStyle}" />
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Added on"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.Properties.GeneralAddedDate, Mode=OneWay}"
+                                           Style="{ThemeResource BodyTextBlockStyle}" />
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Completed on"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.Properties.GeneralCompletionDate, Mode=OneWay}"
+                                           Style="{ThemeResource BodyTextBlockStyle}" />
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Pieces"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.Properties.GeneralPieces, Mode=OneWay}"
+                                           Style="{ThemeResource BodyTextBlockStyle}" />
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </PivotItem>
@@ -261,14 +332,88 @@
                     </tv:TableView>
                 </PivotItem>
                 <PivotItem Header="Content">
-                    <StackPanel Spacing="6" Padding="0,8" MaxWidth="720" HorizontalAlignment="Left">
-                        <TextBlock Text="Content"
-                                   Style="{ThemeResource SubtitleTextBlockStyle}" />
-                        <TextBlock Text="File tree with per-file priority (Do not download / Low / Normal / High). Hosts the PiecesBar once bitfield data is wired."
-                                   Style="{ThemeResource BodyTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
+                    <Grid>
+                        <tv:TableView
+                            ItemsSource="{x:Bind ViewModel.Properties.Files, Mode=OneWay}"
+                            SelectionMode="Single"
+                            IsReadOnly="True"
+                            AutoGenerateColumns="False"
+                            RightTapped="OnContentFileRightTapped"
+                            Visibility="{x:Bind local:TransfersPage.VisibleIfTrue(ViewModel.Properties.HasFiles), Mode=OneWay}">
+                            <tv:TableView.ContextFlyout>
+                                <MenuFlyout Opening="OnContentFileContextMenuOpening">
+                                    <MenuFlyoutItem x:Name="ContentRenameMenuItem" Text="Rename file" Click="OnContentFileRenameClicked">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8AC;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem x:Name="ContentRenameFolderMenuItem"
+                                                    Text="Rename folder"
+                                                    Click="OnContentFolderRenameClicked">
+                                        <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutSubItem x:Name="ContentSetPriorityMenuItem" Text="Set priority">
+                                        <MenuFlyoutSubItem.Icon><FontIcon Glyph="&#xE8D1;" /></MenuFlyoutSubItem.Icon>
+                                        <MenuFlyoutItem Text="Do not download"
+                                                        Tag="DoNotDownload"
+                                                        Click="OnSetFilePriorityClicked">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Normal"
+                                                        Tag="Normal"
+                                                        Click="OnSetFilePriorityClicked" />
+                                        <MenuFlyoutItem Text="High"
+                                                        Tag="High"
+                                                        Click="OnSetFilePriorityClicked">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74A;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Maximum"
+                                                        Tag="Maximum"
+                                                        Click="OnSetFilePriorityClicked">
+                                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE893;" /></MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyoutSubItem>
+                                </MenuFlyout>
+                            </tv:TableView.ContextFlyout>
+                            <tv:TableView.Columns>
+                                <tv:TableViewTextColumn Header="Name"
+                                                        Binding="{Binding RelativePath}"
+                                                        MinWidth="200" />
+                                <tv:TableViewTextColumn Header="Size"
+                                                        Binding="{Binding SizeBytes, Converter={StaticResource FileSizeConverter}}"
+                                                        MinWidth="90" />
+                                <tv:TableViewTextColumn Header="Priority"
+                                                        Binding="{Binding Priority, Converter={StaticResource PriorityToString}}"
+                                                        MinWidth="110" />
+                            </tv:TableView.Columns>
+                        </tv:TableView>
+                        <StackPanel HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="8"
+                                    Visibility="{x:Bind local:TransfersPage.VisibleIfFalse(ViewModel.Properties.HasFiles), Mode=OneWay}">
+                            <Border CornerRadius="8"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    Padding="12"
+                                    HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE7C3;"
+                                          FontSize="24"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </Border>
+                            <TextBlock Text="No file data available"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}"
+                                       HorizontalAlignment="Center" />
+                            <TextBlock Text="{x:Bind local:TransfersPage.ContentTabEmptySubtitle(ViewModel.Properties.HasSelectedTorrent), Mode=OneWay}"
+                                       Style="{ThemeResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                </PivotItem>
+                <PivotItem Header="Pieces">
+                    <controls:PiecesBar
+                        Pieces="{x:Bind ViewModel.Properties.PieceMap, Mode=OneWay}"
+                        Margin="12,8,12,8" />
                 </PivotItem>
                 <PivotItem Header="Speed">
                     <Grid Padding="0,8" RowSpacing="8">

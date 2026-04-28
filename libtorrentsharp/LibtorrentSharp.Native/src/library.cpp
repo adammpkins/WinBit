@@ -1241,7 +1241,7 @@ void lts_set_file_piece_priority(lt::torrent_handle* torrent, int32_t file_index
 // piece-level granularity here so consumers can drive streaming or selective
 // downloads without going through the file-level rollup.
 
-static int32_t lts_num_pieces(lt::torrent_handle* torrent)
+int32_t lts_num_pieces(lt::torrent_handle* torrent)
 {
     if (torrent == nullptr || !torrent->is_valid())
     {
@@ -1254,6 +1254,20 @@ static int32_t lts_num_pieces(lt::torrent_handle* torrent)
         return 0;
     }
     return static_cast<int32_t>(ti->num_pieces());
+}
+
+int64_t lts_total_size(lt::torrent_handle* torrent)
+{
+    if (torrent == nullptr || !torrent->is_valid())
+    {
+        return 0;
+    }
+    const auto ti = torrent->torrent_file();
+    if (!ti || !ti->is_valid())
+    {
+        return 0;
+    }
+    return static_cast<int64_t>(ti->total_size());
 }
 
 uint8_t lts_get_piece_priority(lt::torrent_handle* torrent, int32_t piece_index)
@@ -1553,7 +1567,7 @@ void destroy_torrent_info(torrent_metadata* info)
 }
 
 // given a torrent handle, get the list of files in the torrent.
-void get_torrent_file_list(lt::torrent_info* torrent, torrent_file_list* file_list)
+void get_torrent_file_list(const lt::torrent_info* torrent, torrent_file_list* file_list)
 {
     if (torrent == nullptr || file_list == nullptr)
     {
@@ -1592,6 +1606,20 @@ void get_torrent_file_list(lt::torrent_info* torrent, torrent_file_list* file_li
 
     file_list->files = list;
     file_list->length = num_files;
+}
+
+void lts_torrent_handle_file_list(lt::torrent_handle* torrent, torrent_file_list* file_list)
+{
+    if (torrent == nullptr || !torrent->is_valid() || file_list == nullptr)
+    {
+        return;
+    }
+    const auto ti = torrent->torrent_file();
+    if (!ti || !ti->is_valid())
+    {
+        return;
+    }
+    get_torrent_file_list(ti.get(), file_list);
 }
 
 void destroy_torrent_file_list(torrent_file_list* file_list)

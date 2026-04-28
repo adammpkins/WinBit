@@ -133,7 +133,9 @@ public sealed partial class TorrentCreatorPage : Page
 
         ProgressBarControl.Visibility = Visibility.Collapsed;
         ProgressText.Text = string.Empty;
-        CreateButton.IsEnabled = true;
+        // CreateButton stays disabled while torrent creation is unsupported on the
+        // libtorrent engine — see UnsupportedBar in the XAML and Phase G of
+        // LIBTORRENT_TASKS.md. Re-enable here when the binding's create_torrent lands.
         CancelButton.IsEnabled = false;
         _cts.Dispose();
         _cts = null;

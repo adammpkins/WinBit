@@ -1,10 +1,8 @@
-# Torrent engine (MonoTorrent)
+# Torrent engine (libtorrent-rasterbar)
 
-How WinBit wraps MonoTorrent and how qBittorrent concepts map across.
+How WinBit wraps libtorrent-rasterbar via LibtorrentSharp and how qBittorrent concepts map across.
 
 ## Choice and rationale
-
-If MonoTorrent gaps block a feature, document the gap in the "Gaps & caveats" section below; don't silently remove the feature from the UI. Long-standing gaps are part of the motivation for the libtorrent binding.
 
 ## Engine alternatives evaluation (2026-04)
 
@@ -47,28 +45,24 @@ In short: MonoTorrent is the only production-grade **.NET** option.
 
 ### Decision
 
-**Stay on MonoTorrent.** Revisit if any of:
+**Switched to libtorrent-rasterbar (2026-04-27).** The LibtorrentSharp binding on `engine/libtorrent-bindings` reached sufficient parity with `ITorrentSessionService` (cold-start loader, peers/trackers tabs, sequential download, session stats) to replace MonoTorrent on `main`. MonoTorrent has been removed. One gap at switch time: `TorrentCreatorService` has no libtorrent equivalent yet — it is disabled pending Phase G of `LIBTORRENT_TASKS.md`.
 
-1. The `libtorrent-rasterbar engine spike` booked in `TASKS.md` Backlog produces a green-light recommendation.
-2. MonoTorrent goes dormant for 12+ months with a known correctness or security defect.
-3. A concrete milestone hits a MonoTorrent limitation (e.g., a BEP we need that isn't implemented).
+## Concept mapping
 
-## Concept mapping (filled in M3)
-
-| qBittorrent | MonoTorrent | WinBit.Core |
+| qBittorrent | libtorrent (LibtorrentSharp) | WinBit.Core |
 |---|---|---|
-| `BitTorrent::Session` | `ClientEngine` | `ITorrentSessionService` |
-| `BitTorrent::Torrent` | `TorrentManager` | `TorrentHandle` |
-| `BitTorrent::TorrentInfo` | `Torrent` (metadata) | (opaque — exposed via `TorrentHandle` getters) |
-| `BitTorrent::AddTorrentParams` | `TorrentSettingsBuilder` + start-path | `AddTorrentParams` |
-| resume data (bencoded / DB) | `FastResume` | SQLite BLOB via `ITorrentStateStore` |
-| `BitTorrent::Tracker` | `TrackerTier` / `Tracker` | `TrackerInfo` |
-| `BitTorrent::PeerInfo` | `PeerId` | `PeerInfo` |
-| `BitTorrent::InfoHash` | `InfoHashes` | `InfoHash` |
+| `BitTorrent::Session` | `session` via `LibtorrentSharp.Session` | `ITorrentSessionService` |
+| `BitTorrent::Torrent` | `torrent_handle` | `TorrentHandle` |
+| `BitTorrent::TorrentInfo` | `torrent_info` | (opaque — exposed via `TorrentHandle` getters) |
+| `BitTorrent::AddTorrentParams` | `add_torrent_params` | `AddTorrentParams` |
+| resume data (bencoded / DB) | `add_torrent_params::resume_data` blob | SQLite BLOB via `ITorrentStateStore` |
+| `BitTorrent::Tracker` | `announce_entry` | `TrackerInfo` |
+| `BitTorrent::PeerInfo` | `peer_info` | `PeerInfo` |
+| `BitTorrent::InfoHash` | `info_hash_t` | `InfoHash` |
 
 ## Status polling
 
-MonoTorrent exposes real-time state via `TorrentManager` properties + periodic events. WinBit uses `StatusPollingLoop` (1 Hz `PeriodicTimer`) in `WinBit.Core.Hosting` to snapshot every torrent into `TorrentSnapshot[]` and batch-raise `TorrentUpdated` once per tick.
+LibtorrentSharp exposes real-time state via libtorrent alerts + a synchronous status call. WinBit uses `StatusPollingLoop` (1 Hz `PeriodicTimer`) in `WinBit.Core.Hosting` to snapshot every torrent into `TorrentSnapshot[]` and batch-raise `TorrentUpdated` once per tick.
 
 - Snapshots include: state, progress, bytes down/up, speed down/up, ratio, ETA, seed count, peer count.
 - Per-tab polls (peers, trackers, pieces) run at 3 s and only while the tab is visible.
@@ -76,40 +70,19 @@ MonoTorrent exposes real-time state via `TorrentManager` properties + periodic e
 ## Fast-resume
 
 - Blob stored in SQLite (`torrent_state` table, column `fast_resume BLOB`).
-- Schema version column guards MonoTorrent format changes: on version mismatch, discard the blob and re-check.
+- Schema version column guards format changes: on version mismatch, discard the blob and re-check (the engine will hash-check from scratch — no corruption possible).
+- MonoTorrent blobs from before the engine swap were discarded on first launch (version mismatch); torrents re-checked automatically.
 - Autosave every 60 s + on graceful shutdown.
 
-## Gaps & caveats (M3 spike, MonoTorrent 3.0.2)
+## Gaps & caveats (post engine-swap, libtorrent-rasterbar)
 
-Verified against the MonoTorrent XML docs shipped with `MonoTorrent` 3.0.2 (`lib/net6.0/`).
+> Historical MonoTorrent gap notes from M3 are no longer applicable. Libtorrent covers all features MonoTorrent lacked (sequential download, per-protocol settings, super-seeding force, etc.). Known libtorrent gaps at the switch point:
 
-- **BEP 52 (v2) / hybrid torrents — full support.** `MonoTorrent.InfoHashes` exposes both `V1` (SHA-1) and `V2` (SHA-256); `V1OrV2` prefers V1 when both exist. `MonoTorrent.TorrentType` covers `V1Only`, `V2Only`, and `V1V2Hybrid`. Per-file Merkle tree roots ship with `TorrentFile.PiecesRoot` (SHA-256). Adding by v2-only magnet works via the standard `ClientEngine.AddAsync(MagnetLink, …)`. **WinBit action:** persist both hashes in `InfoHashes` and use `V1OrV2` for display/identity. No UI feature to disable.
+- **TorrentCreatorService** — MonoTorrent had `TorrentCreator`; libtorrent exposes torrent creation through `create_torrent` in C++, not yet wrapped in LibtorrentSharp. The "Create torrent" feature is non-functional until Phase G of `LIBTORRENT_TASKS.md` ships. **WinBit action:** disable the create-torrent UI entry point until the binding catches up.
 
-- **Encryption modes — clean mapping.** `EngineSettings.AllowedEncryption` is an ordered `IList<EncryptionType>` of {`PlainText`, `RC4Header`, `RC4Full`}. Preference is set by list order; requirement is set by *exclusion*.
-    - qBittorrent *Prefer* → `[RC4Header, RC4Full, PlainText]` (default).
-    - qBittorrent *Require* → `[RC4Header, RC4Full]` (plaintext rejected).
-    - qBittorrent *Disable* → `[PlainText]`.
-    - **WinBit action:** ship all three options; the Settings/BitTorrent `Encryption` combo maps directly.
+- **DhtBootstrapSeeder / DhtNetworkProbe** — these previously used MonoTorrent's `IDhtEngine`. LibtorrentSharp exposes DHT via `session_stats` alerts; the hosted services need porting. Tracked in Backlog `TASKS.md`.
 
-- **UPnP / NAT-PMP — single toggle, both protocols.** `EngineSettings.AllowPortForwarding` (bool) activates the built-in `IPortForwarder`, which discovers UPnP and NAT-PMP devices jointly. Individual active mappings are inspectable via `ClientEngine.PortMappings`. MonoTorrent doesn't expose per-protocol toggles. **WinBit action:** keep the single *UPnP / NAT-PMP* toggle in Settings/Connection; log mapping failures to `ILogService` so users can diagnose from the Logs page. `Open.Nat` fallback not needed — in-box support is sufficient.
-
-- **Super-seeding — partial / automatic only.** `TorrentSettings.AllowInitialSeeding` is the closest analogue. Semantics: Initial Seeding (BEP-16 "superseed") engages **only when there are no other seeders in the swarm** and the local torrent is complete. qBittorrent's UI exposes a manual Super-Seeding toggle that can be forced even when other seeders exist. **Gap:** MonoTorrent does not let us force super-seeding while other seeders exist. **WinBit action:** expose the toggle labelled *Allow initial seeding* with a tooltip explaining the automatic behavior; omit the "force" path from parity with a TODO if users request it.
-
-- **Choking algorithms — not configurable.** `ChokeUnchokeManager` is internal. `TorrentSettings.UploadSlots` caps simultaneous unchoked peers, but there is no hook for qBittorrent's `fast_extent`, `anti_leech`, or custom unchoke modes. **Gap:** WinBit will not offer advanced choking-algorithm selection. **WinBit action:** drop those controls from the Advanced settings page; surface only `UploadSlots`.
-
-- **uTP / TCP — both enabled by default.** `ConnectionType` in MonoTorrent covers TCP and uTP with automatic fallback; no user-facing knob is required to match qBittorrent's "Enable uTP" / "Mixed mode" defaults.
-
-- **Piece picking extents — supported.** `TorrentSettings` surfaces the relevant toggles. Sequential download and first/last piece priority are configured via `TorrentManager.SetFilePriorityAsync` + custom piece-picker selection (`ChangePickerAsync`). **WinBit action:** map the M4 Add-Torrent dialog's sequential / first-last checkboxes straight through.
-
-- **IP filter — delegate-based.** MonoTorrent accepts a peer-connection filter at engine construction. The `PeerGuardianParser` M7 deliverable will produce an `IPBlockSet` that this delegate consults on every incoming peer. **WinBit action:** plumb the parser through `EngineSettingsBuilder` when implementing M7.
-
-### Features with no MonoTorrent parity that we accept
-
-- Custom choking modes ("fast extent", "anti-leech").
-- Forced super-seeding while other seeders are present.
-- Per-protocol UPnP / NAT-PMP toggles.
-
-The Settings sub-pages and Add-Torrent dialog must not expose controls for any of the above — exposing a switch that does nothing is worse than omitting the feature.
+- **IP filter** — libtorrent has `ip_filter` / `set_ip_filter`; not yet wired through LibtorrentSharp. The M7 `PeerGuardianParser` deliverable will produce an `IPBlockSet`; once the binding exposes the filter hook, plumb it through `LibTorrentSessionService`.
 
 ## Error handling
 
@@ -118,12 +91,13 @@ The Settings sub-pages and Add-Torrent dialog must not expose controls for any o
 
 ## Testing
 
-- Unit tests use MonoTorrent's test scaffolding to spin up a loopback tracker + peer.
+- Unit tests in `WinBit.Tests/` cover engine-agnostic Core behavior (persistence, settings, RSS, etc.). No MonoTorrent test scaffolding remains.
+- LibtorrentSharp binding tests live in `libtorrentsharp/LibtorrentSharp.Tests/`. Network-category tests `Skip` when `lts.dll` is absent — run them manually before any flag flip.
 - End-to-end: add magnet, observe snapshot transitions, restart app, verify resume without re-check.
 
-## Appendix: libtorrent-rasterbar spike results
+## Appendix: libtorrent-rasterbar spike results (historical)
 
-Live appendix, updated as the spike on `spike/libtorrent-rasterbar-eval` progresses. Steps match the plan in `TASKS.md` Backlog.
+This appendix covers the research and pivot that led to WinBit owning its own binding. The spike is complete; LibtorrentSharp is now the production engine on `main`.
 
 ### Step 1 — C# wrapper triage (2026-04)
 
@@ -186,10 +160,10 @@ After Step 1 surfaced csdl's gaps, the direction shifted: rather than settle for
 - Start from csdl's structure (C ABI in a `-native` package, P/Invoke layer in the managed project) as a known-working vcpkg + CMake reference.
 - Extend the C ABI to cover everything `ITorrentSessionService` needs that csdl omits (magnets, resume data, recheck, peer/tracker enumeration, per-torrent rate limits, super-seeding, sequential / first-last, move-storage, richer status struct).
 - Attribution: csdl is Apache-2.0 (Albie Spriddell); any vendored code carries a `NOTICE` with original copyright preserved.
-- Home for the work: new branch `engine/libtorrent-bindings`, cut from `spike/libtorrent-rasterbar-eval`. Scaffold + binding code live there. Production code on `main` stays on MonoTorrent until the binding proves out end-to-end.
+- Home for the work: branch `engine/libtorrent-bindings`, cut from `spike/libtorrent-rasterbar-eval`. Scaffold + binding code developed there; merged to `main` in April 2026 once parity was sufficient.
 
-This changes the TASKS.md Backlog entry from a bounded spike into a post-M12 engine initiative. The decision record (Engine alternatives evaluation above) still stands — MonoTorrent remains the `main`-branch engine until the binding ships.
+This changed the TASKS.md Backlog entry from a bounded spike into a post-M12 engine initiative that shipped. MonoTorrent has been removed from `main`.
 
-### Steps 2–5 — superseded by the pivot
+### Steps 2–5 — complete
 
-The original spike steps (triage → minimal build → prototype → packaging → decision) no longer apply cleanly. Progress on the owned-binding track is recorded below as it lands.
+The owned-binding track shipped. Steps 2–5 (minimal native build → prototype `LibTorrentSessionService` → close integration gaps → merge to `main`) all landed on `engine/libtorrent-bindings` before the branch was merged. See `LIBTORRENT_TASKS.md` for the detailed task history.

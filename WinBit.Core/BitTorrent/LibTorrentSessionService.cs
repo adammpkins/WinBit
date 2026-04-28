@@ -21,10 +21,10 @@ using WinBit.Core.Threading;
 namespace WinBit.Core.BitTorrent;
 
 /// <summary>
-/// LibtorrentSharp-backed <see cref="ITorrentSessionService"/>. Gated behind
-/// <see cref="AdvancedSettings.UseLibtorrentEngine"/>. This is the *only* WinBit-aware
-/// file in the libtorrent adapter chain — the binding under <c>libtorrentsharp/</c>
-/// stays project-agnostic.
+/// LibtorrentSharp-backed <see cref="ITorrentSessionService"/>. The sole engine adapter
+/// implementation since the 2026-04-27 engine swap (see <c>docs/torrent-engine.md</c>).
+/// This is the *only* WinBit-aware file in the libtorrent adapter chain — the binding
+/// under <c>libtorrentsharp/</c> stays project-agnostic.
 /// </summary>
 /// <remarks>
 /// <para>Lifecycle (<c>a-lifecycle</c>) and the alert pump (<c>a-alertpump</c>) are wired:
@@ -39,7 +39,7 @@ namespace WinBit.Core.BitTorrent;
 public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDisposable
 {
     private const string EngineNotRunningMessage =
-        "LibtorrentSharp engine is not running. Enable AdvancedSettings.UseLibtorrentEngine and restart.";
+        "LibtorrentSharp engine is not running. Call StartAsync before issuing torrent operations.";
 
     private const string NotImplementedMessage =
         "LibtorrentSharp engine action is not wired yet. The adapter implementation is incremental — " +
@@ -73,6 +73,11 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
     // does not promote these to TorrentManagers when metadata resolves, so they live in a
     // parallel map. Both are walked by Torrents and RemoveAsync.
     private readonly ConcurrentDictionary<TorrentId, MagnetHandle> _magnets = new();
+
+    // Keeps TorrentInfo alive for resume-loaded torrents (which libtorrent loads
+    // as MagnetHandle via the resume blob). Used to serve GetTorrentFilesAsync
+    // and TotalSize for those handles without binding changes.
+    private readonly ConcurrentDictionary<TorrentId, LibtorrentSharp.TorrentInfo> _torrentInfos = new();
 
     // 0 = nothing to publish; 1 = at least one alert arrived since the last tick. Interlocked
     // exchange means the polling loop never publishes a stale or duplicated batch.
@@ -118,6 +123,11 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
     private readonly ConcurrentDictionary<TorrentId, string[]> _trackerHostsCache = new();
 
     private readonly record struct MagnetMetadata(string? OriginalUri, string DisplayName);
+
+    // Mirrors the last pex argument passed to SetPeerDiscoveryAsync. Checked in AddAsync so
+    // newly added torrents honour the current PEX setting without waiting for the next applier
+    // cycle. Default true matches libtorrent's out-of-the-box behaviour.
+    private bool _pexEnabled = true;
 
     private LibtorrentSession? _client;
     private CancellationTokenSource? _alertPumpCts;
@@ -780,6 +790,110 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
         return Task.FromResult<IReadOnlyList<WinBit.Core.BitTorrent.TrackerInfo>>(trackers);
     }
 
+    public Task<IReadOnlyList<TorrentFileEntry>> GetTorrentFilesAsync(TorrentId id, CancellationToken ct = default)
+    {
+        if (_handles.TryGetValue(id, out var handle))
+        {
+            var entries = handle.Files
+                .Where(f => !f.Info.IsPadFile)
+                .Select(f => new TorrentFileEntry
+                {
+                    Index = f.Info.Index,
+                    Name = f.Info.Name,
+                    RelativePath = f.Info.Path.Replace('\\', '/'),
+                    SizeBytes = f.Info.FileSize,
+                    Priority = MapFilePriority(f.Priority),
+                })
+                .ToList();
+
+            return Task.FromResult<IReadOnlyList<TorrentFileEntry>>(entries);
+        }
+
+        // Magnets (including resume-loaded torrents) use the native handle directly.
+        // MagnetHandle.GetFiles() calls lts_torrent_handle_file_list which works for
+        // both fresh magnets with resolved metadata and cold-start resume-loaded handles.
+        // Pure pre-metadata magnets return an empty list from the native side.
+        if (_magnets.TryGetValue(id, out var magnet))
+        {
+            var entries = magnet.GetFiles()
+                .Where(f => !f.Info.IsPadFile)
+                .Select(f => new TorrentFileEntry
+                {
+                    Index = f.Info.Index,
+                    Name = f.Info.Name,
+                    RelativePath = f.Info.Path.Replace('\\', '/'),
+                    SizeBytes = f.Info.FileSize,
+                    Priority = MapFilePriority(f.Priority),
+                })
+                .ToList();
+            return Task.FromResult<IReadOnlyList<TorrentFileEntry>>(entries);
+        }
+
+        return Task.FromResult<IReadOnlyList<TorrentFileEntry>>(Array.Empty<TorrentFileEntry>());
+    }
+
+    public Task<IReadOnlyList<bool>> GetPiecesAsync(TorrentId id, CancellationToken ct = default)
+    {
+        if (_handles.TryGetValue(id, out var handle))
+        {
+            var info = handle.Info;
+            if (info is null || info.NumPieces == 0)
+            {
+                return Task.FromResult<IReadOnlyList<bool>>(Array.Empty<bool>());
+            }
+
+            var pieces = new bool[info.NumPieces];
+            for (var i = 0; i < info.NumPieces; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                pieces[i] = handle.HavePiece(i);
+            }
+
+            return Task.FromResult<IReadOnlyList<bool>>(pieces);
+        }
+
+        if (_magnets.TryGetValue(id, out var magnet))
+        {
+            var count = magnet.NumPieces;
+            if (count == 0)
+                return Task.FromResult<IReadOnlyList<bool>>(Array.Empty<bool>());
+            var pieces = new bool[count];
+            for (var i = 0; i < count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                pieces[i] = magnet.HavePiece(i);
+            }
+            return Task.FromResult<IReadOnlyList<bool>>(pieces);
+        }
+
+        return Task.FromResult<IReadOnlyList<bool>>(Array.Empty<bool>());
+    }
+
+    private static WinBit.Core.BitTorrent.FileDownloadPriority MapFilePriority(LibtorrentSharp.Enums.FileDownloadPriority p) =>
+        p switch
+        {
+            LibtorrentSharp.Enums.FileDownloadPriority.DoNotDownload => WinBit.Core.BitTorrent.FileDownloadPriority.DoNotDownload,
+            LibtorrentSharp.Enums.FileDownloadPriority.Low           => WinBit.Core.BitTorrent.FileDownloadPriority.Low,
+            LibtorrentSharp.Enums.FileDownloadPriority.Normal        => WinBit.Core.BitTorrent.FileDownloadPriority.Normal,
+            // libtorrent's High (7) is the absolute maximum on its 0-7 scale; map it to
+            // Core Maximum (7). Core High (6) arrives as an unnamed byte value from
+            // libtorrent — the default arm catches it and rounds down to Normal.
+            LibtorrentSharp.Enums.FileDownloadPriority.High          => WinBit.Core.BitTorrent.FileDownloadPriority.Maximum,
+            _                                                          => WinBit.Core.BitTorrent.FileDownloadPriority.Normal,
+        };
+
+    private static LibtorrentSharp.Enums.FileDownloadPriority MapToNativeFilePriority(WinBit.Core.BitTorrent.FileDownloadPriority priority) =>
+        priority switch
+        {
+            WinBit.Core.BitTorrent.FileDownloadPriority.DoNotDownload => LibtorrentSharp.Enums.FileDownloadPriority.DoNotDownload,
+            WinBit.Core.BitTorrent.FileDownloadPriority.Low           => LibtorrentSharp.Enums.FileDownloadPriority.Low,
+            // Core High (6) has no named LibtorrentSharp equivalent; cast the value directly.
+            // Core Maximum (7) corresponds to LibtorrentSharp.High on the 0-7 scale.
+            WinBit.Core.BitTorrent.FileDownloadPriority.High          => (LibtorrentSharp.Enums.FileDownloadPriority)6,
+            WinBit.Core.BitTorrent.FileDownloadPriority.Maximum       => LibtorrentSharp.Enums.FileDownloadPriority.High,
+            _                                                           => LibtorrentSharp.Enums.FileDownloadPriority.Normal,
+        };
+
     private void EmitPeerDiag(TorrentId id, string shortId)
     {
         try
@@ -927,7 +1041,7 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
         {
             try
             {
-                batch.Add(BuildSnapshot(id, manager.GetCurrentStatus()));
+                batch.Add(BuildSnapshot(id, manager.GetCurrentStatus()) with { TotalSize = manager.Info.Metadata.TotalSize });
             }
             catch (Exception ex)
             {
@@ -944,7 +1058,10 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
 
             try
             {
-                batch.Add(BuildSnapshot(id, magnet.GetCurrentStatus()));
+                batch.Add(BuildSnapshot(id, magnet.GetCurrentStatus()) with
+                {
+                    TotalSize = magnet.TotalSize
+                });
             }
             catch (Exception ex)
             {
@@ -970,6 +1087,7 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             Seeds = status.SeedCount,
             Peers = status.PeerCount,
             ErrorMessage = string.IsNullOrEmpty(status.ErrorMessage) ? null : status.ErrorMessage,
+            IsSequentialDownload = status.Flags.HasFlag(LibtorrentSharp.Enums.TorrentFlags.SequentialDownload),
         };
 
     // libtorrent has no Paused / Stopped state — that's a flag (torrent_flags::paused) on the
@@ -1047,12 +1165,14 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                 }
 
                 _magnets[addedId] = magnet;
+                if (!_pexEnabled)
+                    magnet.SetFlags(TorrentFlags.DisablePex);
                 _magnetMetadata[addedId] = new MagnetMetadata(parameters.Source, displayName);
                 Interlocked.Exchange(ref _pendingPublish, 1);
 
                 // libtorrent's C ABI adds every torrent paused (paused=true,
-                // auto_managed=false) so an unconditional Resume/Pause is required — the
-                // native default isn't "running" like MonoTorrent's is.
+                // auto_managed=false) so an unconditional Resume/Pause is required to
+                // honour StartImmediately — the native default isn't "running".
                 if (parameters.StartImmediately)
                 {
                     magnet.Resume();
@@ -1104,7 +1224,10 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                     if (resumeHandle.IsValid)
                     {
                         _magnets[addedId] = resumeHandle;
+                        if (!_pexEnabled)
+                            resumeHandle.SetFlags(TorrentFlags.DisablePex);
                         _magnetMetadata[addedId] = new MagnetMetadata(OriginalUri: null, displayName);
+                        _torrentInfos[addedId] = info;
                         Interlocked.Exchange(ref _pendingPublish, 1);
                         if (parameters.StartImmediately)
                         {
@@ -1130,6 +1253,8 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                 {
                     var manager = client.Add(new LibtorrentSharp.AddTorrentParams { TorrentInfo = info, SavePath = parameters.SavePath }).Torrent!;
                     _handles[addedId] = manager;
+                    if (!_pexEnabled)
+                        manager.SetFlags(TorrentFlags.DisablePex);
                     Interlocked.Exchange(ref _pendingPublish, 1);
                     if (parameters.StartImmediately)
                     {
@@ -1209,6 +1334,7 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             {
                 client.DetachMagnet(magnet);
                 _magnetMetadata.TryRemove(id, out _);
+                _torrentInfos.TryRemove(id, out _);
                 _trackerHostsCache.TryRemove(id, out _);
                 Interlocked.Exchange(ref _pendingPublish, 1);
                 _ = _customNames.RemoveNameAsync(id);
@@ -1218,6 +1344,7 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             if (_handles.TryRemove(id, out var manager))
             {
                 client.DetachTorrent(manager);
+                _torrentInfos.TryRemove(id, out _);
                 _trackerHostsCache.TryRemove(id, out _);
                 Interlocked.Exchange(ref _pendingPublish, 1);
                 _ = _customNames.RemoveNameAsync(id);
@@ -1404,6 +1531,77 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
         return false;
     }
 
+    public async Task<TorrentDetailInfo?> GetTorrentDetailAsync(TorrentId id, CancellationToken ct = default)
+    {
+        var stateRecord = await _stateStore.GetByIdAsync(id, ct).ConfigureAwait(false);
+        if (stateRecord is null)
+        {
+            return null;
+        }
+
+        string? savePath = null;
+        string? comment = null;
+        string? creator = null;
+        DateTimeOffset? creationDate = null;
+        int totalPieces = 0;
+        long pieceLength = 0;
+
+        if (_handles.TryGetValue(id, out var handle))
+        {
+            // TryReadStatus covers both _handles and _magnets, but for TorrentHandle we
+            // also need TorrentInfo (metadata) which is only on the handle, not the status.
+            if (TryReadStatus(id, out var status))
+            {
+                savePath = string.IsNullOrEmpty(status.SavePath) ? null : status.SavePath;
+            }
+
+            var info = handle.Info;
+            var meta = info.Metadata;
+            comment = string.IsNullOrEmpty(meta.Comment) ? null : meta.Comment;
+            creator = string.IsNullOrEmpty(meta.Creator) ? null : meta.Creator;
+            // creation_epoch = 0 maps to 1970-01-01 UTC, which means the field wasn't set.
+            creationDate = meta.CreatedAt.ToUnixTimeSeconds() <= 0 ? null : meta.CreatedAt;
+            totalPieces = info.NumPieces;
+            pieceLength = info.PieceLength;
+        }
+        else if (_magnets.TryGetValue(id, out var magnet))
+        {
+            savePath = string.IsNullOrEmpty(magnet.SavePath) ? null : magnet.SavePath;
+
+            // Resume-loaded file torrents arrive as MagnetHandle but keep their TorrentInfo
+            // in _torrentInfos (populated during AddAsync so metadata survives the add path).
+            if (_torrentInfos.TryGetValue(id, out var torrentInfo))
+            {
+                var meta = torrentInfo.Metadata;
+                comment = string.IsNullOrEmpty(meta.Comment) ? null : meta.Comment;
+                creator = string.IsNullOrEmpty(meta.Creator) ? null : meta.Creator;
+                creationDate = meta.CreatedAt.ToUnixTimeSeconds() <= 0 ? null : meta.CreatedAt;
+                totalPieces = torrentInfo.NumPieces;
+                pieceLength = torrentInfo.PieceLength;
+            }
+            else
+            {
+                // Pure magnet or resume-loaded magnet without a cached TorrentInfo —
+                // NumPieces is available on the handle once metadata resolves.
+                totalPieces = magnet.NumPieces;
+            }
+        }
+
+        return new TorrentDetailInfo(
+            InfoHash: id.Value,
+            SavePath: savePath,
+            Comment: comment,
+            Creator: creator,
+            CreationDate: creationDate,
+            AddedDate: new DateTimeOffset(stateRecord.AddedUtc, TimeSpan.Zero),
+            CompletionDate: stateRecord.CompletedUtc.HasValue
+                ? new DateTimeOffset(stateRecord.CompletedUtc.Value, TimeSpan.Zero)
+                : null,
+            TotalPieces: totalPieces,
+            PieceLength: pieceLength
+        );
+    }
+
     public (long DownloadBps, long UploadBps)? GetSpeedLimits(TorrentId id)
     {
         if (_handles.TryGetValue(id, out var manager))
@@ -1464,29 +1662,45 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             pack.Set("in_enc_policy", policy);
         }));
 
-    public Task<Result> SetPeerDiscoveryAsync(bool dht, bool pex, bool lsd, CancellationToken ct = default) =>
-        Task.FromResult(ApplySettingsPack("SetPeerDiscovery", pack =>
+    public Task<Result> SetPeerDiscoveryAsync(bool dht, bool pex, bool lsd, CancellationToken ct = default)
+    {
+        var result = ApplySettingsPack("SetPeerDiscovery", pack =>
         {
             pack.Set("enable_dht", dht);
             pack.Set("enable_lsd", lsd);
-            // libtorrent 2.x exposes PEX as a per-torrent torrent_flags::disable_pex bit
-            // rather than a global settings_pack key, and the C ABI doesn't surface
-            // set_flags yet. Acknowledged gap; leave global PEX as a no-op for now.
-            if (!pex)
-            {
-                _log.Write(
-                    "SetPeerDiscovery(pex=false) requested, but global PEX disable isn't wired through the C ABI yet — falling back to engine default.",
-                    LogSeverity.Warning);
-            }
-        }));
+        });
+        _pexEnabled = pex;
+        ApplyPexFlagToAllHandles(pex);
+        return Task.FromResult(result);
+    }
+
+    private void ApplyPexFlagToAllHandles(bool pexEnabled)
+    {
+        foreach (var (_, handle) in _handles)
+        {
+            if (pexEnabled)
+                handle.UnsetFlags(TorrentFlags.DisablePex);
+            else
+                handle.SetFlags(TorrentFlags.DisablePex);
+        }
+        foreach (var (_, magnet) in _magnets)
+        {
+            if (!magnet.IsValid)
+                continue;
+            if (pexEnabled)
+                magnet.UnsetFlags(TorrentFlags.DisablePex);
+            else
+                magnet.SetFlags(TorrentFlags.DisablePex);
+        }
+    }
 
     private Result ApplySettingsPack(string actionLabel, Action<SettingsPack> mutate)
     {
         var client = _client;
         if (client is null)
         {
-            // Mirror MonoTorrent's behavior: settings appliers re-run after StartAsync, so a
-            // pre-start call returns Success without effect rather than spamming failures.
+            // Settings appliers re-run after StartAsync, so a pre-start call returns
+            // Success without effect rather than spamming failures during boot.
             return Result.Success();
         }
 
@@ -1513,6 +1727,57 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             manager => manager.SetSuperSeeding(enabled),
             magnet => magnet.SetSuperSeeding(enabled),
             "SetSuperSeeding"));
+
+    public Task<Result> SetSequentialDownloadAsync(TorrentId id, bool enabled, CancellationToken ct = default) =>
+        Task.FromResult(InvokeOnHandle(
+            id,
+            manager => manager.SetSequentialDownload(enabled),
+            magnet => magnet.SetSequentialDownload(enabled),
+            "SetSequentialDownload"));
+
+    public Task RenameFileAsync(TorrentId id, int fileIndex, string newRelativePath, CancellationToken ct = default)
+    {
+        // Validate before touching the engine so callers get a deterministic error
+        // even when the engine hasn't started yet.
+        ArgumentException.ThrowIfNullOrWhiteSpace(newRelativePath);
+
+        // Fire-and-forget at the libtorrent level; FileRenamedAlert arrives later.
+        // Errors (e.g. invalid index, I/O failure) surface through the alert pump.
+        InvokeOnHandle(
+            id,
+            manager => manager.RenameFile(fileIndex, newRelativePath),
+            magnet => magnet.RenameFile(fileIndex, newRelativePath),
+            "RenameFile");
+
+        return Task.CompletedTask;
+    }
+
+    public Task SetFilePriorityAsync(TorrentId id, int fileIndex, FileDownloadPriority priority, CancellationToken ct = default)
+    {
+        // Validate before touching the engine so callers get a deterministic error
+        // even when the engine hasn't started yet.
+        ArgumentOutOfRangeException.ThrowIfNegative(fileIndex);
+
+        var nativePriority = MapToNativeFilePriority(priority);
+
+        // Both branches look up the file by index and set Priority directly on the
+        // TorrentManagerFile wrapper; the setter calls lts_set_file_priority immediately.
+        if (_handles.TryGetValue(id, out var handle))
+        {
+            var file = handle.Files.FirstOrDefault(f => f.Info.Index == fileIndex);
+            if (file is not null) file.Priority = nativePriority;
+            return Task.CompletedTask;
+        }
+
+        if (_magnets.TryGetValue(id, out var magnet))
+        {
+            var file = magnet.GetFiles().FirstOrDefault(f => f.Info.Index == fileIndex);
+            if (file is not null) file.Priority = nativePriority;
+            return Task.CompletedTask;
+        }
+
+        return Task.CompletedTask;
+    }
 
     public ShareLimitSnapshot? GetShareLimitSnapshot(TorrentId id)
     {

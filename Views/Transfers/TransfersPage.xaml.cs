@@ -25,6 +25,7 @@ public sealed partial class TransfersPage : Page
     private readonly ISettingsService _settings;
     // Cached delegate so AddHandler/RemoveHandler use the same instance.
     private readonly TappedEventHandler _gridTappedHandler;
+    private TorrentFileEntry? _contextMenuFile;
 
     public TransfersViewModel ViewModel { get; }
 
@@ -40,6 +41,11 @@ public sealed partial class TransfersPage : Page
     }
 
     public static Visibility VisibleIfTrue(bool value) => value ? Visibility.Visible : Visibility.Collapsed;
+
+    public static Visibility VisibleIfFalse(bool value) => value ? Visibility.Collapsed : Visibility.Visible;
+
+    public static string ContentTabEmptySubtitle(bool hasSelectedTorrent) =>
+        hasSelectedTorrent ? "File list will appear shortly." : "Select a torrent to view its contents.";
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -181,12 +187,16 @@ public sealed partial class TransfersPage : Page
 
     private void OnPropertiesPivotSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // Peers is index 2 in the Pivot (General=0, Trackers=1, Peers=2, Content=3, Speed=4)
+        // Pivot order: General=0, Trackers=1, Peers=2, Content=3, Pieces=4, Speed=5
         var isPeersActive = PropertiesPivot.SelectedIndex == 2;
         var isTrackersActive = PropertiesPivot.SelectedIndex == 1;
+        var isContentActive = PropertiesPivot.SelectedIndex == 3;
+        var isPiecesActive = PropertiesPivot.SelectedIndex == 4;
         ViewModel.Properties.SetPeersTabActive(isPeersActive);
         ViewModel.Properties.SetTrackersTabActive(isTrackersActive);
-        if (isPeersActive || isTrackersActive)
+        ViewModel.Properties.SetContentTabActive(isContentActive);
+        ViewModel.Properties.SetPiecesTabActive(isPiecesActive);
+        if (isPeersActive || isTrackersActive || isContentActive || isPiecesActive)
         {
             // SelectedTorrentRow is kept in sync by the TwoWay SelectedItem binding.
             ViewModel.Properties.SetSelectedTorrent(
@@ -307,6 +317,8 @@ public sealed partial class TransfersPage : Page
     private void OnContextMenuOpening(object sender, object e)
     {
         RenameMenuItem.IsEnabled = TransfersGrid.SelectedItems.Count == 1;
+        var selectedRow = TransfersGrid.SelectedItems.OfType<TransferRowViewModel>().FirstOrDefault();
+        SequentialMenuItem.IsChecked = selectedRow?.IsSequentialDownload ?? false;
     }
 
     private async void OnRenameClicked(object sender, RoutedEventArgs e)
@@ -337,6 +349,25 @@ public sealed partial class TransfersPage : Page
 
     private async void OnForceReannounceClicked(object sender, RoutedEventArgs e) =>
         await ForEachSelectedAsync(id => Session.ForceReannounceAsync(id));
+
+    private async void OnSequentialDownloadClicked(object sender, RoutedEventArgs e)
+    {
+        var ids = SelectedIds().ToArray();
+        if (ids.Length == 0)
+            return;
+
+        var desired = SequentialMenuItem.IsChecked;
+        var anyFailed = false;
+        foreach (var id in ids)
+        {
+            var result = await Session.SetSequentialDownloadAsync(id, desired);
+            if (!result.IsSuccess)
+                anyFailed = true;
+        }
+
+        if (anyFailed)
+            SequentialMenuItem.IsChecked = !desired;
+    }
 
     private async void OnRemoveClicked(object sender, RoutedEventArgs e) =>
         await ForEachSelectedAsync(id => Session.RemoveAsync(id));
@@ -466,5 +497,117 @@ public sealed partial class TransfersPage : Page
             start = VisualTreeHelper.GetParent(start);
         }
         return null;
+    }
+
+    private void OnContentFileRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        // Walk up from the tapped element — TableView cells are deeply nested and the
+        // OriginalSource may be an inner TextBlock rather than the row container itself.
+        var element = e.OriginalSource as DependencyObject;
+        TorrentFileEntry? found = null;
+        while (element is not null)
+        {
+            if (element is FrameworkElement fe && fe.DataContext is TorrentFileEntry entry)
+            {
+                found = entry;
+                break;
+            }
+            element = VisualTreeHelper.GetParent(element);
+        }
+        _contextMenuFile = found;
+    }
+
+    private void OnContentFileContextMenuOpening(object sender, object e)
+    {
+        ContentRenameMenuItem.IsEnabled = _contextMenuFile is not null;
+        ContentRenameFolderMenuItem.IsEnabled = _contextMenuFile?.RelativePath.Contains('/') == true;
+        ContentSetPriorityMenuItem.IsEnabled = _contextMenuFile is not null;
+    }
+
+    private async void OnSetFilePriorityClicked(object sender, RoutedEventArgs e)
+    {
+        if (_contextMenuFile is not { } file) return;
+        if (sender is not MenuFlyoutItem item) return;
+        if (!Enum.TryParse<FileDownloadPriority>(item.Tag?.ToString(), out var priority)) return;
+        await ViewModel.Properties.SetFilePriorityAsync(file.Index, priority);
+    }
+
+    private async void OnContentFileRenameClicked(object sender, RoutedEventArgs e)
+    {
+        if (_contextMenuFile is not { } file) return;
+
+        int lastSlash = file.RelativePath.LastIndexOf('/');
+        string currentLeaf = lastSlash < 0 ? file.RelativePath : file.RelativePath[(lastSlash + 1)..];
+
+        var dialog = new ContentDialog
+        {
+            Title = "Rename file",
+            PrimaryButtonText = "Rename",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+        dialog.Resources["ContentDialogMinWidth"] = 400.0;
+        dialog.Resources["ContentDialogMaxWidth"] = 600.0;
+
+        var textBox = new TextBox
+        {
+            Text = currentLeaf,
+            PlaceholderText = "New file name",
+            SelectionStart = 0,
+            SelectionLength = currentLeaf.LastIndexOf('.') is var dot && dot > 0 ? dot : currentLeaf.Length,
+        };
+        dialog.Content = textBox;
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        string newLeaf = textBox.Text.Trim();
+        if (string.IsNullOrEmpty(newLeaf) || newLeaf == currentLeaf) return;
+
+        // Preserve the directory prefix and only replace the leaf name.
+        string newRelativePath = lastSlash < 0 ? newLeaf : file.RelativePath[..(lastSlash + 1)] + newLeaf;
+        await ViewModel.Properties.RenameFileAsync(file.Index, newRelativePath);
+    }
+
+    private async void OnContentFolderRenameClicked(object sender, RoutedEventArgs e)
+    {
+        if (_contextMenuFile is not { } file) return;
+        int lastSlash = file.RelativePath.LastIndexOf('/');
+        if (lastSlash < 0) return;
+        string oldFolderPath = file.RelativePath[..lastSlash];
+        int folderNameStart = oldFolderPath.LastIndexOf('/') + 1; // 0 if no parent folder
+        string currentFolderName = oldFolderPath[folderNameStart..];
+
+        var dialog = new ContentDialog
+        {
+            Title = "Rename folder",
+            PrimaryButtonText = "Rename",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+        dialog.Resources["ContentDialogMinWidth"] = 400.0;
+        dialog.Resources["ContentDialogMaxWidth"] = 600.0;
+        var textBox = new TextBox
+        {
+            Text = currentFolderName,
+            PlaceholderText = "New folder name",
+            SelectionStart = 0,
+            SelectionLength = currentFolderName.Length,
+        };
+        dialog.Content = textBox;
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        string newFolderName = textBox.Text.Trim();
+        if (string.IsNullOrEmpty(newFolderName) || newFolderName == currentFolderName) return;
+
+        // Reconstruct full folder path: preserve ancestor prefix, replace only the immediate folder name.
+        string newFolderPath = folderNameStart > 0
+            ? oldFolderPath[..folderNameStart] + newFolderName
+            : newFolderName;
+        await ViewModel.Properties.RenameFolderAsync(oldFolderPath, newFolderPath);
     }
 }

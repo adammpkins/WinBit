@@ -9,8 +9,14 @@
     mc:Ignorable="d"
     Background="Transparent">
 
-    <ScrollViewer Padding="32,24,32,48">
-        <StackPanel Spacing="12" MaxWidth="880">
+    <ScrollViewer HorizontalScrollMode="Disabled">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="32" />
+                <ColumnDefinition Width="*" MaxWidth="880" />
+                <ColumnDefinition Width="32" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="1" Spacing="12" Margin="0,24,0,48">
             <TextBlock Text="Speed" Style="{ThemeResource TitleLargeTextBlockStyle}" />
             <TextBlock Text="Global throttles and the alternative profile used by the scheduler."
                        Style="{ThemeResource BodyTextBlockStyle}"
@@ -84,5 +90,6 @@
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
         </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>

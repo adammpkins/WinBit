@@ -199,6 +199,9 @@ public sealed class WatchedFolderServiceTests
         public (long DownloadBps, long UploadBps)? GetSpeedLimits(TorrentId id) => null;
         public Task<Result> SetSpeedLimitsAsync(TorrentId id, long? downloadBps, long? uploadBps, CancellationToken ct = default) => Task.FromResult(Result.Success());
         public Task<Result> SetSuperSeedingAsync(TorrentId id, bool enabled, CancellationToken ct = default) => Task.FromResult(Result.Success());
+        public Task<Result> SetSequentialDownloadAsync(TorrentId id, bool enabled, CancellationToken ct = default) => Task.FromResult(Result.Success());
+        public Task RenameFileAsync(TorrentId id, int fileIndex, string newRelativePath, CancellationToken ct = default) => Task.CompletedTask;
+        public Task SetFilePriorityAsync(TorrentId id, int fileIndex, FileDownloadPriority priority, CancellationToken ct = default) => Task.CompletedTask;
         public Task<Result> SetGlobalSpeedLimitsAsync(long downloadBps, long uploadBps, CancellationToken ct = default) => Task.FromResult(Result.Success());
         public Task<Result> SetPortForwardingAsync(bool enabled, CancellationToken ct = default) => Task.FromResult(Result.Success());
         public Task<Result> SetEncryptionModeAsync(EncryptionMode mode, CancellationToken ct = default) => Task.FromResult(Result.Success());
@@ -208,7 +211,13 @@ public sealed class WatchedFolderServiceTests
             Task.FromResult<IReadOnlyList<PeerInfo>>(Array.Empty<PeerInfo>());
         public Task<IReadOnlyList<TrackerInfo>> GetTrackersAsync(TorrentId id, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<TrackerInfo>>(Array.Empty<TrackerInfo>());
+        public Task<IReadOnlyList<TorrentFileEntry>> GetTorrentFilesAsync(TorrentId id, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<TorrentFileEntry>>(Array.Empty<TorrentFileEntry>());
+        public Task<IReadOnlyList<bool>> GetPiecesAsync(TorrentId id, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<bool>>(Array.Empty<bool>());
         public SessionStats GetSessionStats() => default;
+        public Task<TorrentDetailInfo?> GetTorrentDetailAsync(TorrentId id, CancellationToken ct = default) =>
+            Task.FromResult<TorrentDetailInfo?>(null);
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 

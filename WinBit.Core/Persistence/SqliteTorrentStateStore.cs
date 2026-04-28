@@ -185,6 +185,32 @@ public sealed class SqliteTorrentStateStore : ITorrentStateStore, IAsyncDisposab
             return result;
         }, ct);
 
+    public Task<TorrentStateRecord?> GetByIdAsync(TorrentId id, CancellationToken ct = default) =>
+        ExecuteReadAsync<TorrentStateRecord?>(async (conn, inner) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"SELECT info_hash, name, save_path, category, tags, added_utc, completed_utc
+                                FROM torrent
+                                WHERE info_hash = @hash
+                                LIMIT 1;";
+            cmd.Parameters.AddWithValue("@hash", id.Value);
+            await using var reader = await cmd.ExecuteReaderAsync(inner).ConfigureAwait(false);
+            if (!await reader.ReadAsync(inner).ConfigureAwait(false))
+            {
+                return null;
+            }
+            return new TorrentStateRecord
+            {
+                Id = TorrentId.FromInfoHash(reader.GetString(0)),
+                Name = reader.GetString(1),
+                SavePath = reader.GetString(2),
+                Category = reader.IsDBNull(3) ? null : reader.GetString(3),
+                Tags = reader.IsDBNull(4) ? null : reader.GetString(4),
+                AddedUtc = DateTime.Parse(reader.GetString(5), null, System.Globalization.DateTimeStyles.RoundtripKind),
+                CompletedUtc = reader.IsDBNull(6) ? null : DateTime.Parse(reader.GetString(6), null, System.Globalization.DateTimeStyles.RoundtripKind),
+            };
+        }, ct);
+
     private static async Task ExecuteNonQueryAsync(SqliteConnection conn, string sql)
     {
         await using var cmd = conn.CreateCommand();

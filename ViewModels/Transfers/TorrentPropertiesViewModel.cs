@@ -27,8 +27,50 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
     private readonly ObservableCollection<TrackerRowViewModel> _trackers = new();
     private readonly Dictionary<string, TrackerRowViewModel> _trackersByUrl = new();
 
+    private bool _contentTabActive;
+    private CancellationTokenSource? _contentCts;
+    private readonly ObservableCollection<TorrentFileEntry> _files = new();
+    private readonly Dictionary<int, TorrentFileEntry> _filesByIndex = new();
+
+    private bool _piecesTabActive;
+    private CancellationTokenSource? _piecesCts;
+
+    [ObservableProperty]
+    private bool _hasFiles;
+
+    [ObservableProperty]
+    private bool _hasSelectedTorrent;
+
+    [ObservableProperty]
+    private IReadOnlyList<bool> _pieceMap = Array.Empty<bool>();
+
+    [ObservableProperty]
+    private string _generalInfoHash = string.Empty;
+
+    [ObservableProperty]
+    private string _generalSavePath = string.Empty;
+
+    [ObservableProperty]
+    private string _generalComment = string.Empty;
+
+    [ObservableProperty]
+    private string _generalCreator = string.Empty;
+
+    [ObservableProperty]
+    private string _generalCreationDate = string.Empty;
+
+    [ObservableProperty]
+    private string _generalAddedDate = string.Empty;
+
+    [ObservableProperty]
+    private string _generalCompletionDate = string.Empty;
+
+    [ObservableProperty]
+    private string _generalPieces = string.Empty;
+
     public ObservableCollection<PeerRowViewModel> Peers => _peers;
     public ObservableCollection<TrackerRowViewModel> Trackers => _trackers;
+    public ObservableCollection<TorrentFileEntry> Files => _files;
 
     public TorrentPropertiesViewModel(
         ITorrentSessionService session,
@@ -42,8 +84,20 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
     {
         if (_selectedId == id) return;
         _selectedId = id;
+        HasSelectedTorrent = id is not null;
         RestartPollIfNeeded();
         RestartTrackersPollIfNeeded();
+        RestartContentPollIfNeeded();
+        RestartPiecesPollIfNeeded();
+
+        if (id is null)
+        {
+            _dispatcher.Enqueue(ClearGeneralFields);
+        }
+        else
+        {
+            _ = RefreshGeneralDetailAsync(id.Value);
+        }
     }
 
     public void SetPeersTabActive(bool active)
@@ -58,6 +112,37 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         if (_trackersTabActive == active) return;
         _trackersTabActive = active;
         RestartTrackersPollIfNeeded();
+    }
+
+    public void SetContentTabActive(bool active)
+    {
+        if (_contentTabActive == active) return;
+        _contentTabActive = active;
+        RestartContentPollIfNeeded();
+    }
+
+    public void SetPiecesTabActive(bool active)
+    {
+        if (_piecesTabActive == active) return;
+        _piecesTabActive = active;
+        RestartPiecesPollIfNeeded();
+    }
+
+    private void RestartPiecesPollIfNeeded()
+    {
+        _piecesCts?.Cancel();
+        _piecesCts?.Dispose();
+        _piecesCts = null;
+
+        if (_selectedId is null || !_piecesTabActive)
+        {
+            _dispatcher.Enqueue(() => PieceMap = Array.Empty<bool>());
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _piecesCts = cts;
+        _ = PollPiecesAsync(_selectedId.Value, cts.Token);
     }
 
     private void RestartPollIfNeeded()
@@ -132,6 +217,58 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         catch (OperationCanceledException) { }
     }
 
+    private void RestartContentPollIfNeeded()
+    {
+        _contentCts?.Cancel();
+        _contentCts?.Dispose();
+        _contentCts = null;
+
+        if (_selectedId is null || !_contentTabActive)
+        {
+            _dispatcher.Enqueue(() =>
+            {
+                _files.Clear();
+                _filesByIndex.Clear();
+                HasFiles = false;
+            });
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _contentCts = cts;
+        _ = PollContentAsync(_selectedId.Value, cts.Token);
+    }
+
+    private async Task PollContentAsync(TorrentId id, CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+        try
+        {
+            do
+            {
+                var files = await _session.GetTorrentFilesAsync(id, ct).ConfigureAwait(false);
+                _dispatcher.Enqueue(() => ApplyFiles(files));
+            }
+            while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false));
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task PollPiecesAsync(TorrentId id, CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+        try
+        {
+            do
+            {
+                var pieces = await _session.GetPiecesAsync(id, ct).ConfigureAwait(false);
+                _dispatcher.Enqueue(() => PieceMap = pieces);
+            }
+            while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false));
+        }
+        catch (OperationCanceledException) { }
+    }
+
     private void ApplyPeers(IReadOnlyList<PeerInfo> incoming)
     {
         var seen = new HashSet<string>();
@@ -188,11 +325,128 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         }
     }
 
+    private void ApplyFiles(IReadOnlyList<TorrentFileEntry> incoming)
+    {
+        var seen = new HashSet<int>();
+        foreach (var entry in incoming)
+        {
+            seen.Add(entry.Index);
+            if (_filesByIndex.ContainsKey(entry.Index))
+            {
+                // Records are immutable — replace the existing item in the collection
+                // so INPC-aware bindings see the update.
+                var pos = _files.IndexOf(_filesByIndex[entry.Index]);
+                _filesByIndex[entry.Index] = entry;
+                if (pos >= 0)
+                    _files[pos] = entry;
+            }
+            else
+            {
+                _filesByIndex[entry.Index] = entry;
+                _files.Add(entry);
+            }
+        }
+
+        // Remove files no longer present in the incoming snapshot.
+        var departed = _filesByIndex.Keys.Except(seen).ToList();
+        foreach (var idx in departed)
+        {
+            if (_filesByIndex.Remove(idx, out var entry))
+                _files.Remove(entry);
+        }
+
+        HasFiles = _files.Count > 0;
+    }
+
+    private async Task RefreshGeneralDetailAsync(TorrentId id)
+    {
+        TorrentDetailInfo? detail;
+        try
+        {
+            detail = await _session.GetTorrentDetailAsync(id).ConfigureAwait(false);
+        }
+        catch
+        {
+            return;
+        }
+
+        if (detail is null)
+        {
+            _dispatcher.Enqueue(ClearGeneralFields);
+            return;
+        }
+
+        const string Dash = "—";
+        const string DateFormat = "yyyy-MM-dd HH:mm:ss";
+
+        var infoHash = detail.InfoHash;
+        var savePath = string.IsNullOrEmpty(detail.SavePath) ? Dash : detail.SavePath;
+        var comment = string.IsNullOrEmpty(detail.Comment) ? Dash : detail.Comment;
+        var creator = string.IsNullOrEmpty(detail.Creator) ? Dash : detail.Creator;
+        var creationDate = detail.CreationDate.HasValue
+            ? detail.CreationDate.Value.ToLocalTime().ToString(DateFormat)
+            : Dash;
+        var addedDate = detail.AddedDate.ToLocalTime().ToString(DateFormat);
+        var completionDate = detail.CompletionDate.HasValue
+            ? detail.CompletionDate.Value.ToLocalTime().ToString(DateFormat)
+            : Dash;
+        var pieces = detail.TotalPieces > 0 && detail.PieceLength > 0
+            ? $"{detail.TotalPieces} × {detail.PieceLength / 1024} KiB"
+            : Dash;
+
+        _dispatcher.Enqueue(() =>
+        {
+            GeneralInfoHash = infoHash;
+            GeneralSavePath = savePath;
+            GeneralComment = comment;
+            GeneralCreator = creator;
+            GeneralCreationDate = creationDate;
+            GeneralAddedDate = addedDate;
+            GeneralCompletionDate = completionDate;
+            GeneralPieces = pieces;
+        });
+    }
+
+    private void ClearGeneralFields()
+    {
+        GeneralInfoHash = string.Empty;
+        GeneralSavePath = string.Empty;
+        GeneralComment = string.Empty;
+        GeneralCreator = string.Empty;
+        GeneralCreationDate = string.Empty;
+        GeneralAddedDate = string.Empty;
+        GeneralCompletionDate = string.Empty;
+        GeneralPieces = string.Empty;
+    }
+
+    public async Task RenameFileAsync(int fileIndex, string newRelativePath)
+    {
+        if (_selectedId is not { } id) return;
+        await _session.RenameFileAsync(id, fileIndex, newRelativePath);
+    }
+
+    public async Task SetFilePriorityAsync(int fileIndex, FileDownloadPriority priority)
+    {
+        if (_selectedId is not { } id) return;
+        await _session.SetFilePriorityAsync(id, fileIndex, priority);
+    }
+
+    public async Task RenameFolderAsync(string oldFolderPath, string newFolderPath)
+    {
+        if (_selectedId is not { } id) return;
+        foreach (var (index, newPath) in FolderRenameHelper.BuildRenamedPaths(_filesByIndex.Values, oldFolderPath, newFolderPath))
+            await _session.RenameFileAsync(id, index, newPath);
+    }
+
     public void Dispose()
     {
         _pollCts?.Cancel();
         _pollCts?.Dispose();
         _trackersCts?.Cancel();
         _trackersCts?.Dispose();
+        _contentCts?.Cancel();
+        _contentCts?.Dispose();
+        _piecesCts?.Cancel();
+        _piecesCts?.Dispose();
     }
 }

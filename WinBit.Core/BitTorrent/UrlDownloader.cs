@@ -4,7 +4,7 @@ using WinBit.Core.Networking;
 namespace WinBit.Core.BitTorrent;
 
 /// <summary>
-/// Fetches a <c>.torrent</c> file from an HTTP(S) URL so it can be handed to MonoTorrent.
+/// Fetches a <c>.torrent</c> file from an HTTP(S) URL so it can be handed to the engine.
 /// Enforces scheme, size cap, and success-status guards — any failure returns a
 /// <see cref="Result{T}"/> failure that viewmodels render as an inline <c>InfoBar</c> on
 /// the Add dialog rather than a toast.

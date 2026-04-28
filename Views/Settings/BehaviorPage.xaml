@@ -9,8 +9,14 @@
     mc:Ignorable="d"
     Background="Transparent">
 
-    <ScrollViewer Padding="32,24,32,48">
-        <StackPanel Spacing="12" MaxWidth="880">
+    <ScrollViewer HorizontalScrollMode="Disabled">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="32" />
+                <ColumnDefinition Width="*" MaxWidth="880" />
+                <ColumnDefinition Width="32" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="1" Spacing="12" Margin="0,24,0,48">
             <TextBlock Text="Behavior" Style="{ThemeResource TitleLargeTextBlockStyle}" />
             <TextBlock Text="How WinBit integrates with the desktop and reacts to the close button."
                        Style="{ThemeResource BodyTextBlockStyle}"
@@ -128,5 +134,6 @@
                         AutomationProperties.Name="Show About dialog" />
             </controls:SettingsCard>
         </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>

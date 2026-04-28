@@ -137,8 +137,8 @@ public sealed class BitTorrentSettings
 
 /// <summary>
 /// Message Stream Encryption preference mirroring qBittorrent's three-way combo. Maps onto
-/// MonoTorrent's <c>EngineSettings.AllowedEncryption</c>: Prefer = all three, Require = RC4
-/// variants only (no plain-text), Disable = plain-text only.
+/// libtorrent's <c>enc_policy</c> setting: Prefer = enabled (offer MSE, accept plaintext),
+/// Require = forced (MSE only), Disable = disabled (plaintext only).
 /// </summary>
 public enum EncryptionMode
 {
@@ -190,38 +190,6 @@ public sealed class WebUiSettings
 public sealed class AdvancedSettings
 {
     public int AsyncIoThreads { get; set; } = 4;
-
-    /// <summary>
-    /// DHT bootstrap hosts (<c>"host"</c> or <c>"host:port"</c>). Seeded into MonoTorrent's
-    /// routing table on engine start so bootstrap survives the ongoing decay of canonical
-    /// nodes (router.bittorrent.com, router.utorrent.com have been unresponsive since late
-    /// 2024; the Transmission host only partially answers). Diversity across operators is
-    /// the point — removing entries makes cold-start fragile. Users can add more without
-    /// waiting for a release.
-    /// </summary>
-    public List<string> DhtBootstrapNodes { get; set; } = new()
-    {
-        "dht.transmissionbt.com:6881",
-        "dht.aelitis.com:6881",
-        "router.bitcomet.com:6881",
-        "dht.libtorrent.org:25401",
-        "router.bittorrent.com:6881",
-    };
-
-    /// <summary>
-    /// When true, <c>DhtNetworkProbe</c> runs on startup and emits the
-    /// <c>DHT probe[...]</c> log lines used to diagnose DHT reachability. Off by default
-    /// because a healthy session doesn't need the noise.
-    /// </summary>
-    public bool EnableDhtNetworkProbe { get; set; }
-
-    /// <summary>
-    /// When true, the session is backed by the LibtorrentSharp binding instead of MonoTorrent.
-    /// Dev-only until the adapter reaches feature parity — leaving this false on main keeps
-    /// production on MonoTorrent. Flipping it requires a restart; the DI factory reads the
-    /// value once at service resolution.
-    /// </summary>
-    public bool UseLibtorrentEngine { get; set; }
 }
 
 public sealed class UiStateSettings
