@@ -20,6 +20,20 @@ internal static partial class NativeMethods
     public delegate void SessionEventCallback(IntPtr alertPtr);
 
     /// <summary>
+    /// Per-piece progress callback fired by <see cref="CreateTorrent"/>. The native
+    /// side fires once with <paramref name="currentPiece"/>=0 before hashing starts
+    /// and once per piece during hashing; <paramref name="pieceSize"/> and
+    /// <paramref name="totalSize"/> are constant for the run.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void CreateTorrentProgressCallback(
+        long currentPiece,
+        long totalPieces,
+        long pieceSize,
+        long totalSize,
+        IntPtr ctx);
+
+    /// <summary>
     /// Creates a session, optionally using a provided settings pack.
     /// </summary>
     /// <param name="settingsPack">A settings pack handle, set to <c>null</c> to initialise without customisation</param>
@@ -164,6 +178,14 @@ internal static partial class NativeMethods
     public static partial void ResumeTorrent(IntPtr torrentSessionHandle);
 
     /// <summary>
+    /// Force-starts or un-force-starts a torrent. When <paramref name="forceStart"/>
+    /// is true, clears auto-management and resumes so the queue cannot re-pause the
+    /// torrent. When false, re-enables auto-management so the queue resumes governance.
+    /// </summary>
+    [LibraryImport(LibraryName, EntryPoint = "lts_force_start_torrent")]
+    public static partial void ForceStartTorrent(IntPtr torrentSessionHandle, [MarshalAs(UnmanagedType.Bool)] bool forceStart);
+
+    /// <summary>
     /// Relocates the torrent's data to <paramref name="newPath"/>. Completes
     /// asynchronously; outcome surfaces via storage_moved[_failed]_alert.
     /// </summary>
@@ -192,6 +214,34 @@ internal static partial class NativeMethods
 
     [LibraryImport(LibraryName, EntryPoint = "lts_destroy_trackers")]
     public static partial void FreeTrackerList(ref NativeStructs.TrackerList trackers);
+
+    [LibraryImport(LibraryName, EntryPoint = "lts_add_tracker", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void AddTracker(IntPtr torrentHandle, string url, int tier);
+
+    [LibraryImport(LibraryName, EntryPoint = "lts_remove_tracker", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void RemoveTracker(IntPtr torrentHandle, string url);
+
+    [LibraryImport(LibraryName, EntryPoint = "lts_edit_tracker", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void EditTracker(IntPtr torrentHandle, string oldUrl, string newUrl, int newTier);
+
+    [LibraryImport(LibraryName, EntryPoint = "lts_get_web_seeds")]
+    public static partial void GetWebSeeds(IntPtr torrentHandle, out NativeStructs.WebSeedList outList);
+
+    [LibraryImport(LibraryName, EntryPoint = "lts_destroy_web_seeds")]
+    public static partial void FreeWebSeedList(ref NativeStructs.WebSeedList list);
+
+    [LibraryImport(LibraryName, EntryPoint = "lts_add_web_seed", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void AddWebSeed(IntPtr torrentHandle, string url);
+
+    [LibraryImport(LibraryName, EntryPoint = "lts_remove_web_seed", StringMarshalling = StringMarshalling.Utf8)]
+    public static partial void RemoveWebSeed(IntPtr torrentHandle, string url);
+
+    [LibraryImport(LibraryName, EntryPoint = "lts_export_torrent_to_bytes")]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static partial bool ExportTorrentToBytes(IntPtr torrentHandle, out IntPtr outData, out int outSize);
+
+    [LibraryImport(LibraryName, EntryPoint = "lts_free_bytes")]
+    public static partial void FreeBytes(IntPtr data);
 
     /// <summary>Per-torrent upload cap in bytes/sec. 0 = unlimited.</summary>
     [LibraryImport(LibraryName, EntryPoint = "lts_set_torrent_upload_limit")]
@@ -284,6 +334,14 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "lts_have_piece")]
     [return: MarshalAs(UnmanagedType.I1)]
     public static partial bool HavePiece(IntPtr torrentSessionHandle, int pieceIndex);
+
+    /// <summary>
+    /// Fills <paramref name="outBits"/> with a packed LSB-first bitfield of
+    /// piece completion in one native call. <paramref name="numBytes"/> must
+    /// equal <c>ceil(numPieces / 8)</c>. No-op on null or invalid handle.
+    /// </summary>
+    [LibraryImport(LibraryName, EntryPoint = "lts_get_piece_bitfield")]
+    public static partial void GetPieceBitfield(IntPtr torrentSessionHandle, [Out] byte[] outBits, int numBytes);
 
     /// <summary>
     /// Queues an explicit peer connect attempt. <paramref name="ipv6Address"/>
@@ -717,6 +775,9 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "get_file_dl_priority")]
     public static partial FileDownloadPriority GetFilePriority(IntPtr torrentSessionHandle, int fileIndex);
 
+    [LibraryImport(LibraryName, EntryPoint = "lts_file_progress")]
+    public static partial void GetFileProgress(IntPtr torrentHandle, Span<long> outArray, int numFiles);
+
     /// <summary>
     /// Sets the download priority of a file within a torrent.
     /// </summary>
@@ -763,7 +824,36 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "lts_destroy_torrent_status")]
     public static partial void FreeTorrentStatus(IntPtr statusHandle);
 
-    #region Settings Pack
+    /// <summary>
+    /// Builds a .torrent file from <paramref name="sourcePath"/> and writes the
+    /// bencoded result to <paramref name="outputPath"/>. Hashes synchronously
+    /// on the calling thread — managed callers wrap on a worker.
+    /// <paramref name="trackers"/> is newline-separated tracker URLs (a blank line
+    /// increments the tier; matches qBittorrent's flat representation).
+    /// <paramref name="webSeeds"/> is newline-separated web-seed URLs.
+    /// <paramref name="ignoreHidden"/> non-zero skips dotfile-named entries (Unix-hidden).
+    /// <paramref name="progressCb"/> fires once with currentPiece=0 before hashing and once
+    /// per piece — may be null. <paramref name="cancelFlag"/> is a pinned <c>int32</c> the
+    /// caller flips to 1 to abort hashing — may be null. <paramref name="errorBuf"/>
+    /// receives a UTF-8 NUL-terminated message on failure; untouched on success. Returns
+    /// 0 on success; negative codes documented on the C ABI.
+    /// </summary>
+    [LibraryImport(LibraryName, EntryPoint = "lts_create_torrent", StringMarshalling = StringMarshalling.Utf8)]
+    public static unsafe partial int CreateTorrent(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string sourcePath,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string outputPath,
+        int pieceSize,
+        int isPrivate,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string? comment,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string? createdBy,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string? trackers,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string? webSeeds,
+        int ignoreHidden,
+        [MarshalAs(UnmanagedType.FunctionPtr)] CreateTorrentProgressCallback? progressCb,
+        IntPtr progressCtx,
+        int* cancelFlag,
+        byte* errorBuf,
+        int errorBufSize);
 
     /// <summary>
     /// Creates an empty settings pack
@@ -826,5 +916,4 @@ internal static partial class NativeMethods
     [LibraryImport(LibraryName, EntryPoint = "settings_pack_set_str", StringMarshalling = StringMarshalling.Utf8)]
     public static partial bool SettingsPackSetString(IntPtr settingsPack, string key, string value);
 
-    #endregion
 }

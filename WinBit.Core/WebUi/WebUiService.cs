@@ -42,9 +42,14 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
     private readonly IRssArticleCache _rssArticles;
     private readonly IRssRefresher _rssRefresher;
     private readonly ITorrentCreatorQueue _creatorQueue;
+    private readonly ITorrentStateStore _stateStore;
     private readonly Paths _paths;
     private WebApplication? _app;
     private int? _boundPort;
+    private string? _currentBindAddress;
+    private int? _currentPort;
+    private int _restartPending;                        // 0/1 via Interlocked
+    private EventHandler<AppSettings>? _settingsWatcher;
 
     public bool IsRunning => _app is not null;
 
@@ -54,7 +59,8 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         ITorrentSessionService session, ILogService log, IPeerLogService peerLog,
         ICategoryService categories, ITagService tags,
         IRssService rss, IAutoDownloaderService autoDownloader, IRssArticleCache rssArticles,
-        IRssRefresher rssRefresher, ITorrentCreatorQueue creatorQueue, Paths paths)
+        IRssRefresher rssRefresher, ITorrentCreatorQueue creatorQueue,
+        ITorrentStateStore stateStore, Paths paths)
     {
         _settings = settings;
         _auth = auth;
@@ -68,6 +74,7 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         _rssArticles = rssArticles;
         _rssRefresher = rssRefresher;
         _creatorQueue = creatorQueue;
+        _stateStore = stateStore;
         _paths = paths;
     }
 
@@ -85,13 +92,15 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         builder.Logging.ClearProviders();
         builder.Logging.AddProvider(new LogServiceLoggerProvider(_log));
 
-        var port = _settings.Current.WebUi.Port;
-        var useHttps = _settings.Current.WebUi.Https;
-        var cert = useHttps ? WebUiCertificateProvider.Resolve(_settings.Current.WebUi, _paths) : null;
+        var settings = _settings.Current.WebUi;
+        var port = settings.Port;
+        var useHttps = settings.Https;
+        var cert = useHttps ? WebUiCertificateProvider.Resolve(settings, _paths) : null;
+        var bindAddress = settings.EnableRemoteAccess ? "0.0.0.0" : settings.BindAddress;
 
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenAnyIP(Math.Max(0, port), listen =>
+            options.Listen(System.Net.IPAddress.Parse(bindAddress), Math.Max(0, port), listen =>
             {
                 if (cert is not null)
                 {
@@ -101,13 +110,15 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         });
 
         var app = builder.Build();
-        // The qBittorrent admin UI — must be registered before the API endpoints so its
+        // qBittorrent admin UI at /qbittorrent/* — registered before API endpoints so its
         // middleware can opt-out of /api/* routes and fall through to them.
-        QBittorrentAssets.Map(app, _auth, _settings);
+        QBittorrentAssets.Map(app, _auth);
+        // WinBit native Vue SPA — catch-all after API endpoints.
+        WinBitAppAssets.Map(app);
 
-        AppEndpoints.Map(app, _settings);
+        AppEndpoints.Map(app, _settings, _auth);
         AuthEndpoints.Map(app, _auth);
-        TorrentsEndpoints.Map(app, _session, _auth, _settings);
+        TorrentsEndpoints.Map(app, _session, _auth, _settings, _stateStore);
         TransferEndpoints.Map(app, _session, _auth, _settings);
         LogEndpoints.Map(app, _log, _peerLog, _auth);
         SyncEndpoints.Map(app, _session, _settings, _categories, _tags, _auth);
@@ -118,21 +129,60 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         await app.StartAsync(ct).ConfigureAwait(false);
 
         _boundPort = ResolveBoundPort(app);
+        _currentBindAddress = bindAddress;
+        _currentPort = port;
         _app = app;
 
-        _log.Write($"Web UI listening on port {_boundPort?.ToString() ?? "?"}.");
+        _settingsWatcher = OnSettingsChanged;
+        _settings.Changed += _settingsWatcher;
+
+        _log.Write($"Web UI listening on {bindAddress}:{_boundPort?.ToString() ?? "?"}.");
     }
 
     public async Task StopAsync(CancellationToken ct)
     {
-        if (_app is null)
+        if (_settingsWatcher is not null)
         {
-            return;
+            _settings.Changed -= _settingsWatcher;
+            _settingsWatcher = null;
         }
+
+        if (_app is null) return;
+
         await _app.StopAsync(ct).ConfigureAwait(false);
         await _app.DisposeAsync().ConfigureAwait(false);
         _app = null;
         _boundPort = null;
+        _currentBindAddress = null;
+        _currentPort = null;
+    }
+
+    private void OnSettingsChanged(object? sender, AppSettings s)
+    {
+        if (!s.WebUi.Enabled) return;
+
+        var newBind = s.WebUi.EnableRemoteAccess ? "0.0.0.0" : s.WebUi.BindAddress;
+        var newPort = s.WebUi.Port;
+
+        if (newBind == _currentBindAddress && newPort == _currentPort) return;
+
+        // Only one restart in flight at a time. The delay lets the HTTP response
+        // that triggered this change finish before Kestrel tears down.
+        if (Interlocked.Exchange(ref _restartPending, 1) != 0) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(500).ConfigureAwait(false);
+                await StopAsync(CancellationToken.None).ConfigureAwait(false);
+                await StartAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _restartPending, 0);
+            }
+        });
     }
 
     public async ValueTask DisposeAsync() => await StopAsync(CancellationToken.None).ConfigureAwait(false);

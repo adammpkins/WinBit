@@ -1,15 +1,14 @@
+using LibtorrentSharp;
 using WinBit.Core.Common;
 
 namespace WinBit.Core.BitTorrent;
 
 /// <summary>
-/// Builds a <c>.torrent</c> file from a source path. Currently a stub: the LibtorrentSharp
-/// binding does not yet wrap libtorrent's <c>create_torrent</c> surface, and the previous
-/// engine adapter was removed in the 2026-04-27 engine swap. Tracked under Phase G of
-/// <c>LIBTORRENT_TASKS.md</c>. The interface, request/progress shape, and DI registration
-/// stay wired so callers (UI, Web UI, tests) keep compiling;
-/// <see cref="ITorrentCreatorService.CreateAsync"/> throws <see cref="NotSupportedException"/>
-/// at runtime until the binding catches up.
+/// Builds a <c>.torrent</c> file from a source path. Backed by LibtorrentSharp's
+/// <see cref="LibtorrentSharp.TorrentCreator"/> static helper, which wraps libtorrent's
+/// <c>create_torrent</c> + <c>set_piece_hashes</c> + <c>bencode</c> surface through the
+/// C ABI. Hashing runs on a worker thread; cancellation is observed mid-hash via the
+/// pinned cancel flag the binding plumbs through to the native side.
 /// </summary>
 public interface ITorrentCreatorService
 {
@@ -54,8 +53,67 @@ public readonly record struct TorrentCreateProgress(string CurrentFile, long Ove
 
 public sealed class TorrentCreatorService : ITorrentCreatorService
 {
-    public Task<Result> CreateAsync(TorrentCreateRequest request, IProgress<TorrentCreateProgress>? progress = null, CancellationToken ct = default) =>
-        throw new NotSupportedException(
-            "Torrent creation is not yet supported with the libtorrent engine. " +
-            "Tracked under Phase G of LIBTORRENT_TASKS.md.");
+    public async Task<Result> CreateAsync(TorrentCreateRequest request, IProgress<TorrentCreateProgress>? progress = null, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (string.IsNullOrWhiteSpace(request.SourcePath))
+        {
+            return Result.Failure("SourcePath is required.");
+        }
+        if (string.IsNullOrWhiteSpace(request.OutputPath))
+        {
+            return Result.Failure("OutputPath is required.");
+        }
+        if (!File.Exists(request.SourcePath) && !Directory.Exists(request.SourcePath))
+        {
+            return Result.Failure($"Source path does not exist: {request.SourcePath}");
+        }
+
+        // Stable display label for progress events. The native progress callback
+        // doesn't know which file is being hashed at piece N (that would require
+        // a piece->file mapping query the binding doesn't currently expose); the
+        // source basename is good enough for "we're working on <thing>" UX.
+        var displayName = request.Name;
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            displayName = Path.GetFileName(request.SourcePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        }
+
+        var bridged = progress is null
+            ? null
+            : new Progress<CreateTorrentProgress>(p => progress.Report(
+                new TorrentCreateProgress(displayName ?? string.Empty, p.BytesHashed, p.TotalSize)));
+
+        var nativeParams = new CreateTorrentParams
+        {
+            SourcePath = request.SourcePath,
+            OutputPath = request.OutputPath,
+            PieceSize = request.PieceLength.GetValueOrDefault(0),
+            IsPrivate = request.IsPrivate,
+            Comment = request.Comment,
+            CreatedBy = request.CreatedBy,
+            TrackerTiers = request.TrackerTiers,
+            WebSeeds = request.WebSeeds,
+            IgnoreHidden = request.IgnoreHidden,
+        };
+
+        try
+        {
+            await LibtorrentSharp.TorrentCreator.CreateAsync(nativeParams, bridged, ct).ConfigureAwait(false);
+            return Result.Success();
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Surface cancellation as the .NET-idiomatic exception so callers using
+            // structured concurrency can catch it cleanly. TorrentCreatorQueue treats
+            // any thrown exception the same as a Result.Failure (queue file: TaskRecord
+            // catch block), so this stays compatible with the existing queue surface.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(ex.Message);
+        }
+    }
 }

@@ -57,7 +57,20 @@ public sealed class WebUiAuthService : IWebUiAuthService
             return false;
         }
 
-        var subnets = _settings.Current.WebUi.WhitelistedSubnets;
+        var webUi = _settings.Current.WebUi;
+        var subnets = webUi.WhitelistedSubnets;
+
+        // When no password is configured, automatically bypass auth for localhost so that a
+        // fresh install works without knowing the default credentials.
+        if (string.IsNullOrWhiteSpace(webUi.PasswordHash) && (subnets is null || subnets.Count == 0))
+        {
+            var addr = remote.IsIPv4MappedToIPv6 ? remote.MapToIPv4() : remote;
+            if (IPAddress.IsLoopback(addr))
+            {
+                return true;
+            }
+        }
+
         if (subnets is null || subnets.Count == 0)
         {
             return false;

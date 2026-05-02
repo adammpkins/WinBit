@@ -181,10 +181,13 @@ public sealed class WebUiSettings
     /// Empty = every request needs a valid SID cookie.</summary>
     public List<string> WhitelistedSubnets { get; set; } = new();
 
-    /// <summary>When true, the root URL serves WinBit's Fluent-flavored native web client
-    /// instead of qBittorrent's HTML admin UI. The native client is always reachable at
-    /// <c>/winbit/</c>; qBittorrent's UI stays reachable at <c>/qbittorrent/</c>.</summary>
-    public bool UseNativeClient { get; set; }
+    /// <summary>IP address Kestrel binds to. "127.0.0.1" = local only; "0.0.0.0" = all interfaces
+    /// (enables remote access from other devices on the network).</summary>
+    public string BindAddress { get; set; } = "127.0.0.1";
+
+    /// <summary>When true, <see cref="BindAddress"/> is set to "0.0.0.0" so devices on the
+    /// local network can reach the WebUI. Default off — local-only until the user opts in.</summary>
+    public bool EnableRemoteAccess { get; set; }
 }
 
 public sealed class AdvancedSettings
@@ -242,6 +245,10 @@ public static class RecentPathsHelper
 public sealed class TransfersGridLayout
 {
     public Dictionary<string, TransferColumnState> Columns { get; set; } = new();
+    /// <summary>null = no sort active; otherwise a column key such as "name" or "size".</summary>
+    public string? SortColumn { get; set; }
+    /// <summary>true = descending; only meaningful when <see cref="SortColumn"/> is non-null.</summary>
+    public bool SortReverse { get; set; }
 }
 
 public sealed class TransferColumnState

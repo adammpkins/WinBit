@@ -48,7 +48,7 @@ public sealed class LoopbackTorrentFixture : IDisposable
     // Eagerly-draining alert captures. Start consuming the session's Alerts
     // stream *before* Add() / Start() so alerts that arrive during fixture
     // setup can't slip past a test that only starts awaiting after the
-    // ctor returns. Fixes an intermittent flake in the slice-23 AddTorrent
+    // ctor returns. Fixes an intermittent flake in the AddTorrent
     // test where the alert raced the test's await.
     public AlertCapture SeedAlerts { get; }
     public AlertCapture LeechAlerts { get; }

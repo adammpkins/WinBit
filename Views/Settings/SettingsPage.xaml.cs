@@ -30,6 +30,7 @@ public sealed partial class SettingsPage : Page
             "rss" => typeof(RssPage),
             "webui" => typeof(WebUiPage),
             "behavior" => typeof(BehaviorPage),
+            "watchedfolders" => typeof(WatchedFoldersPage),
             "advanced" => typeof(AdvancedPage),
             _ => typeof(DownloadsPage),
         };

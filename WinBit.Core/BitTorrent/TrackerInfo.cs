@@ -7,6 +7,9 @@ public sealed record TrackerInfo
 
     public required TrackerStatus Status { get; init; }
 
+    /// <summary>Tracker tier (0 = primary). Lower tiers are contacted first.</summary>
+    public int Tier { get; init; }
+
     public int Seeds { get; init; }
 
     public int Leeches { get; init; }

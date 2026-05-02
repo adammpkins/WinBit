@@ -327,9 +327,17 @@ public partial class App : Application
             return;
         }
 
+        // Hard-exit guarantee: if graceful shutdown hasn't completed in 12 s,
+        // force the process out. This covers both hung StopAsync and the case
+        // where Application.Current.Exit() is a no-op because WinUI already
+        // abandoned the DispatcherQueue continuation before it could run.
+        _ = Task.Delay(TimeSpan.FromSeconds(12))
+                .ContinueWith(_ => Environment.Exit(0), TaskScheduler.Default);
+
         await _host.StopAsync();
         _host.Dispose();
         _host = null;
+        Application.Current.Exit();
     }
 }
 

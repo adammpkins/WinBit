@@ -4,6 +4,10 @@
 
 namespace LibtorrentSharp.Enums;
 
+/// <summary>
+/// Discriminator values for alert dispatching. Each value identifies a concrete
+/// <see cref="LibtorrentSharp.Alerts.Alert"/> subtype returned by the alert pump.
+/// </summary>
 public enum AlertType
 {
     Generic = 0,

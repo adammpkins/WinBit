@@ -34,12 +34,35 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- qBittorrent's HTML admin UI, copied verbatim from qbittorrent/src/webui/www and
-         served at runtime by QBittorrentAssets. Template tokens (QBT_TR, ${LANG}, ${CACHEID})
-         are rewritten on the way out. Resource names follow the default
-         RootNamespace.Directory.File pattern, which the middleware composes directly. -->
+    <!-- qBittorrent admin UI at /qbittorrent/*, served by QBittorrentAssets. -->
     <EmbeddedResource Include="WebUi\WebAssets\**\*.*" />
-    <!-- WinBit's native Fluent-flavored SPA that talks to the same /api/v2/* endpoints. -->
-    <EmbeddedResource Include="WebUi\NativeClient\**\*.*" />
+    <!-- WinBit Vue SPA — built by Vite into WinBitApp/, served by WinBitAppAssets. -->
+    <EmbeddedResource Include="WebUi\WinBitApp\**\*.*" />
   </ItemGroup>
+
+  <!--
+    Build the Vue SPA before compilation so embedded resources are up-to-date.
+    Set SkipVueBuild=true (e.g. in CI that builds the frontend separately) to skip.
+    VS's MSBuild child processes do not inherit the user PATH, so Node.js must be
+    located by its install directory and injected into PATH for the entire subprocess
+    tree (npm.cmd → vite → node all need to resolve each other).
+  -->
+  <PropertyGroup>
+    <!-- Standard Node.js installer location; override NodejsDir if you use nvm or a custom prefix. -->
+    <NodejsDir Condition="'$(NodejsDir)' == '' and Exists('$(ProgramFiles)\nodejs\node.exe')">$(ProgramFiles)\nodejs</NodejsDir>
+    <NodejsDir Condition="'$(NodejsDir)' == ''">.</NodejsDir>
+  </PropertyGroup>
+
+  <Target Name="BuildVueSpa" BeforeTargets="BeforeBuild"
+          Condition="'$(SkipVueBuild)' != 'true' and Exists('$(SolutionDir)webui\package.json')">
+    <Message Text="Building WinBit Vue SPA..." Importance="high" />
+    <!-- MSBuild Exec writes commands to a temp .cmd file so %PATH% expands at CMD runtime.
+         Prepending NodejsDir to PATH ensures node.exe is found by npm and its subprocesses
+         (e.g. vite) even when VS's MSBuild environment lacks the user PATH entries. -->
+    <Exec Command="set &quot;PATH=$(NodejsDir);%PATH%&quot; &amp;&amp; &quot;$(NodejsDir)\npm.cmd&quot; install --no-audit --no-fund"
+          WorkingDirectory="$(SolutionDir)webui"
+          Condition="!Exists('$(SolutionDir)webui\node_modules')" />
+    <Exec Command="set &quot;PATH=$(NodejsDir);%PATH%&quot; &amp;&amp; &quot;$(NodejsDir)\npm.cmd&quot; run build"
+          WorkingDirectory="$(SolutionDir)webui" />
+  </Target>
 </Project>

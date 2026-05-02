@@ -10,8 +10,7 @@ namespace LibtorrentSharp;
 /// an optional <see cref="SavePath"/> override.
 /// </summary>
 /// <remarks>
-/// Additional <c>add_torrent_params</c> fields (trackers, flags, priorities, etc.) are
-/// tracked under <c>f-handle-flags</c> and related Phase F rows in <c>LIBTORRENT_TASKS.md</c>.
+/// Additional <c>add_torrent_params</c> fields not yet exposed will be added in future releases.
 /// </remarks>
 public sealed record AddTorrentParams
 {

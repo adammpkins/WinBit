@@ -104,6 +104,41 @@ public interface ITorrentSessionService : IAsyncDisposable
     /// </summary>
     Task<IReadOnlyList<TrackerInfo>> GetTrackersAsync(TorrentId id, CancellationToken ct = default);
 
+    /// <summary>Adds a tracker URL at the specified tier to an existing torrent.</summary>
+    Task<Result> AddTrackerAsync(TorrentId id, string url, int tier = 0, CancellationToken ct = default);
+
+    /// <summary>Removes the tracker identified by <paramref name="url"/> from an existing torrent.</summary>
+    Task<Result> RemoveTrackerAsync(TorrentId id, string url, CancellationToken ct = default);
+
+    /// <summary>
+    /// Replaces <paramref name="oldUrl"/> with <paramref name="newUrl"/> on an existing torrent,
+    /// updating its tier to <paramref name="newTier"/>.
+    /// </summary>
+    Task<Result> EditTrackerAsync(TorrentId id, string oldUrl, string newUrl, int newTier, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the web seed URLs currently attached to the identified torrent.
+    /// Called at 3 s by <c>TorrentPropertiesViewModel</c> only while the Web Seeds tab is visible.
+    /// Returns an empty list when the torrent is unknown or has no web seeds.
+    /// </summary>
+    Task<IReadOnlyList<WebSeedInfo>> GetWebSeedsAsync(TorrentId id, CancellationToken ct = default);
+
+    /// <summary>Adds a web seed URL to an existing torrent.</summary>
+    Task<Result> AddWebSeedAsync(TorrentId id, string url, CancellationToken ct = default);
+
+    /// <summary>Queues an outgoing peer connection attempt for the identified torrent.</summary>
+    Task<Result> AddPeerAsync(TorrentId id, string ipAddress, int port, CancellationToken ct = default);
+
+    /// <summary>Removes the web seed identified by <paramref name="url"/> from an existing torrent.</summary>
+    Task<Result> RemoveWebSeedAsync(TorrentId id, string url, CancellationToken ct = default);
+
+    /// <summary>
+    /// Exports the torrent's current metadata as a bencoded .torrent byte buffer.
+    /// Returns null when the torrent is unknown, or when it is a magnet whose
+    /// metadata has not yet resolved.
+    /// </summary>
+    Task<byte[]?> ExportTorrentBytesAsync(TorrentId id, CancellationToken ct = default);
+
     /// <summary>
     /// Returns file entries for all non-pad files in the identified torrent.
     /// Called at 3 s by <c>TorrentPropertiesViewModel</c> only while the Content tab is visible.
@@ -170,6 +205,29 @@ public interface ITorrentSessionService : IAsyncDisposable
     /// during download (e.g. video playback from the start before completion).
     /// </summary>
     Task<Result> SetSequentialDownloadAsync(TorrentId id, bool enabled, CancellationToken ct = default);
+
+    /// <summary>
+    /// Elevates the first and last piece of each non-skipped file to Maximum priority, which
+    /// allows media players to seek and start playback before the download completes. When
+    /// disabled, affected pieces revert to the file's current priority.
+    /// </summary>
+    Task<Result> SetFirstLastPiecePriorityAsync(TorrentId id, bool enable, CancellationToken ct = default);
+
+    /// <summary>
+    /// Enables or disables force-start mode on a torrent. When enabled, clears auto-management
+    /// and resumes the torrent so libtorrent's queue cannot re-pause it — the torrent runs
+    /// regardless of the active-torrent slot limit. When disabled, re-enables auto-management
+    /// so the queue resumes normal governance.
+    /// </summary>
+    Task<Result> ForceStartTorrentAsync(TorrentId id, bool forceStart, CancellationToken ct = default);
+
+    /// <summary>
+    /// Instructs libtorrent to move all downloaded data for the identified torrent to
+    /// <paramref name="newPath"/>. The move is asynchronous at the engine level — libtorrent
+    /// emits a <c>StorageMovedAlert</c> (or <c>StorageMovedFailedAlert</c>) when complete;
+    /// the next polling tick will surface the updated save-path automatically.
+    /// </summary>
+    Task<Result> RelocateTorrentAsync(TorrentId id, string newPath, CancellationToken ct = default);
 
     /// <summary>
     /// Renames a single file within a torrent by its zero-based index. Fire-and-forget at

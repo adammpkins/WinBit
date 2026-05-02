@@ -36,9 +36,9 @@ public class GetTrackersSmokeTests
         Assert.All(trackers, t => Assert.Equal(-1, t.ScrapeComplete));
         Assert.All(trackers, t => Assert.Equal(-1, t.ScrapeIncomplete));
 
-        // **Slice-127 marshal-contract verification**: trackers added via
+        // **marshal-contract verification**: trackers added via
         // a magnet URI's `tr=` param should have the MagnetLink bit set
-        // in their Source flags. Locks down the slice-127 typed-enum
+        // in their Source flags. Locks down the typed-enum
         // cast contract end-to-end (raw uint8_t → TrackerSource via
         // the (TrackerSource)entry.source cast in TrackerInfoMarshaller).
         Assert.All(trackers, t => Assert.True(

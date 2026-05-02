@@ -30,6 +30,10 @@ public sealed partial class SpeedPage : Page
             AltDownBox.Value = BpsToKbps(s.AltDownBps);
             AltUpBox.Value = BpsToKbps(s.AltUpBps);
             AltEnabledToggle.IsOn = s.AltEnabled;
+            SchedulerEnabledToggle.IsOn = s.SchedulerEnabled;
+            SchedulerDaysBox.SelectedIndex = (int)s.SchedulerDays;
+            SchedulerStartPicker.SelectedTime = s.SchedulerStartTime.ToTimeSpan();
+            SchedulerEndPicker.SelectedTime = s.SchedulerEndTime.ToTimeSpan();
         }
         finally
         {
@@ -97,5 +101,53 @@ public sealed partial class SpeedPage : Page
         }
         var enabled = AltEnabledToggle.IsOn;
         await _settings.UpdateAsync(s => s.Speed.AltEnabled = enabled);
+    }
+
+    private async void OnSchedulerEnabledToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+        var enabled = SchedulerEnabledToggle.IsOn;
+        await _settings.UpdateAsync(s => s.Speed.SchedulerEnabled = enabled);
+    }
+
+    private async void OnSchedulerDaysChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+        var days = (BandwidthScheduleDays)SchedulerDaysBox.SelectedIndex;
+        await _settings.UpdateAsync(s => s.Speed.SchedulerDays = days);
+    }
+
+    private async void OnSchedulerStartChanged(TimePicker sender, TimePickerSelectedValueChangedEventArgs args)
+    {
+        if (_loading)
+        {
+            return;
+        }
+        if (args.NewTime is null)
+        {
+            return;
+        }
+        var time = TimeOnly.FromTimeSpan(args.NewTime.Value);
+        await _settings.UpdateAsync(s => s.Speed.SchedulerStartTime = time);
+    }
+
+    private async void OnSchedulerEndChanged(TimePicker sender, TimePickerSelectedValueChangedEventArgs args)
+    {
+        if (_loading)
+        {
+            return;
+        }
+        if (args.NewTime is null)
+        {
+            return;
+        }
+        var time = TimeOnly.FromTimeSpan(args.NewTime.Value);
+        await _settings.UpdateAsync(s => s.Speed.SchedulerEndTime = time);
     }
 }

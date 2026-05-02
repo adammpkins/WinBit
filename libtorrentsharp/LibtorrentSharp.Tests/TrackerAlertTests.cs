@@ -115,7 +115,7 @@ public sealed class TrackerAlertTests
                     Assert.Equal(AnnounceEvent.Started, announceAlert.Event);
                     // InfoHash mirrors the dispatcher-routing identifier;
                     // locks down `cs_tracker_announce_alert.info_hash`
-                    // marshal contract (continues the slice-43-style
+                    // marshal contract (continues the -style
                     // InfoHash sweep, now into tracker-scoped alerts).
                     var expectedHash = handle.Info.Metadata.Hashes!.Value.V1!.Value;
                     Assert.Equal(expectedHash, announceAlert.InfoHash);

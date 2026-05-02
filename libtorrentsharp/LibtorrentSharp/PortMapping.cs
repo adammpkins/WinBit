@@ -1,22 +1,6 @@
+using LibtorrentSharp.Enums;
+
 namespace LibtorrentSharp;
-
-/// <summary>
-/// Transport layer protocol for a port mapping.
-/// </summary>
-public enum PortMappingProtocol : byte
-{
-    Tcp = 0,
-    Udp = 1
-}
-
-/// <summary>
-/// The mechanism used to establish a port mapping with the router.
-/// </summary>
-public enum PortMappingTransport : byte
-{
-    NatPmp = 0,
-    Upnp = 1
-}
 
 /// <summary>
 /// Snapshot of a port-forwarding mapping the session has registered.

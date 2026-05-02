@@ -42,5 +42,13 @@ public readonly record struct TorrentSnapshot
 
     public bool IsSequentialDownload { get; init; }
 
+    public bool HasFirstLastPiecePriority { get; init; }
+
+    /// <summary>
+    /// True when the torrent is running outside the queue: auto_managed=false and not paused.
+    /// Distinct from normal resume (auto_managed=true), which lets the queue re-pause the torrent.
+    /// </summary>
+    public bool IsForceStart { get; init; }
+
     public long TotalSize { get; init; }
 }

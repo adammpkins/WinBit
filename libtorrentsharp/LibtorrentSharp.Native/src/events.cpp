@@ -268,7 +268,6 @@ void on_events_available(lt::session* session, cs_alert_callback callback, bool 
 
                 // tracker_announce — an announce request was sent to a tracker
             case lt::tracker_announce_alert::alert_type: {
-                ::OutputDebugStringA("[lts] tracker_announce case reached\n");
                 auto announce = lt::alert_cast<lt::tracker_announce_alert>(alert);
 
                 std::string url_str = announce->tracker_url() != nullptr ? announce->tracker_url() : "";
@@ -567,9 +566,8 @@ void on_events_available(lt::session* session, cs_alert_callback callback, bool 
 
                 // peer connected
             case lt::peer_connect_alert::alert_type: {
-                ::OutputDebugStringA("[lts] peer_connect reached\n");
                 auto peer_alert = lt::alert_cast<lt::peer_connect_alert>(alert);
-                if (!peer_alert) { ::OutputDebugStringA("[lts] peer_connect cast=null\n"); break; }
+                if (!peer_alert) { break; }
                 auto direction = (peer_alert->direction == lt::peer_connect_alert::direction_t::in) ? cs_peer_alert_type::connected_in : cs_peer_alert_type::connected_out;
 
                 cs_peer_alert peer_connected{};
@@ -581,9 +579,8 @@ void on_events_available(lt::session* session, cs_alert_callback callback, bool 
 
                 // peer disconnected
             case lt::peer_disconnected_alert::alert_type: {
-                ::OutputDebugStringA("[lts] peer_disconnected reached\n");
                 auto peer_alert = lt::alert_cast<lt::peer_disconnected_alert>(alert);
-                if (!peer_alert) { ::OutputDebugStringA("[lts] peer_disconnected cast=null\n"); break; }
+                if (!peer_alert) { break; }
                 cs_peer_alert peer_disconnected{};
 
                 populate_peer_alert(&peer_disconnected, peer_alert, cs_peer_alert_type::disconnected, &message_temp);
@@ -593,9 +590,8 @@ void on_events_available(lt::session* session, cs_alert_callback callback, bool 
 
                 // peer banned
             case lt::peer_ban_alert::alert_type: {
-                ::OutputDebugStringA("[lts] peer_ban reached\n");
                 auto peer_alert = lt::alert_cast<lt::peer_ban_alert>(alert);
-                if (!peer_alert) { ::OutputDebugStringA("[lts] peer_ban cast=null\n"); break; }
+                if (!peer_alert) { break; }
                 cs_peer_alert peer_banned{};
 
                 populate_peer_alert(&peer_banned, peer_alert, cs_peer_alert_type::banned, &message_temp);
@@ -605,9 +601,8 @@ void on_events_available(lt::session* session, cs_alert_callback callback, bool 
 
                 // peer snubbed
             case lt::peer_snubbed_alert::alert_type: {
-                ::OutputDebugStringA("[lts] peer_snubbed reached\n");
                 auto peer_alert = lt::alert_cast<lt::peer_snubbed_alert>(alert);
-                if (!peer_alert) { ::OutputDebugStringA("[lts] peer_snubbed cast=null\n"); break; }
+                if (!peer_alert) { break; }
                 cs_peer_alert peer_snubbed{};
 
                 populate_peer_alert(&peer_snubbed, peer_alert, cs_peer_alert_type::snubbed, &message_temp);
@@ -617,9 +612,8 @@ void on_events_available(lt::session* session, cs_alert_callback callback, bool 
 
                 // peer unsnubbed
             case lt::peer_unsnubbed_alert::alert_type: {
-                ::OutputDebugStringA("[lts] peer_unsnubbed reached\n");
                 auto peer_alert = lt::alert_cast<lt::peer_unsnubbed_alert>(alert);
-                if (!peer_alert) { ::OutputDebugStringA("[lts] peer_unsnubbed cast=null\n"); break; }
+                if (!peer_alert) { break; }
                 cs_peer_alert peer_unsnubbed{};
 
                 populate_peer_alert(&peer_unsnubbed, peer_alert, cs_peer_alert_type::unsnubbed, &message_temp);
@@ -629,9 +623,8 @@ void on_events_available(lt::session* session, cs_alert_callback callback, bool 
 
                 // peer errored
             case lt::peer_error_alert::alert_type: {
-                ::OutputDebugStringA("[lts] peer_error reached\n");
                 auto peer_alert = lt::alert_cast<lt::peer_error_alert>(alert);
-                if (!peer_alert) { ::OutputDebugStringA("[lts] peer_error cast=null\n"); break; }
+                if (!peer_alert) { break; }
                 cs_peer_alert peer_errored{};
 
                 populate_peer_alert(&peer_errored, peer_alert, cs_peer_alert_type::errored, &message_temp);
@@ -1295,13 +1288,6 @@ void on_events_available(lt::session* session, cs_alert_callback callback, bool 
             }
 
             default: {
-                {
-                    char dbg_buf[128];
-                    ::snprintf(dbg_buf, sizeof(dbg_buf),
-                        "[lts] default: type=%d cat=0x%x\n",
-                        (int)alert->type(), (unsigned)alert->category());
-                    ::OutputDebugStringA(dbg_buf);
-                }
                 if (!include_unmapped) {
                     break;
                 }

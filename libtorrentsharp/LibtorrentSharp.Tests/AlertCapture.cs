@@ -12,7 +12,7 @@ namespace LibtorrentSharp.Tests;
 /// <summary>
 /// Eagerly drains a <see cref="LibtorrentSession"/>'s async alert stream
 /// into a concurrent snapshot, decoupling alert arrival from test-side
-/// await. Fixes a race observed in the slice-23 AddTorrentAlert test
+/// await. Fixes a race observed in the AddTorrentAlert test
 /// where the alert fired (and was written to the session's channel)
 /// before the test reached its <c>WaitForAlertAsync</c> call — under
 /// specific scheduler conditions the alert would sit in the channel

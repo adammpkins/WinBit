@@ -150,6 +150,8 @@ public sealed partial class TransfersViewModel : ObservableObject
             row.Seeds = snap.Seeds;
             row.Peers = snap.Peers;
             row.IsSequentialDownload = snap.IsSequentialDownload;
+            row.IsFirstLastPiecePriority = snap.HasFirstLastPiecePriority;
+            row.IsForceStart = snap.IsForceStart;
             row.TotalSize = snap.TotalSize;
         }
 

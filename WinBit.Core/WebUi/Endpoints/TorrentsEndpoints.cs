@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using WinBit.Core.BitTorrent;
 using WinBit.Core.Common;
+using WinBit.Core.Persistence;
 using WinBit.Core.Settings;
 
 namespace WinBit.Core.WebUi.Endpoints;
@@ -17,9 +18,9 @@ namespace WinBit.Core.WebUi.Endpoints;
 public static class TorrentsEndpoints
 {
     public static void Map(IEndpointRouteBuilder app, ITorrentSessionService session,
-        IWebUiAuthService auth, ISettingsService settings)
+        IWebUiAuthService auth, ISettingsService settings, ITorrentStateStore stateStore)
     {
-        app.MapGet("/api/v2/torrents/info", (HttpContext ctx) =>
+        app.MapGet("/api/v2/torrents/info", async (HttpContext ctx, CancellationToken ct) =>
         {
             if (!IsAuthorized(ctx, auth))
             {
@@ -27,7 +28,9 @@ public static class TorrentsEndpoints
             }
 
             var snapshots = session.GetSnapshots();
-            var rows = snapshots.Select(s => BuildInfoRow(s, session)).ToArray();
+            var stateRecords = await stateStore.GetAllAsync(ct).ConfigureAwait(false);
+            var stateMap = stateRecords.ToDictionary(r => r.Id);
+            var rows = snapshots.Select(s => BuildInfoRow(s, session, stateMap)).ToArray();
             return Results.Json(rows);
         });
 
@@ -205,11 +208,13 @@ public static class TorrentsEndpoints
     private static bool IsAuthorized(HttpContext ctx, IWebUiAuthService auth) =>
         WebUiAuthorization.IsAuthorized(ctx, auth);
 
-    private static object BuildInfoRow(TorrentSnapshot snapshot, ITorrentSessionService session)
+    private static object BuildInfoRow(TorrentSnapshot snapshot, ITorrentSessionService session,
+        Dictionary<TorrentId, TorrentStateRecord> stateMap)
     {
         var name = session.GetName(snapshot.Id) ?? snapshot.Id.Value;
         var savePath = session.GetSavePath(snapshot.Id) ?? string.Empty;
         var magnet = session.GetMagnetUri(snapshot.Id);
+        stateMap.TryGetValue(snapshot.Id, out var rec);
         return new
         {
             hash = snapshot.Id.Value,
@@ -226,7 +231,22 @@ public static class TorrentsEndpoints
             num_leechs = snapshot.Peers,
             save_path = savePath,
             magnet_uri = magnet,
+            category = rec?.Category ?? "",
+            tags = GetTagsString(rec),
         };
+    }
+
+    private static string GetTagsString(TorrentStateRecord? rec)
+    {
+        if (rec?.Tags == null) return "";
+        try
+        {
+            return string.Join(",", System.Text.Json.JsonSerializer.Deserialize<string[]>(rec.Tags) ?? []);
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     // Port of qBittorrent's torrent-state string vocabulary so Sonarr/Radarr classifiers work.

@@ -22,6 +22,7 @@ public sealed partial class StatePill : UserControl
     public StatePill()
     {
         InitializeComponent();
+        ActualThemeChanged += (_, _) => Apply(State);
         Apply(State);
     }
 

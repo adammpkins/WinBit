@@ -30,7 +30,7 @@ public sealed class TorrentCreatorEndpointsTests : IAsyncLifetime
             new StubTorrentSession(), new NoopLog(), new PeerLogService(),
             new StubCategoryService(), new StubTagService(),
             new StubRssService(), new StubAutoDownloaderService(),
-            new StubRssArticleCache(), new StubRssRefresher(), _queue, TestPaths.Ambient);
+            new StubRssArticleCache(), new StubRssRefresher(), _queue, new StubTorrentStateStore(), TestPaths.Ambient);
     }
 
     public async Task InitializeAsync()
@@ -55,13 +55,12 @@ public sealed class TorrentCreatorEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AddTask_queues_a_request_and_returns_task_id_even_when_creation_is_unsupported()
+    [Trait("Category", "Native")]
+    public async Task AddTask_queues_a_request_and_runs_it_to_completion()
     {
-        // The libtorrent binding doesn't yet wrap create_torrent (Phase G of
-        // LIBTORRENT_TASKS.md), so TorrentCreatorService's stub throws and the queue
-        // settles the task into Failed. The endpoint contract — accept the form,
-        // assign a task id, return 200 — must hold so qbittorrent-api clients keep
-        // working; the failure surfaces through GET /status.
+        // End-to-end: POST addTask → background hashing → /status surfaces Finished.
+        // Loads the LibtorrentSharp native library (lts.dll); fails with
+        // EntryPointNotFoundException until the native rebuild lands lts_create_torrent.
         await Login();
 
         var response = await _client.PostAsync("/api/v2/torrentcreator/addTask",
@@ -79,8 +78,9 @@ public sealed class TorrentCreatorEndpointsTests : IAsyncLifetime
         await _queue.WaitForTaskAsync(taskId!);
 
         var status = _queue.GetStatus(taskId!);
-        status!.State.Should().Be(TorrentCreatorTaskState.Failed);
-        status.Error.Should().Contain("libtorrent");
+        status!.State.Should().Be(TorrentCreatorTaskState.Finished, status.Error);
+        status.OutputPath.Should().NotBeNullOrEmpty();
+        File.Exists(status.OutputPath!).Should().BeTrue();
     }
 
     [Fact]
@@ -115,37 +115,42 @@ public sealed class TorrentCreatorEndpointsTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    // DownloadTorrent / DeleteTask happy-path tests previously asserted byte-for-byte
-    // equality with the produced .torrent file. With creation stubbed (Phase G of
-    // LIBTORRENT_TASKS.md), no file is ever written; the queue settles into Failed and
-    // the download endpoint has nothing to serve. The auth coverage and 404-on-unknown
-    // tests below exercise the rest of the endpoint contract; full happy-path coverage
-    // returns when the libtorrent creator lands.
-
     [Fact]
     public async Task DownloadTorrent_returns_409_when_task_did_not_finish()
     {
-        // The endpoint returns 409 Conflict for any non-Finished task (per qBittorrent's
-        // contract). With creation stubbed (Phase G of LIBTORRENT_TASKS.md), tasks settle
-        // into Failed and the contract surfaces as 409 — clients can poll /status to see
-        // the failure detail.
+        // The endpoint returns 409 Conflict for any non-Finished task. Trigger a Failed
+        // state by pointing addTask at a non-existent source — the service short-circuits
+        // with Result.Failure before going anywhere near libtorrent, so this test stays
+        // independent of the native dll.
         await Login();
         var output = Path.Combine(_temp.Path, "out.torrent");
-        var taskId = _queue.AddTask(new TorrentCreateRequest { SourcePath = _sourceDir, OutputPath = output });
+        var taskId = _queue.AddTask(new TorrentCreateRequest
+        {
+            SourcePath = Path.Combine(_temp.Path, "does-not-exist"),
+            OutputPath = output,
+        });
         await _queue.WaitForTaskAsync(taskId);
+        _queue.GetStatus(taskId)!.State.Should().Be(TorrentCreatorTaskState.Failed);
 
         var response = await _client.GetAsync($"/api/v2/torrentcreator/downloadTorrent?taskID={taskId}");
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
     [Fact]
-    public async Task DeleteTask_removes_task_record_even_when_no_output_was_produced()
+    public async Task DeleteTask_removes_task_record_when_creation_failed()
     {
+        // Same trick as DownloadTorrent above — point at a missing source so the queue
+        // settles into Failed without touching libtorrent. Asserts DeleteTask still
+        // tears down records that never produced output.
         await Login();
         var output = Path.Combine(_temp.Path, "delete.torrent");
-        var taskId = _queue.AddTask(new TorrentCreateRequest { SourcePath = _sourceDir, OutputPath = output });
+        var taskId = _queue.AddTask(new TorrentCreateRequest
+        {
+            SourcePath = Path.Combine(_temp.Path, "does-not-exist"),
+            OutputPath = output,
+        });
         await _queue.WaitForTaskAsync(taskId);
-        File.Exists(output).Should().BeFalse(); // nothing was created
+        File.Exists(output).Should().BeFalse();
 
         var response = await _client.PostAsync("/api/v2/torrentcreator/deleteTask",
             new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("taskID", taskId) }));

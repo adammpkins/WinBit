@@ -16,17 +16,9 @@ public class TorrentHandle
 {
     private readonly string _savePath;
 
-    /// <summary>
-    /// Native libtorrent handle. Mutable internally to support the slice-123
-    /// AddTorrent race fix — the manager is constructed with <see cref="IntPtr.Zero"/>
-    /// before <c>AttachTorrent</c> is called so it can be registered in
-    /// <c>_attachedManagers</c> first (closing the race where
-    /// <c>add_torrent_alert</c> fires synchronously on the alert thread before
-    /// registration). <see cref="SetNativeHandle"/> assigns the real handle
-    /// once <c>AttachTorrent</c> returns. Outside that brief construction
-    /// window the value is effectively immutable; user code only obtains the
-    /// manager from <c>Add()</c> after <see cref="SetNativeHandle"/> has run.
-    /// </summary>
+    // Constructed with IntPtr.Zero; set by AttachTorrent once the add_torrent_alert fires.
+    // Initialising to zero prevents a race where the alert fires synchronously before
+    // the TorrentHandle object is fully constructed.
     internal IntPtr TorrentSessionHandle { get; private set; }
 
     private bool _detached;
@@ -43,7 +35,7 @@ public class TorrentHandle
     /// <summary>
     /// Assigns the native handle after <c>AttachTorrent</c> returns. Called
     /// exactly once by <see cref="LibtorrentSession.AttachTorrentInternal"/>
-    /// per the slice-123 race fix.
+    /// per the race fix.
     /// </summary>
     internal void SetNativeHandle(IntPtr handle)
     {
@@ -137,6 +129,17 @@ public class TorrentHandle
     }
 
     /// <summary>
+    /// Enables or disables force-start mode. When enabled, clears auto-management
+    /// and resumes the torrent so libtorrent's queue cannot re-pause it. When
+    /// disabled, re-enables auto-management so the queue resumes normal governance.
+    /// </summary>
+    public void SetForceStart(bool forceStart)
+    {
+        ObjectDisposedException.ThrowIf(_detached, this);
+        NativeMethods.ForceStartTorrent(TorrentSessionHandle, forceStart);
+    }
+
+    /// <summary>
     /// Relocates the torrent's data to <paramref name="newPath"/>. The move happens
     /// asynchronously on libtorrent's disk thread; success/failure surfaces via the
     /// storage_moved[_failed]_alert (managed alert exposure deferred).
@@ -172,6 +175,81 @@ public class TorrentHandle
     {
         ObjectDisposedException.ThrowIf(_detached, this);
         return TrackerInfoMarshaller.GetTrackers(TorrentSessionHandle);
+    }
+
+    /// <summary>
+    /// Adds a tracker URL at the specified tier. No-op when the handle is detached.
+    /// </summary>
+    public void AddTracker(string url, int tier = 0)
+    {
+        ObjectDisposedException.ThrowIf(_detached, this);
+        NativeMethods.AddTracker(TorrentSessionHandle, url, tier);
+    }
+
+    /// <summary>
+    /// Removes a tracker by URL. No-op when the handle is detached.
+    /// </summary>
+    public void RemoveTracker(string url)
+    {
+        ObjectDisposedException.ThrowIf(_detached, this);
+        NativeMethods.RemoveTracker(TorrentSessionHandle, url);
+    }
+
+    /// <summary>
+    /// Replaces <paramref name="oldUrl"/> with <paramref name="newUrl"/> and updates the tier.
+    /// No-op when the handle is detached.
+    /// </summary>
+    public void EditTracker(string oldUrl, string newUrl, int newTier = 0)
+    {
+        ObjectDisposedException.ThrowIf(_detached, this);
+        NativeMethods.EditTracker(TorrentSessionHandle, oldUrl, newUrl, newTier);
+    }
+
+    /// <summary>
+    /// Snapshot of the web seeds attached to this torrent.
+    /// </summary>
+    public IReadOnlyList<WebSeedInfo> GetWebSeeds()
+    {
+        ObjectDisposedException.ThrowIf(_detached, this);
+        return WebSeedInfoMarshaller.GetWebSeeds(TorrentSessionHandle);
+    }
+
+    /// <summary>
+    /// Adds a web seed URL. No-op when the handle is detached.
+    /// </summary>
+    public void AddWebSeed(string url)
+    {
+        ObjectDisposedException.ThrowIf(_detached, this);
+        NativeMethods.AddWebSeed(TorrentSessionHandle, url);
+    }
+
+    /// <summary>
+    /// Removes a web seed by URL. No-op when the handle is detached.
+    /// </summary>
+    public void RemoveWebSeed(string url)
+    {
+        ObjectDisposedException.ThrowIf(_detached, this);
+        NativeMethods.RemoveWebSeed(TorrentSessionHandle, url);
+    }
+
+    /// <summary>
+    /// Exports the torrent's current metadata as a bencoded .torrent byte buffer.
+    /// Returns null when metadata is not yet available (pre-metadata magnet case).
+    /// </summary>
+    public byte[] ExportTorrentBytes()
+    {
+        if (!NativeMethods.ExportTorrentToBytes(TorrentSessionHandle, out var dataPtr, out var size))
+            return null;
+        try
+        {
+            var bytes = new byte[size];
+            Marshal.Copy(dataPtr, bytes, 0, size);
+            return bytes;
+        }
+        finally
+        {
+            NativeMethods.FreeBytes(dataPtr);
+        }
     }
 
     /// <summary>
@@ -278,6 +356,20 @@ public class TorrentHandle
     }
 
     /// <summary>
+    /// Snapshot of bytes downloaded per file. Index <c>i</c> is the number of bytes
+    /// completed for file <c>i</c> (matches <see cref="TorrentManagerFile.Info"/>'s
+    /// <c>Index</c> field). Returns an empty array when the torrent has no files.
+    /// </summary>
+    public long[] GetFileProgress()
+    {
+        var count = Files.Count;
+        if (count == 0) return Array.Empty<long>();
+        var result = new long[count];
+        NativeMethods.GetFileProgress(TorrentSessionHandle, result, count);
+        return result;
+    }
+
+    /// <summary>
     /// Reads a single piece's download priority. Returns
     /// <see cref="FileDownloadPriority.DoNotDownload"/> when metadata hasn't
     /// resolved yet or the index is out of range.
@@ -364,6 +456,22 @@ public class TorrentHandle
     {
         ObjectDisposedException.ThrowIf(_detached, this);
         return NativeMethods.HavePiece(TorrentSessionHandle, pieceIndex);
+    }
+
+    /// <summary>
+    /// Returns the full piece completion bitfield in a single native call.
+    /// </summary>
+    public bool[] GetPieceBitfield(int numPieces)
+    {
+        ObjectDisposedException.ThrowIf(_detached, this);
+        if (numPieces <= 0) return [];
+        var numBytes = (numPieces + 7) / 8;
+        var bits = new byte[numBytes];
+        NativeMethods.GetPieceBitfield(TorrentSessionHandle, bits, numBytes);
+        var result = new bool[numPieces];
+        for (var i = 0; i < numPieces; i++)
+            result[i] = (bits[i / 8] & (1 << (i % 8))) != 0;
+        return result;
     }
 
     /// <summary>

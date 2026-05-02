@@ -1,6 +1,7 @@
 // Derived from csdl by Albie Spriddell. See libtorrentsharp/NOTICE for attribution.
 
 using System.Net;
+using LibtorrentSharp.Enums;
 using LibtorrentSharp.Native;
 
 namespace LibtorrentSharp.Alerts;
@@ -25,7 +26,7 @@ public class PortmapAlert : Alert
         LocalAddress = v6.IsIPv4MappedToIPv6 ? v6.MapToIPv4() : v6;
     }
 
-    /// <summary>libtorrent's stable per-mapping identifier.</summary>
+    /// <summary>libtorrent''s stable per-mapping identifier.</summary>
     public int Mapping { get; }
 
     /// <summary>External port the router assigned to the mapping.</summary>

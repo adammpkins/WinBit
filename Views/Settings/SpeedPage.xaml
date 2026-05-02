@@ -89,6 +89,43 @@
                     </controls:SettingsCard>
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
+
+            <controls:SettingsExpander Header="Scheduler"
+                                       Description="Automatically enable alternative speed limits on a time-of-day schedule.">
+                <controls:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE916;" />
+                </controls:SettingsExpander.HeaderIcon>
+                <ToggleSwitch x:Name="SchedulerEnabledToggle" Toggled="OnSchedulerEnabledToggled" />
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Active days"
+                                           Description="Days of the week when the schedule applies.">
+                        <ComboBox x:Name="SchedulerDaysBox"
+                                  MinWidth="160"
+                                  SelectionChanged="OnSchedulerDaysChanged">
+                            <ComboBoxItem Content="Every day" />
+                            <ComboBoxItem Content="Weekdays" />
+                            <ComboBoxItem Content="Weekends" />
+                            <ComboBoxItem Content="Monday" />
+                            <ComboBoxItem Content="Tuesday" />
+                            <ComboBoxItem Content="Wednesday" />
+                            <ComboBoxItem Content="Thursday" />
+                            <ComboBoxItem Content="Friday" />
+                            <ComboBoxItem Content="Saturday" />
+                            <ComboBoxItem Content="Sunday" />
+                        </ComboBox>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Start time"
+                                           Description="Switch to alternative limits at this time.">
+                        <TimePicker x:Name="SchedulerStartPicker"
+                                    SelectedTimeChanged="OnSchedulerStartChanged" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="End time"
+                                           Description="Return to normal limits at this time.">
+                        <TimePicker x:Name="SchedulerEndPicker"
+                                    SelectedTimeChanged="OnSchedulerEndChanged" />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
         </StackPanel>
         </Grid>
     </ScrollViewer>

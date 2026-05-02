@@ -5,7 +5,7 @@ using Xunit;
 namespace LibtorrentSharp.Tests;
 
 /// <summary>
-/// Smoke coverage for the slice-1 listen-state surface: `ListenPort`,
+/// Smoke coverage for the listen-state surface: `ListenPort`,
 /// `SslListenPort`, `IsListening`, and `SetListenInterfaces`. Alert-driven
 /// tracking (listen_succeeded / listen_failed alert types) defers to a
 /// follow-up slice.

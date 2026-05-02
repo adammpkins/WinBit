@@ -167,6 +167,7 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 - [x] `PeerGuardianParser` for `.p2p` blocklists; `IpFilterService` wires into engine.
 - [x] Execution log page bound to `ILogService`.
 - [x] Peer log page (banned peers, reason).
+- [x] Scheduler rule editor in Settings/Speed — enable toggle, start/end time pickers, day selector wired to `SchedulerEnabled`, `SchedulerStartTime`, `SchedulerEndTime`, `SchedulerDays` in `AppSettings.Speed`.
 
 **Verification**
 - Scheduler flips alt mode at the scheduled time.
@@ -174,7 +175,7 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 
 ---
 
-## M8 — Networking, watched folders, torrent creator *(complete)*
+## M8 — Networking, watched folders, torrent creator  *(complete)*
 
 **Deliverables**
 - [x] Proxy settings (SOCKS5/HTTP) with optional auth.
@@ -182,6 +183,7 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 - [x] Protocol encryption mode selector.
 - [x] DHT / PEX / LSD toggles.
 - [x] `WatchedFolderService` with debounced `FileSystemWatcher` + per-folder options.
+- [x] Watched Folders settings page — list existing folders, add (folder picker + per-folder options), remove; options: save-path override, start immediately, recursive, delete source on add.
 - [x] `TorrentCreatorPage` using MonoTorrent's `TorrentCreator`.
 
 **Verification**
@@ -308,7 +310,8 @@ Features we deliberately hold until after feature parity ships:
   - [x] Peers tab: surface `TorrentHandle.GetPeers()` through `ITorrentSessionService` → `TorrentPropertiesViewModel` → Peers pivot (IP, client string, flags, upload/download speed, progress).
   - [x] Trackers tab: surface tracker URL, working state, seeds/leechers/downloaded counts via tracker alerts and `GetTrackers()`.
   - [x] Content tab: surface per-file list and priority (display) for multi-file torrents from the libtorrent engine.
-  - [ ] Content tab: per-file download progress (requires lt_file_progress native binding — tracked in LIBTORRENT_TASKS.md).
+  - [x] Content tab: per-file download progress (requires lt_file_progress native binding — tracked in LIBTORRENT_TASKS.md).
+  - [x] Content tab: per-file progress shows 0.0% for seeded/resumed torrents — `lts_file_progress()` returns 0 for torrents loaded from resume data; investigate libtorrent `is_seed()` / `valid_metadata()` timing or apply per-torrent progress fallback when `TorrentState == Seeding`.
   - [x] Content tab empty state: when a torrent is selected but files haven't polled yet, it shows "Select a torrent to view its contents" — change text to "Loading…" or similar so the two states are distinguishable.
   - [x] Pieces tab: feed piece availability map from libtorrent into the existing `PiecesBar` Win2D control.
   - [ ] Bulk piece-bitfield API in LibtorrentSharp — `GetPiecesAsync` currently calls `HavePiece(i)` in a loop (O(n) P/Invoke calls); a native bulk bitfield copy would be O(1). Tracked here so it's not rediscovered. See LIBTORRENT_TASKS.md Phase G for the binding expansion.
@@ -319,16 +322,54 @@ Features we deliberately hold until after feature parity ships:
 
 - [x] **General tab** — fill in real torrent metadata (info hash, save path, comment, creation date, fast-resume status). The tab currently shows a placeholder from M4 that was never wired up.
 
+- [x] **Accent color / theme changes require restart** — live accent-color and light/dark switching was working at M12 but has regressed. Changing the accent color or theme in Settings should take effect immediately across all open controls without a restart. Investigate `AccentService.Apply` and `IThemeService` — ensure they push updates through the resource dictionary live, and verify that all themed controls (including `StatePill`, `SpeedGraph`, custom brushes) respond to the change. Verify with FlaUI screenshot before/after toggle.
+
+- **Vue 3 WebUI — outstanding work** — the Vue SPA (`webui/`) replaces the old native HTML client and is functional for basic torrent management. Gaps vs. full parity:
+
+  *Transfers view*
+  - [x] Column sort — clicking a column header should toggle asc/desc sort; the sort state should persist in `UiState.TransfersGrid` (backend already stores `SortDirection`).
+  - [x] State filter sidebar — filter rows by status category (All / Downloading / Seeding / Completed / Paused / Errored) like qBittorrent's left panel; `GET /api/v2/torrents/info?filter=` already supports this.
+  - [x] Category / tag filter sidebar — clicking a category or tag narrows the list; show count badge per entry.
+  - [x] Add `.torrent` file upload — the Add Magnet dialog only handles magnet URIs; add a file input that posts to `POST /api/v2/torrents/add` with `multipart/form-data` (torrents field).
+  - [ ] Column visibility toggle — right-click column header to show/hide columns; persist to `UiState.TransfersGrid.Columns`.
+  - [ ] Torrent detail tabs — the current expandable row shows minimal info; wire up full tabs: **General** (hash, save path, comment, creation date), **Trackers** (URL, status, seeds/leeches), **Peers** (IP, client, progress, speeds), **Content** (file tree with priority dropdowns), **Pieces** (bitfield bar).
+
+  *Log view*
+  - [ ] Log detail pane — clicking a log row shows the full message in a side/bottom panel (useful for long messages truncated in the table).
+
+  *Settings view*
+  - [ ] Connection settings — listen port, UPnP toggle; write through `POST /api/v2/app/setPreferences`.
+  - [ ] Speed limits — global up/down rate fields, alt-speed rate fields, scheduler (days + time window).
+  - [ ] Downloads settings — default save path (folder picker or text field), pre-allocate disk, auto-TMM.
+  - [ ] BitTorrent settings — DHT / PeX / LSD toggles, encryption mode selector.
+  - [ ] WebUI settings — bind address, remote access toggle, port, auth username/password change.
+  - [ ] Settings save wires to `POST /api/v2/app/setPreferences` — the Appearance section (theme/accent) already does this but the other sections are stubs.
+
+  *Missing views*
+  - [ ] RSS view — feed tree (add/remove/refresh), article list with read/unread state; mirrors the RSS tab in qBittorrent.
+  - [ ] Search view — Torznab plugin search form + results table with one-click add; `GET /api/v2/search/start` + polling `GET /api/v2/search/results`.
+
+  *Status bar / global polish*
+  - [ ] Speed graph in status bar — sparkline of last 60s download/upload speeds, updated from `sync/maindata` `server_state`.
+  - [ ] DHT node count and connection status badge in the status bar (already in `server_state.dht_nodes` / `connection_status`).
+  - [ ] Global speed-limit quick-toggle — click the down/up speed readout to set a temporary cap (like qBittorrent's status bar controls).
+  - [ ] Remote access — `BindAddress` plumbing already exists in `WebUiSettings`; expose an "Allow remote access" toggle in Settings/WebUI that sets `0.0.0.0` vs `127.0.0.1` and restarts Kestrel.
+
 - **qBittorrent feature parity gaps** — user-visible actions missing from WinBit:
   - [x] Rename torrent (post-add).
   - [x] Rename file within a torrent (post-add).
   - [x] Rename folder within a torrent (post-add) — libtorrent has no native folder rename; requires renaming all files whose RelativePath starts with the old folder prefix.
   - [x] Per-file download priority (selective download) — set file to Normal / High / Maximum / Do Not Download after the torrent is added.
   - [x] Sequential download toggle (post-add) — mirrors the existing `AddTorrentParams.Sequential` but there's no UI action to toggle it on a running torrent.
-  - [ ] First/last piece priority toggle (post-add) — same gap as sequential.
-  - [ ] Relocate save path for an existing torrent (move storage).
-  - [ ] Force-start per torrent (bypass the download queue limit).
-  - [ ] Add / edit / remove trackers on an existing torrent.
-  - [ ] Add / edit / remove web seeds on an existing torrent.
-  - [ ] Export `.torrent` file from an added torrent.
-  - [ ] Manually add peers to a torrent.
+  - [x] First/last piece priority toggle (post-add) — same gap as sequential.
+  - [x] Relocate save path for an existing torrent (move storage).
+  - [x] Force-start per torrent (bypass the download queue limit).
+  - [x] Add / edit / remove trackers on an existing torrent.
+  - [x] Add / edit / remove web seeds on an existing torrent.
+  - [x] Export `.torrent` file from an added torrent.
+  - [x] Manually add peers to a torrent.
+
+- **Test suite regressions** — pre-existing failures detected during WebUI backlog work (not introduced by any single recent commit):
+  - [ ] `WebUiWhitelistTests` — `IsWhitelistedIp_returns_false_when_list_empty` returns True instead of False; `Empty_whitelist_keeps_requiring_cookie` returns 200 instead of 401. Whitelist auth logic appears inverted.
+  - [ ] `QBittorrentAssetsTests` — `Unknown_path_returns_404` returns 200; `Asset_paths_serve_with_correct_content_type` returns `text/html` for `.svg`. Asset fallback/MIME routing broken in test host.
+  - [ ] `NativeClientTests` — `Hashed_assets_are_served_with_immutable_cache_header` has null `MaxAge`. Cache-control header not set on asset responses in test host.

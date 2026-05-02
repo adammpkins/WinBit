@@ -7,6 +7,7 @@
 #include "library.h"
 
 #include <libtorrent/announce_entry.hpp>
+#include <libtorrent/create_torrent.hpp>
 #include <libtorrent/entry.hpp>
 #include <libtorrent/fingerprint.hpp>
 #include <libtorrent/ip_filter.hpp>
@@ -129,12 +130,6 @@ lt::session* create_session(lt::settings_pack* pack)
     }
 
     auto* session = new lt::session(params);
-    {
-        char buf[80];
-        ::snprintf(buf, sizeof(buf), "[lts] create_session alert_mask=%d\n",
-            session->get_settings().get_int(lt::settings_pack::alert_mask));
-        ::OutputDebugStringA(buf);
-    }
     session->add_extension(lt::create_ut_metadata_plugin);
     session->add_extension(lt::create_ut_pex_plugin);
     session->add_extension(lt::create_smart_ban_plugin);
@@ -162,12 +157,6 @@ void apply_settings(lt::session* session, lt::settings_pack* settings)
     }
 
     session->apply_settings(*settings);
-    {
-        char buf[80];
-        ::snprintf(buf, sizeof(buf), "[lts] apply_settings alert_mask=%d\n",
-            session->get_settings().get_int(lt::settings_pack::alert_mask));
-        ::OutputDebugStringA(buf);
-    }
 }
 
 void set_event_callback(lt::session* session, cs_alert_callback callback, bool include_unmapped_events)
@@ -333,6 +322,24 @@ void lts_resume_torrent(lt::torrent_handle* torrent)
     torrent->set_flags(lt::torrent_flags::auto_managed);
 }
 
+void lts_force_start_torrent(lt::torrent_handle* torrent, bool force_start)
+{
+    if (torrent == nullptr || !torrent->is_valid())
+    {
+        return;
+    }
+
+    if (force_start)
+    {
+        torrent->unset_flags(lt::torrent_flags::auto_managed);
+        torrent->resume();
+    }
+    else
+    {
+        torrent->set_flags(lt::torrent_flags::auto_managed);
+    }
+}
+
 void lts_move_storage(lt::torrent_handle* torrent, const char* new_path, int32_t flags)
 {
     if (torrent == nullptr || !torrent->is_valid() || new_path == nullptr)
@@ -407,6 +414,16 @@ void lts_get_peers(lt::torrent_handle* torrent, peer_list* out_list)
         entry.down_rate = p.down_speed;
         entry.total_uploaded = p.total_upload;
         entry.total_downloaded = p.total_download;
+        entry.connection_type = static_cast<int32_t>(static_cast<std::uint8_t>(p.connection_type));
+        entry.num_hashfails = p.num_hashfails;
+        entry.downloading_piece_index = static_cast<int32_t>(static_cast<int>(p.downloading_piece_index));
+        entry.downloading_block_index = p.downloading_block_index;
+        entry.downloading_progress = p.downloading_progress;
+        entry.downloading_total = p.downloading_total;
+        entry.failcount = p.failcount;
+        entry.payload_up_rate = p.payload_up_speed;
+        entry.payload_down_rate = p.payload_down_speed;
+        std::copy(p.pid.begin(), p.pid.end(), entry.pid);
     }
 
     out_list->length = count;
@@ -478,6 +495,10 @@ void lts_get_trackers(lt::torrent_handle* torrent, tracker_list* out_list)
         bool updating = false;
         std::string first_error;
         lt::time_point32 earliest_next = lt::time_point32::max();
+        std::string first_message;
+        bool any_start_sent = false;
+        bool any_complete_sent = false;
+        lt::time_point32 earliest_min = lt::time_point32::max();
 
         for (const auto& ep : entry.endpoints)
         {
@@ -491,6 +512,10 @@ void lts_get_trackers(lt::torrent_handle* torrent, tracker_list* out_list)
                 if (ih.updating) updating = true;
                 if (first_error.empty() && ih.last_error) first_error = ih.last_error.message();
                 if (ih.next_announce < earliest_next) earliest_next = ih.next_announce;
+                if (first_message.empty() && !ih.message.empty()) first_message = ih.message;
+                if (ih.min_announce < earliest_min) earliest_min = ih.min_announce;
+                if (ih.start_sent) any_start_sent = true;
+                if (ih.complete_sent) any_complete_sent = true;
             }
         }
 
@@ -512,6 +537,22 @@ void lts_get_trackers(lt::torrent_handle* torrent, tracker_list* out_list)
             const auto now_wall = std::chrono::system_clock::now();
             out.next_announce_epoch = std::chrono::duration_cast<std::chrono::seconds>(now_wall.time_since_epoch()).count() + delta_secs;
         }
+
+        out.trackerid = clone_cstr(entry.trackerid);
+        out.message = clone_cstr(first_message);
+        out.start_sent = any_start_sent;
+        out.complete_sent = any_complete_sent;
+        if (earliest_min == lt::time_point32::max())
+        {
+            out.min_announce_epoch = 0;
+        }
+        else
+        {
+            const auto now_steady = lt::clock_type::now();
+            const auto delta_secs = std::chrono::duration_cast<std::chrono::seconds>(earliest_min - now_steady).count();
+            const auto now_wall = std::chrono::system_clock::now();
+            out.min_announce_epoch = std::chrono::duration_cast<std::chrono::seconds>(now_wall.time_since_epoch()).count() + delta_secs;
+        }
     }
 
     out_list->length = count;
@@ -529,11 +570,116 @@ void lts_destroy_trackers(tracker_list* list)
     {
         delete[] list->trackers[i].url;
         delete[] list->trackers[i].last_error;
+        delete[] list->trackers[i].trackerid;
+        delete[] list->trackers[i].message;
     }
 
     delete[] list->trackers;
     list->trackers = nullptr;
     list->length = 0;
+}
+
+void lts_add_tracker(lt::torrent_handle* torrent, const char* url, const int32_t tier)
+{
+    if (torrent == nullptr || url == nullptr) return;
+    lt::announce_entry entry{std::string(url)};
+    entry.tier = static_cast<uint8_t>(tier);
+    torrent->add_tracker(entry);
+}
+
+void lts_remove_tracker(lt::torrent_handle* torrent, const char* url)
+{
+    if (torrent == nullptr || url == nullptr) return;
+    auto trackers = torrent->trackers();
+    trackers.erase(
+        std::remove_if(trackers.begin(), trackers.end(),
+            [url](const lt::announce_entry& t) { return t.url == url; }),
+        trackers.end());
+    torrent->replace_trackers(trackers);
+}
+
+void lts_edit_tracker(lt::torrent_handle* torrent, const char* old_url, const char* new_url, const int32_t new_tier)
+{
+    if (torrent == nullptr || old_url == nullptr || new_url == nullptr) return;
+    auto trackers = torrent->trackers();
+    for (auto& t : trackers)
+    {
+        if (t.url == old_url)
+        {
+            t.url = new_url;
+            if (new_tier >= 0)
+                t.tier = static_cast<uint8_t>(new_tier);
+            break;
+        }
+    }
+    torrent->replace_trackers(trackers);
+}
+
+void lts_get_web_seeds(lt::torrent_handle* torrent, web_seed_list* out_list)
+{
+    if (torrent == nullptr || out_list == nullptr) return;
+    auto seeds = torrent->url_seeds();
+    out_list->count = static_cast<int32_t>(seeds.size());
+    if (seeds.empty())
+    {
+        out_list->items = nullptr;
+        return;
+    }
+    out_list->items = new web_seed_information[seeds.size()];
+    int i = 0;
+    for (const auto& url : seeds)
+    {
+        out_list->items[i].url = clone_cstr(url);
+        ++i;
+    }
+}
+
+void lts_destroy_web_seeds(web_seed_list* list)
+{
+    if (list == nullptr || list->items == nullptr) return;
+    for (int i = 0; i < list->count; ++i)
+    {
+        delete[] list->items[i].url;
+    }
+    delete[] list->items;
+    list->items = nullptr;
+    list->count = 0;
+}
+
+void lts_add_web_seed(lt::torrent_handle* torrent, const char* url)
+{
+    if (torrent == nullptr || url == nullptr) return;
+    torrent->add_url_seed(url);
+}
+
+void lts_remove_web_seed(lt::torrent_handle* torrent, const char* url)
+{
+    if (torrent == nullptr || url == nullptr) return;
+    torrent->remove_url_seed(url);
+}
+
+bool lts_export_torrent_to_bytes(lt::torrent_handle* torrent, uint8_t** out_data, int32_t* out_size)
+{
+    if (torrent == nullptr || out_data == nullptr || out_size == nullptr) return false;
+
+    auto ti = torrent->torrent_file();
+    if (!ti) return false;
+
+    lt::create_torrent ct(*ti);
+    lt::entry e = ct.generate();
+    std::vector<char> buf;
+    lt::bencode(std::back_inserter(buf), e);
+
+    auto* heap = new uint8_t[buf.size()];
+    std::memcpy(heap, buf.data(), buf.size());
+    *out_data = heap;
+    *out_size = static_cast<int32_t>(buf.size());
+    return true;
+}
+
+void lts_free_bytes(uint8_t* data)
+{
+    delete[] data;
 }
 
 // Rate-limit pairs. libtorrent accepts 0 or any negative as "unlimited" and its
@@ -931,12 +1077,6 @@ lt::session* lts_create_session_from_state(const char* buf, int32_t length)
     {
         auto params = lt::read_session_params(lt::span<char const>(buf, length));
         auto* session = new lt::session(params);
-        {
-            char buf2[80];
-            ::snprintf(buf2, sizeof(buf2), "[lts] create_session_from_state alert_mask=%d\n",
-                session->get_settings().get_int(lt::settings_pack::alert_mask));
-            ::OutputDebugStringA(buf2);
-        }
         session->add_extension(lt::create_ut_metadata_plugin);
         session->add_extension(lt::create_ut_pex_plugin);
         session->add_extension(lt::create_smart_ban_plugin);
@@ -1371,6 +1511,19 @@ bool lts_have_piece(lt::torrent_handle* torrent, int32_t piece_index)
     return torrent->have_piece(static_cast<lt::piece_index_t>(piece_index));
 }
 
+void lts_get_piece_bitfield(lt::torrent_handle* torrent, uint8_t* out_bits, int32_t num_bytes)
+{
+    if (!torrent || !out_bits || num_bytes <= 0) return;
+    auto st = torrent->status(lt::torrent_handle::query_pieces);
+    const auto& pieces = st.pieces;
+    int total = static_cast<int>(pieces.size());
+    std::memset(out_bits, 0, static_cast<size_t>(num_bytes));
+    for (int i = 0; i < total && (i / 8) < num_bytes; i++) {
+        if (pieces[static_cast<lt::piece_index_t>(i)])
+            out_bits[i / 8] |= static_cast<uint8_t>(1 << (i % 8));
+    }
+}
+
 // --- Peer-level handle ops ---------------------------------------------
 // connect_peer: explicit peer add. libtorrent's connect_peer takes a
 // tcp::endpoint; we decode the v4-mapped v6 buffer to an address and build
@@ -1597,7 +1750,7 @@ void get_torrent_file_list(const lt::torrent_info* torrent, torrent_file_list* f
             file_name,
             file_path,
             files.file_absolute_path(i),
-            files.pad_file_at(i)
+            static_cast<uint8_t>(files.file_flags(static_cast<lt::file_index_t>(i)))
         };
 
         std::ranges::copy(name, file_name);
@@ -2015,6 +2168,19 @@ uint8_t get_file_dl_priority(lt::torrent_handle* torrent, const int32_t file_ind
     return static_cast<uint8_t>(torrent->file_priority(static_cast<lt::file_index_t>(file_index)));
 }
 
+// fills out_array with bytes downloaded for each file (indexed by file_index).
+void lts_file_progress(lt::torrent_handle* torrent, int64_t* out_array, const int32_t num_files)
+{
+    if (torrent == nullptr || out_array == nullptr || num_files <= 0)
+        return;
+    std::vector<std::int64_t> progress;
+    torrent->file_progress(progress);
+    const auto count = static_cast<int32_t>(std::min(static_cast<std::size_t>(num_files), progress.size()));
+    std::copy(progress.begin(), progress.begin() + count, out_array);
+    if (count < num_files)
+        std::fill(out_array + count, out_array + num_files, std::int64_t{0});
+}
+
 // start and stop the download of a torrent.
 void start_torrent(lt::torrent_handle* torrent)
 {
@@ -2172,4 +2338,236 @@ void lts_destroy_torrent_status(torrent_status* status)
     delete[] status->error_string;
     delete status;
 }
+
+namespace {
+
+// Sentinel exception used to bail out of lt::set_piece_hashes when the managed
+// side flips the cancel flag mid-hash. We catch it explicitly at the top of
+// lts_create_torrent and translate to the cancelled return code; the .torrent
+// file is never written, so the caller-visible state is "as if you never
+// called us".
+struct create_torrent_cancelled : std::exception
+{
+    const char* what() const noexcept override { return "cancelled"; }
+};
+
+void copy_error(char* error_buf, int32_t error_buf_size, const std::string& message)
+{
+    if (error_buf == nullptr || error_buf_size <= 0)
+    {
+        return;
+    }
+
+    const std::size_t cap = static_cast<std::size_t>(error_buf_size - 1);
+    const std::size_t n = std::min(cap, message.size());
+    std::memcpy(error_buf, message.data(), n);
+    error_buf[n] = '\0';
+}
+
+// Filters hidden files and directories (names starting with '.') as libtorrent's
+// ignore_hidden convention defines.
+bool not_hidden_filter(const std::string& path)
+{
+    if (path.empty()) return true;
+    auto sep = path.find_last_of("/\\");
+    const std::string name = (sep == std::string::npos) ? path : path.substr(sep + 1);
+    return name.empty() || name.front() != '.';
+}
+
+// Splits trackers wire format (newline-separated URLs, blank line = tier++)
+// directly into create_torrent.add_tracker calls. Trims CR for CRLF inputs.
+void apply_trackers(lt::create_torrent& ct, const char* trackers)
+{
+    if (trackers == nullptr) return;
+    int tier = 0;
+    const char* p = trackers;
+    while (true)
+    {
+        const char* eol = std::strchr(p, '\n');
+        const std::size_t len = (eol == nullptr) ? std::strlen(p) : static_cast<std::size_t>(eol - p);
+        std::string line(p, len);
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty())
+        {
+            ++tier;
+        }
+        else
+        {
+            ct.add_tracker(line, tier);
+        }
+        if (eol == nullptr) break;
+        p = eol + 1;
+    }
+}
+
+void apply_web_seeds(lt::create_torrent& ct, const char* web_seeds)
+{
+    if (web_seeds == nullptr) return;
+    const char* p = web_seeds;
+    while (true)
+    {
+        const char* eol = std::strchr(p, '\n');
+        const std::size_t len = (eol == nullptr) ? std::strlen(p) : static_cast<std::size_t>(eol - p);
+        std::string line(p, len);
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (!line.empty()) ct.add_url_seed(line);
+        if (eol == nullptr) break;
+        p = eol + 1;
+    }
+}
+
+// Resolves the parent directory of source_path. lt::set_piece_hashes wants the
+// directory CONTAINING the torrent root (file or folder). Strips the trailing
+// separator and last path component. Falls back to "." when the input has no
+// separator (relative basename like "foo.bin").
+std::string parent_path_of(const std::string& source_path)
+{
+    if (source_path.empty()) return ".";
+    std::string s = source_path;
+    while (!s.empty() && (s.back() == '/' || s.back() == '\\'))
+    {
+        s.pop_back();
+    }
+    auto sep = s.find_last_of("/\\");
+    if (sep == std::string::npos) return ".";
+    if (sep == 0) return s.substr(0, 1);
+    return s.substr(0, sep);
+}
+
+} // namespace
+
+int32_t lts_create_torrent(
+    const char* source_path,
+    const char* output_path,
+    int32_t piece_size,
+    int32_t is_private,
+    const char* comment,
+    const char* created_by,
+    const char* trackers,
+    const char* web_seeds,
+    int32_t ignore_hidden,
+    lts_create_torrent_progress_cb progress_cb,
+    void* progress_ctx,
+    int32_t* cancel_flag,
+    char* error_buf,
+    int32_t error_buf_size)
+{
+    if (source_path == nullptr || output_path == nullptr ||
+        source_path[0] == '\0' || output_path[0] == '\0')
+    {
+        copy_error(error_buf, error_buf_size, "source_path and output_path are required");
+        return -1;
+    }
+
+    try
+    {
+        lt::file_storage fs;
+        if (ignore_hidden)
+        {
+            lt::add_files(fs, source_path, not_hidden_filter);
+        }
+        else
+        {
+            lt::add_files(fs, source_path);
+        }
+
+        if (fs.num_files() == 0)
+        {
+            copy_error(error_buf, error_buf_size, "source path contains no files");
+            return -2;
+        }
+
+        lt::create_torrent ct(fs, piece_size);
+
+        apply_trackers(ct, trackers);
+        apply_web_seeds(ct, web_seeds);
+
+        if (comment != nullptr && comment[0] != '\0')
+        {
+            ct.set_comment(comment);
+        }
+        if (created_by != nullptr && created_by[0] != '\0')
+        {
+            ct.set_creator(created_by);
+        }
+        if (is_private)
+        {
+            ct.set_priv(true);
+        }
+
+        // Initial 0/N progress fire so the managed side can populate OverallSize
+        // before any hashing starts. piece_size + total_size are immutable for
+        // the run, so a single emission is enough.
+        if (progress_cb != nullptr)
+        {
+            progress_cb(0, ct.num_pieces(), ct.piece_length(), fs.total_size(), progress_ctx);
+        }
+
+        const std::string parent = parent_path_of(source_path);
+
+        lt::set_piece_hashes(ct, parent,
+            [&](lt::piece_index_t p) {
+                if (cancel_flag != nullptr && *cancel_flag != 0)
+                {
+                    throw create_torrent_cancelled{};
+                }
+                if (progress_cb != nullptr)
+                {
+                    // p is a strong int; static_cast extracts the underlying value.
+                    const int64_t current = static_cast<int32_t>(p) + 1;
+                    progress_cb(current, ct.num_pieces(), ct.piece_length(), fs.total_size(), progress_ctx);
+                }
+            });
+
+        if (cancel_flag != nullptr && *cancel_flag != 0)
+        {
+            return -5;
+        }
+
+        lt::entry e = ct.generate();
+        std::vector<char> buf;
+        lt::bencode(std::back_inserter(buf), e);
+
+        // Only touch the filesystem AFTER hashing + bencoding succeed — that way
+        // a cancellation or libtorrent throw leaves no partial output behind, which
+        // the cancellation contract depends on.
+        FILE* f = nullptr;
+#if defined(_WIN32)
+        if (fopen_s(&f, output_path, "wb") != 0) f = nullptr;
+#else
+        f = std::fopen(output_path, "wb");
+#endif
+        if (f == nullptr)
+        {
+            copy_error(error_buf, error_buf_size, "could not open output_path for writing");
+            return -4;
+        }
+
+        const std::size_t written = std::fwrite(buf.data(), 1, buf.size(), f);
+        const int close_rc = std::fclose(f);
+        if (written != buf.size() || close_rc != 0)
+        {
+            std::remove(output_path);
+            copy_error(error_buf, error_buf_size, "failed to write .torrent file");
+            return -4;
+        }
+
+        return 0;
+    }
+    catch (const create_torrent_cancelled&)
+    {
+        return -5;
+    }
+    catch (const std::exception& ex)
+    {
+        copy_error(error_buf, error_buf_size, ex.what());
+        return -3;
+    }
+    catch (...)
+    {
+        copy_error(error_buf, error_buf_size, "unknown error");
+        return -3;
+    }
+}
+
 }

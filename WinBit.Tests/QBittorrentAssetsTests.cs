@@ -27,7 +27,7 @@ public sealed class QBittorrentAssetsTests : IAsyncLifetime
             new StubRssService(), new StubAutoDownloaderService(),
             new StubRssArticleCache(), new StubRssRefresher(),
             new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()),
-            TestPaths.Ambient);
+            new StubTorrentStateStore(), TestPaths.Ambient);
     }
 
     public async Task InitializeAsync()

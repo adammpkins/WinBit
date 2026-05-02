@@ -13,8 +13,8 @@ namespace LibtorrentSharp.Alerts;
 /// — torrent state changes, peer connections, tracker announces, DHT activity,
 /// disk-storage events, performance warnings, etc. Mirrors libtorrent's
 /// <c>lt::alert</c>. Surfaced through <see cref="LibtorrentSession.Alerts"/>
-/// (an <see cref="System.Collections.Generic.IAsyncEnumerable{T}"/> dispatched
-/// by the Phase-E refactor — see <c>docs/libtorrent-binding.md</c>).
+/// (an <see cref="System.Collections.Generic.IAsyncEnumerable{T}"/> fed by the
+/// internal alert pump).
 /// <para>
 /// Consumers typically pattern-match on the concrete subclass to extract
 /// typed fields:

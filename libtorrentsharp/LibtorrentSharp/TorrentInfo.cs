@@ -17,7 +17,11 @@ namespace LibtorrentSharp;
 /// Represents a file contained within a torrent.
 /// </summary>
 [DebuggerDisplay("{Path} ({FileSize} bytes)")]
-public record TorrentFileInfo(int Index, long Offset, string Name, string Path, long FileSize, bool IsPadFile);
+public record TorrentFileInfo(int Index, long Offset, string Name, string Path, long FileSize, FileFlags Flags)
+{
+    /// <summary>Convenience accessor: true when <see cref="Flags"/> has the <see cref="FileFlags.PadFile"/> bit set.</summary>
+    public bool IsPadFile => Flags.HasFlag(FileFlags.PadFile);
+}
 
 /// <summary>
 /// Contains metadata related to a torrent file. <see cref="Hashes"/> is null only for
@@ -539,7 +543,7 @@ public class TorrentInfo
                     nativeFile.file_name,
                     nativeFile.file_path,
                     nativeFile.file_size,
-                    nativeFile.pad_file);
+                    (FileFlags)nativeFile.flags);
 
                 files.Add(fileInfo);
             }

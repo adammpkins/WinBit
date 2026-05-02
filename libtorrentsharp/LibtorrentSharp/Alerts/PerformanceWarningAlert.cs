@@ -22,10 +22,14 @@ namespace LibtorrentSharp.Alerts;
 /// 74) or <see cref="TorrentErrorAlert"/> instead.
 /// </para>
 /// <para>
-/// Fires under the <c>performance_warning</c> alert category, which is
-/// in <c>RequiredAlertCategories</c> by default — no opt-in needed.
-/// Volume is low (warnings are infrequent), unlike the explicit-opt-in
-/// log families (<c>TorrentLog</c> / <c>SessionLog</c> / <c>DHTLog</c>).
+/// Fires under the <c>performance_warning</c> alert category
+/// (<see cref="LibtorrentSharp.Enums.AlertCategories.PerformanceWarning"/>
+/// = <c>1 &lt;&lt; 9</c>). This category is <strong>not</strong> in
+/// <c>RequiredAlertCategories</c> — callers must explicitly include
+/// <c>AlertCategories.PerformanceWarning</c> in the session's
+/// <c>alert_mask</c> (via <c>SettingsPack.Set("alert_mask", ...)</c>)
+/// to receive these alerts. Volume is low (warnings are infrequent);
+/// opt in per-session where performance diagnostics are needed.
 /// </para>
 /// </summary>
 public class PerformanceWarningAlert : Alert

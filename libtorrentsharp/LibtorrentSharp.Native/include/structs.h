@@ -27,7 +27,7 @@ LTS_STRUCT typedef struct cs_torrent_file_information {
     char* file_path;
 
     bool file_path_is_absolute;
-    bool pad_file;
+    uint8_t flags;
 } torrent_file_information;
 
 LTS_STRUCT typedef struct cs_torrent_meta {
@@ -108,6 +108,17 @@ LTS_STRUCT typedef struct cs_peer_information {
 
     int64_t total_uploaded;
     int64_t total_downloaded;
+
+    int32_t connection_type;   // 0=StandardBitTorrent, 1=WebSeed, 2=HttpSeed
+    int32_t num_hashfails;
+    int32_t downloading_piece_index;   // -1 when not actively downloading a block
+    int32_t downloading_block_index;
+    int32_t downloading_progress;      // bytes downloaded of current block
+    int32_t downloading_total;         // total bytes of current block
+    int32_t failcount;
+    int32_t payload_up_rate;
+    int32_t payload_down_rate;
+    uint8_t pid[20];                   // peer ID (sha1_hash)
 } peer_information;
 
 LTS_STRUCT typedef struct cs_peer_list {
@@ -133,6 +144,12 @@ LTS_STRUCT typedef struct cs_tracker_information {
 
     char* last_error;
     int64_t next_announce_epoch;
+
+    char* trackerid;            // tracker-returned session ID, may be empty
+    char* message;              // first non-empty message across endpoints
+    bool start_sent;            // any endpoint sent a start event
+    bool complete_sent;         // any endpoint sent a complete event
+    int64_t min_announce_epoch; // earliest min_announce as unix epoch, 0=unknown
 } tracker_information;
 
 LTS_STRUCT typedef struct cs_tracker_list {
@@ -194,6 +211,16 @@ LTS_STRUCT typedef struct cs_file_slice_list {
     int32_t length;
     file_slice* slices;
 } file_slice_list;
+
+// A single web seed URL attached to a torrent (BEP-19 / BEP-17).
+LTS_STRUCT typedef struct cs_web_seed_information {
+    char* url;
+} web_seed_information;
+
+LTS_STRUCT typedef struct cs_web_seed_list {
+    int32_t count;
+    web_seed_information* items;
+} web_seed_list;
 
 #ifdef __cplusplus
 }

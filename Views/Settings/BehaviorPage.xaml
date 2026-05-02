@@ -81,7 +81,7 @@
             </controls:SettingsCard>
 
             <controls:SettingsCard Header="Accent color"
-                                   Description="Overrides the Windows accent for WinBit controls. Restart to apply.">
+                                   Description="Overrides the Windows accent for WinBit controls.">
                 <controls:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE790;" />
                 </controls:SettingsCard.HeaderIcon>

@@ -108,6 +108,20 @@
                                 <FontIcon Glyph="&#xE761;" />
                             </ToggleMenuFlyoutItem.Icon>
                         </ToggleMenuFlyoutItem>
+                        <ToggleMenuFlyoutItem x:Name="FirstLastPieceMenuItem"
+                                             Text="First and last piece priority"
+                                             Click="OnFirstLastPiecePriorityClicked">
+                            <ToggleMenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE8D2;" />
+                            </ToggleMenuFlyoutItem.Icon>
+                        </ToggleMenuFlyoutItem>
+                        <ToggleMenuFlyoutItem x:Name="ForceStartMenuItem"
+                                             Text="Force start"
+                                             Click="OnForceStartClicked">
+                            <ToggleMenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE768;" />
+                            </ToggleMenuFlyoutItem.Icon>
+                        </ToggleMenuFlyoutItem>
                         <MenuFlyoutSeparator />
                         <MenuFlyoutItem Text="Speed limits…" Click="OnSpeedLimitsClicked">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xEC4A;" /></MenuFlyoutItem.Icon>
@@ -116,14 +130,26 @@
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74C;" /></MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
                         <MenuFlyoutSeparator />
+                        <MenuFlyoutItem x:Name="RelocateMenuItem"
+                                        Text="Set save location…"
+                                        Click="OnRelocateClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
                         <MenuFlyoutItem Text="Open folder" Click="OnOpenFolderClicked">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8DA;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Add peers…" Click="OnAddPeersClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8FA;" /></MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
                         <MenuFlyoutItem Text="Copy magnet" Click="OnCopyMagnetClicked">
                             <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE71B;" /></MenuFlyoutItem.Icon>
                             <MenuFlyoutItem.KeyboardAccelerators>
                                 <KeyboardAccelerator Modifiers="Control" Key="C" />
                             </MenuFlyoutItem.KeyboardAccelerators>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Export .torrent…" Click="OnExportTorrentClicked">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
                         <MenuFlyoutSeparator />
                         <MenuFlyoutItem Text="Remove" Click="OnRemoveClicked">
@@ -265,35 +291,101 @@
                     </ScrollViewer>
                 </PivotItem>
                 <PivotItem Header="Trackers">
-                    <tv:TableView
-                        ItemsSource="{x:Bind ViewModel.Properties.Trackers, Mode=OneWay}"
-                        SelectionMode="Single"
-                        IsReadOnly="True"
-                        AutoGenerateColumns="False">
-                        <tv:TableView.Columns>
-                            <tv:TableViewTextColumn Header="URL"
-                                                    Binding="{Binding Url}"
-                                                    MinWidth="200" />
-                            <tv:TableViewTextColumn Header="Status"
-                                                    Binding="{Binding StatusDisplay}"
-                                                    MinWidth="100" />
-                            <tv:TableViewTextColumn Header="Seeds"
-                                                    Binding="{Binding SeedsDisplay}"
-                                                    MinWidth="65" />
-                            <tv:TableViewTextColumn Header="Leeches"
-                                                    Binding="{Binding LeechesDisplay}"
-                                                    MinWidth="65" />
-                            <tv:TableViewTextColumn Header="Downloaded"
-                                                    Binding="{Binding CompletedDisplay}"
-                                                    MinWidth="85" />
-                            <tv:TableViewTextColumn Header="Next Announce"
-                                                    Binding="{Binding NextAnnounceDisplay}"
-                                                    MinWidth="115" />
-                            <tv:TableViewTextColumn Header="Message"
-                                                    Binding="{Binding LastError}"
-                                                    MinWidth="120" />
-                        </tv:TableView.Columns>
-                    </tv:TableView>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0"
+                                    Orientation="Horizontal"
+                                    Spacing="4"
+                                    Margin="0,4,0,4">
+                            <Button x:Name="AddTrackerButton"
+                                    Content="Add tracker"
+                                    IsEnabled="{x:Bind ViewModel.Properties.HasSelectedTorrent, Mode=OneWay}"
+                                    Click="OnAddTrackerClicked"
+                                    AutomationProperties.Name="Add tracker" />
+                            <Button x:Name="EditTrackerButton"
+                                    Content="Edit tracker"
+                                    IsEnabled="{x:Bind ViewModel.Properties.HasSelectedTracker, Mode=OneWay}"
+                                    Click="OnEditTrackerClicked"
+                                    AutomationProperties.Name="Edit tracker" />
+                            <Button x:Name="RemoveTrackerButton"
+                                    Content="Remove tracker"
+                                    IsEnabled="{x:Bind ViewModel.Properties.HasSelectedTracker, Mode=OneWay}"
+                                    Click="OnRemoveTrackerClicked"
+                                    AutomationProperties.Name="Remove tracker" />
+                        </StackPanel>
+                        <tv:TableView
+                            x:Name="TrackersGrid"
+                            Grid.Row="1"
+                            ItemsSource="{x:Bind ViewModel.Properties.Trackers, Mode=OneWay}"
+                            SelectionMode="Single"
+                            IsReadOnly="True"
+                            AutoGenerateColumns="False"
+                            SelectionChanged="OnTrackersGridSelectionChanged">
+                            <tv:TableView.Columns>
+                                <tv:TableViewTextColumn Header="URL"
+                                                        Binding="{Binding Url}"
+                                                        MinWidth="200" />
+                                <tv:TableViewTextColumn Header="Status"
+                                                        Binding="{Binding StatusDisplay}"
+                                                        MinWidth="100" />
+                                <tv:TableViewTextColumn Header="Seeds"
+                                                        Binding="{Binding SeedsDisplay}"
+                                                        MinWidth="65" />
+                                <tv:TableViewTextColumn Header="Leeches"
+                                                        Binding="{Binding LeechesDisplay}"
+                                                        MinWidth="65" />
+                                <tv:TableViewTextColumn Header="Downloaded"
+                                                        Binding="{Binding CompletedDisplay}"
+                                                        MinWidth="85" />
+                                <tv:TableViewTextColumn Header="Next Announce"
+                                                        Binding="{Binding NextAnnounceDisplay}"
+                                                        MinWidth="115" />
+                                <tv:TableViewTextColumn Header="Message"
+                                                        Binding="{Binding LastError}"
+                                                        MinWidth="120" />
+                            </tv:TableView.Columns>
+                        </tv:TableView>
+                    </Grid>
+                </PivotItem>
+                <PivotItem Header="Web Seeds">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0"
+                                    Orientation="Horizontal"
+                                    Spacing="4"
+                                    Margin="0,4,0,4">
+                            <Button x:Name="AddWebSeedButton"
+                                    Content="Add web seed"
+                                    IsEnabled="{x:Bind ViewModel.Properties.HasSelectedTorrent, Mode=OneWay}"
+                                    Click="OnAddWebSeedClicked"
+                                    AutomationProperties.Name="Add web seed" />
+                            <Button x:Name="RemoveWebSeedButton"
+                                    Content="Remove web seed"
+                                    IsEnabled="{x:Bind ViewModel.Properties.HasSelectedWebSeed, Mode=OneWay}"
+                                    Click="OnRemoveWebSeedClicked"
+                                    AutomationProperties.Name="Remove web seed" />
+                        </StackPanel>
+                        <tv:TableView
+                            x:Name="WebSeedsGrid"
+                            Grid.Row="1"
+                            ItemsSource="{x:Bind ViewModel.Properties.WebSeeds, Mode=OneWay}"
+                            SelectionMode="Single"
+                            IsReadOnly="True"
+                            AutoGenerateColumns="False"
+                            SelectionChanged="OnWebSeedsGridSelectionChanged">
+                            <tv:TableView.Columns>
+                                <tv:TableViewTextColumn Header="URL"
+                                                        Binding="{Binding Url}"
+                                                        MinWidth="200" />
+                            </tv:TableView.Columns>
+                        </tv:TableView>
+                    </Grid>
                 </PivotItem>
                 <PivotItem Header="Peers">
                     <tv:TableView
@@ -384,6 +476,26 @@
                                 <tv:TableViewTextColumn Header="Priority"
                                                         Binding="{Binding Priority, Converter={StaticResource PriorityToString}}"
                                                         MinWidth="110" />
+                                <tv:TableViewTemplateColumn Header="Progress" MinWidth="110">
+                                    <tv:TableViewTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <ProgressBar Value="{Binding ProgressFraction}"
+                                                             Maximum="1"
+                                                             VerticalAlignment="Bottom"
+                                                             Height="2"
+                                                             Background="Transparent"
+                                                             BorderThickness="0"
+                                                             Foreground="{ThemeResource SystemAccentColorLight1}" />
+                                                <TextBlock Text="{Binding ProgressDisplay}"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Right"
+                                                           Margin="0,0,4,0"
+                                                           FontSize="12" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </tv:TableViewTemplateColumn.CellTemplate>
+                                </tv:TableViewTemplateColumn>
                             </tv:TableView.Columns>
                         </tv:TableView>
                         <StackPanel HorizontalAlignment="Center"

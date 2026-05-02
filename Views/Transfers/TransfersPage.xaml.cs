@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
+using Windows.Storage.Pickers;
 using Windows.System;
 using WinBit.Core.BitTorrent;
 using WinBit.Core.Categories;
@@ -187,16 +188,18 @@ public sealed partial class TransfersPage : Page
 
     private void OnPropertiesPivotSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // Pivot order: General=0, Trackers=1, Peers=2, Content=3, Pieces=4, Speed=5
-        var isPeersActive = PropertiesPivot.SelectedIndex == 2;
+        // Pivot order: General=0, Trackers=1, Web Seeds=2, Peers=3, Content=4, Pieces=5, Speed=6
         var isTrackersActive = PropertiesPivot.SelectedIndex == 1;
-        var isContentActive = PropertiesPivot.SelectedIndex == 3;
-        var isPiecesActive = PropertiesPivot.SelectedIndex == 4;
-        ViewModel.Properties.SetPeersTabActive(isPeersActive);
+        var isWebSeedsActive = PropertiesPivot.SelectedIndex == 2;
+        var isPeersActive = PropertiesPivot.SelectedIndex == 3;
+        var isContentActive = PropertiesPivot.SelectedIndex == 4;
+        var isPiecesActive = PropertiesPivot.SelectedIndex == 5;
         ViewModel.Properties.SetTrackersTabActive(isTrackersActive);
+        ViewModel.Properties.SetWebSeedsTabActive(isWebSeedsActive);
+        ViewModel.Properties.SetPeersTabActive(isPeersActive);
         ViewModel.Properties.SetContentTabActive(isContentActive);
         ViewModel.Properties.SetPiecesTabActive(isPiecesActive);
-        if (isPeersActive || isTrackersActive || isContentActive || isPiecesActive)
+        if (isTrackersActive || isWebSeedsActive || isPeersActive || isContentActive || isPiecesActive)
         {
             // SelectedTorrentRow is kept in sync by the TwoWay SelectedItem binding.
             ViewModel.Properties.SetSelectedTorrent(
@@ -319,6 +322,8 @@ public sealed partial class TransfersPage : Page
         RenameMenuItem.IsEnabled = TransfersGrid.SelectedItems.Count == 1;
         var selectedRow = TransfersGrid.SelectedItems.OfType<TransferRowViewModel>().FirstOrDefault();
         SequentialMenuItem.IsChecked = selectedRow?.IsSequentialDownload ?? false;
+        FirstLastPieceMenuItem.IsChecked = selectedRow?.IsFirstLastPiecePriority ?? false;
+        ForceStartMenuItem.IsChecked = selectedRow?.IsForceStart ?? false;
     }
 
     private async void OnRenameClicked(object sender, RoutedEventArgs e)
@@ -367,6 +372,44 @@ public sealed partial class TransfersPage : Page
 
         if (anyFailed)
             SequentialMenuItem.IsChecked = !desired;
+    }
+
+    private async void OnFirstLastPiecePriorityClicked(object sender, RoutedEventArgs e)
+    {
+        var ids = SelectedIds().ToArray();
+        if (ids.Length == 0)
+            return;
+
+        var desired = FirstLastPieceMenuItem.IsChecked;
+        var anyFailed = false;
+        foreach (var id in ids)
+        {
+            var result = await Session.SetFirstLastPiecePriorityAsync(id, desired);
+            if (!result.IsSuccess)
+                anyFailed = true;
+        }
+
+        if (anyFailed)
+            FirstLastPieceMenuItem.IsChecked = !desired;
+    }
+
+    private async void OnForceStartClicked(object sender, RoutedEventArgs e)
+    {
+        var ids = SelectedIds().ToArray();
+        if (ids.Length == 0)
+            return;
+
+        var desired = ForceStartMenuItem.IsChecked;
+        var anyFailed = false;
+        foreach (var id in ids)
+        {
+            var result = await Session.ForceStartTorrentAsync(id, desired);
+            if (!result.IsSuccess)
+                anyFailed = true;
+        }
+
+        if (anyFailed)
+            ForceStartMenuItem.IsChecked = !desired;
     }
 
     private async void OnRemoveClicked(object sender, RoutedEventArgs e) =>
@@ -426,6 +469,26 @@ public sealed partial class TransfersPage : Page
         await dialog.ShowAsync();
     }
 
+    private async void OnRelocateClicked(object sender, RoutedEventArgs e)
+    {
+        if (TransfersGrid.SelectedItem is not TransferRowViewModel row)
+            return;
+
+        if (App.MainWindow is null)
+            return;
+
+        var picker = new Windows.Storage.Pickers.FolderPicker();
+        picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
+        picker.FileTypeFilter.Add("*");
+        WinRT.Interop.InitializeWithWindow.Initialize(
+            picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
+        var folder = await picker.PickSingleFolderAsync();
+        if (folder is null)
+            return;
+
+        await Session.RelocateTorrentAsync(row.Id, folder.Path);
+    }
+
     private void OnCopyMagnetClicked(object sender, RoutedEventArgs e)
     {
         var uris = SelectedIds()
@@ -441,6 +504,51 @@ public sealed partial class TransfersPage : Page
         var package = new DataPackage();
         package.SetText(string.Join('\n', uris!));
         Clipboard.SetContent(package);
+    }
+
+    private async void OnAddPeersClicked(object sender, RoutedEventArgs e)
+    {
+        var ids = SelectedIds().ToArray();
+        if (ids.Length == 0) return;
+        var dialog = new AddPeersDialog { XamlRoot = XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        foreach (var (ip, port) in dialog.ParsedPeers)
+            foreach (var id in ids)
+                await Session.AddPeerAsync(id, ip, port);
+    }
+
+    private async void OnExportTorrentClicked(object sender, RoutedEventArgs e)
+    {
+        if (TransfersGrid.SelectedItem is not TransferRowViewModel row) return;
+        if (App.MainWindow is null) return;
+
+        var bytes = await Session.ExportTorrentBytesAsync(row.Id);
+        if (bytes is null)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Export failed",
+                Content = "Torrent metadata is not yet available. Wait for the download to start.",
+                CloseButtonText = "OK",
+                XamlRoot = XamlRoot,
+            };
+            await dialog.ShowAsync();
+            return;
+        }
+
+        var picker = new FileSavePicker
+        {
+            SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
+            SuggestedFileName = row.Name + ".torrent",
+        };
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        picker.FileTypeChoices.Add("Torrent file", new List<string> { ".torrent" });
+
+        var file = await picker.PickSaveFileAsync();
+        if (file is null) return;
+
+        await FileIO.WriteBytesAsync(file, bytes);
     }
 
     private ITorrentSessionService Session =>
@@ -609,5 +717,51 @@ public sealed partial class TransfersPage : Page
             ? oldFolderPath[..folderNameStart] + newFolderName
             : newFolderName;
         await ViewModel.Properties.RenameFolderAsync(oldFolderPath, newFolderPath);
+    }
+
+    private void OnTrackersGridSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // Keep SelectedTracker in sync. TableView marks Tapped as Handled internally, so
+        // SelectionChanged is the reliable path for tracking which row is active.
+        ViewModel.Properties.SelectedTracker = TrackersGrid.SelectedItem as TrackerRowViewModel;
+    }
+
+    private async void OnAddTrackerClicked(object sender, RoutedEventArgs e)
+    {
+        var dialog = new AddTrackerDialog { XamlRoot = XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        await ViewModel.Properties.AddTrackerAsync(dialog.TrackerUrl, dialog.Tier);
+    }
+
+    private async void OnEditTrackerClicked(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Properties.SelectedTracker is not { } tracker) return;
+        var dialog = new EditTrackerDialog(tracker.Url, tracker.Tier) { XamlRoot = XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        await ViewModel.Properties.EditTrackerAsync(tracker.Url, dialog.TrackerUrl, dialog.Tier);
+    }
+
+    private async void OnRemoveTrackerClicked(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Properties.SelectedTracker is not { } tracker) return;
+        await ViewModel.Properties.RemoveTrackerAsync(tracker.Url);
+    }
+
+    private void OnWebSeedsGridSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        ViewModel.Properties.SelectedWebSeed = WebSeedsGrid.SelectedItem as WebSeedRowViewModel;
+    }
+
+    private async void OnAddWebSeedClicked(object sender, RoutedEventArgs e)
+    {
+        var dialog = new AddWebSeedDialog { XamlRoot = XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        await ViewModel.Properties.AddWebSeedAsync(dialog.SeedUrl);
+    }
+
+    private async void OnRemoveWebSeedClicked(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Properties.SelectedWebSeed is not { } seed) return;
+        await ViewModel.Properties.RemoveWebSeedAsync(seed.Url);
     }
 }

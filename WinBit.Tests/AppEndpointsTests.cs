@@ -19,7 +19,7 @@ public sealed class AppEndpointsTests : IAsyncLifetime
         settings.Current.WebUi.Enabled = true;
         settings.Current.WebUi.Port = 0;
         settings.Current.Downloads.DefaultSavePath = @"C:\winbit\downloads";
-        _service = new WebUiService(settings, new WebUiAuthService(settings), new Helpers.StubTorrentSession(), new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), Helpers.TestPaths.Ambient);
+        _service = new WebUiService(settings, new WebUiAuthService(settings), new Helpers.StubTorrentSession(), new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new Helpers.StubTorrentStateStore(), Helpers.TestPaths.Ambient);
         Settings = settings;
     }
 

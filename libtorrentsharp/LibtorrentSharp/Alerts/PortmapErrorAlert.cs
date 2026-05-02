@@ -2,6 +2,7 @@
 
 using System.Net;
 using System.Runtime.InteropServices;
+using LibtorrentSharp.Enums;
 using LibtorrentSharp.Native;
 
 namespace LibtorrentSharp.Alerts;
@@ -30,7 +31,7 @@ public class PortmapErrorAlert : Alert
             : Marshal.PtrToStringUTF8(alert.error_message) ?? string.Empty;
     }
 
-    /// <summary>libtorrent's stable per-mapping identifier.</summary>
+    /// <summary>libtorrent''s stable per-mapping identifier.</summary>
     public int Mapping { get; }
 
     /// <summary>Router protocol used (NAT-PMP or UPnP).</summary>

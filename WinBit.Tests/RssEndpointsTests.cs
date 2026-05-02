@@ -31,7 +31,7 @@ public sealed class RssEndpointsTests : IAsyncLifetime
             new StubTorrentSession(), new NoopLog(), new PeerLogService(),
             new StubCategoryService(), new StubTagService(), _rss, _rules, _articles, _refresher,
             new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()),
-            TestPaths.Ambient);
+            new StubTorrentStateStore(), TestPaths.Ambient);
     }
 
     public async Task InitializeAsync()

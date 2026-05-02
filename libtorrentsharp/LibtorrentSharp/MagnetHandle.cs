@@ -82,6 +82,22 @@ public sealed class MagnetHandle
     }
 
     /// <summary>
+    /// Enables or disables force-start mode. When enabled, clears auto-management
+    /// and resumes the torrent so the queue cannot re-pause it. When disabled,
+    /// re-enables auto-management so the queue resumes normal governance.
+    /// No-op when <see cref="IsValid"/> is false.
+    /// </summary>
+    public void SetForceStart(bool forceStart)
+    {
+        if (!IsValid)
+        {
+            return;
+        }
+
+        NativeMethods.ForceStartTorrent(Handle, forceStart);
+    }
+
+    /// <summary>
     /// Relocates the torrent's data to <paramref name="newPath"/>. No-op when
     /// <see cref="IsValid"/> is false.
     /// </summary>
@@ -122,6 +138,55 @@ public sealed class MagnetHandle
             ? TrackerInfoMarshaller.GetTrackers(Handle)
             : Array.Empty<TrackerInfo>();
     }
+
+    /// <summary>
+    /// Adds a tracker URL at the specified tier. No-op when <see cref="IsValid"/> is false.
+    /// </summary>
+    public void AddTracker(string url, int tier = 0)
+    {
+        if (!IsValid) return;
+        NativeMethods.AddTracker(Handle, url, tier);
+    }
+
+    /// <summary>
+    /// Removes a tracker by URL. No-op when <see cref="IsValid"/> is false.
+    /// </summary>
+    public void RemoveTracker(string url)
+    {
+        if (!IsValid) return;
+        NativeMethods.RemoveTracker(Handle, url);
+    }
+
+    /// <summary>
+    /// Replaces <paramref name="oldUrl"/> with <paramref name="newUrl"/> and updates the tier.
+    /// No-op when <see cref="IsValid"/> is false.
+    /// </summary>
+    public void EditTracker(string oldUrl, string newUrl, int newTier = 0)
+    {
+        if (!IsValid) return;
+        NativeMethods.EditTracker(Handle, oldUrl, newUrl, newTier);
+    }
+
+    public IReadOnlyList<WebSeedInfo> GetWebSeeds() =>
+        IsValid ? WebSeedInfoMarshaller.GetWebSeeds(Handle) : Array.Empty<WebSeedInfo>();
+
+    public void AddWebSeed(string url)
+    {
+        if (!IsValid) return;
+        NativeMethods.AddWebSeed(Handle, url);
+    }
+
+    public void RemoveWebSeed(string url)
+    {
+        if (!IsValid) return;
+        NativeMethods.RemoveWebSeed(Handle, url);
+    }
+
+    /// <summary>
+    /// Magnets only carry metadata after resolution; before that there is no
+    /// .torrent to export, so this always returns null.
+    /// </summary>
+    public byte[] ExportTorrentBytes() => null;
 
     /// <summary>
     /// Current runtime status of this torrent.
@@ -366,6 +431,21 @@ public sealed class MagnetHandle
     }
 
     /// <summary>
+    /// Returns the full piece completion bitfield in a single native call.
+    /// </summary>
+    public bool[] GetPieceBitfield(int numPieces)
+    {
+        if (!IsValid || numPieces <= 0) return [];
+        var numBytes = (numPieces + 7) / 8;
+        var bits = new byte[numBytes];
+        NativeMethods.GetPieceBitfield(Handle, bits, numBytes);
+        var result = new bool[numPieces];
+        for (var i = 0; i < numPieces; i++)
+            result[i] = (bits[i / 8] & (1 << (i % 8))) != 0;
+        return result;
+    }
+
+    /// <summary>
     /// Explicitly queues a peer-connect attempt on this torrent. Returns false
     /// when <see cref="IsValid"/> is false.
     /// </summary>
@@ -462,7 +542,7 @@ public sealed class MagnetHandle
             for (var i = 0; i < list.length; i++)
             {
                 var nf = Marshal.PtrToStructure<NativeStructs.TorrentFile>(list.items + (size * i));
-                var fi = new TorrentFileInfo(nf.index, nf.offset, nf.file_name, nf.file_path, nf.file_size, nf.pad_file);
+                var fi = new TorrentFileInfo(nf.index, nf.offset, nf.file_name, nf.file_path, nf.file_size, (FileFlags)nf.flags);
                 files.Add(new TorrentHandle.TorrentManagerFile(Handle, SavePath, fi));
             }
 

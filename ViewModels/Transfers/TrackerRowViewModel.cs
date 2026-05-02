@@ -11,6 +11,7 @@ namespace WinBit.ViewModels.Transfers;
 public sealed partial class TrackerRowViewModel : ObservableObject
 {
     private readonly string _url;
+    private int _tier;
 
     [ObservableProperty] private string statusDisplay = string.Empty;
     [ObservableProperty] private string seedsDisplay = "--";
@@ -21,6 +22,9 @@ public sealed partial class TrackerRowViewModel : ObservableObject
 
     public string Url => _url;
 
+    /// <summary>Tracker tier (0 = primary). Updated each poll tick.</summary>
+    public int Tier => _tier;
+
     public TrackerRowViewModel(TrackerInfo info)
     {
         _url = info.Url.ToString();
@@ -29,6 +33,8 @@ public sealed partial class TrackerRowViewModel : ObservableObject
 
     public void Update(TrackerInfo info)
     {
+        _tier = info.Tier;
+
         StatusDisplay = info.Status switch
         {
             TrackerStatus.NotContacted => "Not contacted",

@@ -56,6 +56,7 @@ public static class SyncEndpoints
             {
                 name = session.GetName(snapshot.Id) ?? snapshot.Id.Value,
                 state = MapStateForSync(snapshot.State),
+                size = snapshot.TotalSize,
                 progress = snapshot.Progress,
                 dlspeed = snapshot.DownloadSpeedBps,
                 upspeed = snapshot.UploadSpeedBps,

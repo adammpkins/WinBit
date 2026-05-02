@@ -110,6 +110,32 @@ public sealed class LibTorrentSessionServiceTests
         service.IsRunning.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task SetFirstLastPiecePriorityAsync_returns_failure_when_engine_not_running()
+    {
+        // Pre-Start: nothing native happens.
+        using var temp = new TempDirectory();
+        await using var service = CreateService(temp);
+
+        var result = await service.SetFirstLastPiecePriorityAsync(TorrentId.FromInfoHash(new string('a', 40)), enable: true);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("not running");
+    }
+
+    [Fact]
+    public async Task ForceStartTorrentAsync_returns_failure_when_engine_not_running()
+    {
+        // Pre-Start: nothing native happens.
+        using var temp = new TempDirectory();
+        await using var service = CreateService(temp);
+
+        var result = await service.ForceStartTorrentAsync(TorrentId.FromInfoHash(new string('a', 40)), forceStart: true);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("not running");
+    }
+
     internal static LibTorrentSessionService CreateService(
         TempDirectory temp,
         IDispatcherQueueProvider? dispatcher = null,

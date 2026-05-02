@@ -66,6 +66,12 @@ extern "C" {
     // an immediate unpause ignoring queue limits.
     LTS_EXPORT void lts_resume_torrent(lt::torrent_handle* torrent);
 
+    // Force-start: bypasses the download queue limit. When force_start=true,
+    // clears auto_managed (so the queue cannot re-pause it) and resumes the
+    // torrent. When force_start=false, re-enables auto_managed so the queue
+    // resumes normal governance.
+    LTS_EXPORT void lts_force_start_torrent(lt::torrent_handle* torrent, bool force_start);
+
     // Relocates the torrent's data to `new_path`. Completes asynchronously;
     // success/failure surface via storage_moved_alert / storage_moved_failed_alert
     // (alert plumbing pending). `flags` maps to libtorrent's move_flags_t:
@@ -84,6 +90,31 @@ extern "C" {
     // and v1/v2 info hashes. Release via lts_destroy_trackers.
     LTS_EXPORT void lts_get_trackers(lt::torrent_handle* torrent, tracker_list* out_list);
     LTS_EXPORT void lts_destroy_trackers(tracker_list* list);
+
+    // Tracker mutation: add, remove, or edit a tracker URL on a running torrent.
+    // Changes take effect immediately on the in-memory announce list; they are
+    // not persisted to the .torrent file.
+    LTS_EXPORT void lts_add_tracker(lt::torrent_handle* torrent, const char* url, int32_t tier);
+    LTS_EXPORT void lts_remove_tracker(lt::torrent_handle* torrent, const char* url);
+    LTS_EXPORT void lts_edit_tracker(lt::torrent_handle* torrent, const char* old_url, const char* new_url, int32_t new_tier);
+
+    // Web seed (BEP-19 / BEP-17) snapshot and mutation. Changes apply immediately
+    // to the in-memory URL set; they are not persisted to the .torrent file.
+    LTS_EXPORT void lts_get_web_seeds(lt::torrent_handle* torrent, web_seed_list* out_list);
+    LTS_EXPORT void lts_destroy_web_seeds(web_seed_list* list);
+    LTS_EXPORT void lts_add_web_seed(lt::torrent_handle* torrent, const char* url);
+    LTS_EXPORT void lts_remove_web_seed(lt::torrent_handle* torrent, const char* url);
+
+    // Serialises the torrent's current metadata to a bencoded .torrent byte
+    // buffer using libtorrent's create_torrent / bencode surface. Returns true
+    // and fills *out_data / *out_size on success; returns false when the
+    // torrent has no metadata yet (pre-metadata magnet). The caller is
+    // responsible for releasing the buffer via lts_free_bytes.
+    LTS_EXPORT bool lts_export_torrent_to_bytes(lt::torrent_handle* torrent, uint8_t** out_data, int32_t* out_size);
+
+    // Releases a byte buffer previously returned by lts_export_torrent_to_bytes.
+    // No-op on nullptr.
+    LTS_EXPORT void lts_free_bytes(uint8_t* data);
 
     // Per-torrent rate caps in bytes/sec. libtorrent treats <= 0 as unlimited; the
     // getter may return 0 or -1 for the unlimited state depending on internal bookkeeping.
@@ -121,6 +152,12 @@ extern "C" {
     // Whether the torrent has the given piece fully downloaded + verified on disk.
     // Returns false on invalid handle or out-of-range index.
     LTS_EXPORT bool lts_have_piece(lt::torrent_handle* torrent, int32_t piece_index);
+
+    // Fills out_bits with a packed LSB-first bitfield of piece completion.
+    // Byte k, bit j represents piece (k*8 + j). Caller must allocate
+    // ceil(num_pieces/8) bytes; num_bytes must equal that allocation. No-op on
+    // null or invalid inputs.
+    LTS_EXPORT void lts_get_piece_bitfield(lt::torrent_handle* torrent, uint8_t* out_bits, int32_t num_bytes);
 
     // Explicitly queues a peer to try on the torrent. `ipv6_address` is always
     // v6; v4 addresses must be passed in v4-mapped form (::ffff:0:0/96 prefix)
@@ -450,6 +487,7 @@ extern "C" {
     // priority control
     LTS_EXPORT uint8_t get_file_dl_priority(lt::torrent_handle* torrent, int32_t file_index);
     LTS_EXPORT void set_file_dl_priority(lt::torrent_handle* torrent, int32_t file_index, uint8_t priority);
+    LTS_EXPORT void lts_file_progress(lt::torrent_handle* torrent, int64_t* out_array, int32_t num_files);
 
     // download control
     LTS_EXPORT void start_torrent(lt::torrent_handle* torrent);
@@ -466,6 +504,59 @@ extern "C" {
     // and error_string are heap-allocated char*.
     LTS_EXPORT torrent_status* lts_get_torrent_status(lt::torrent_handle* torrent);
     LTS_EXPORT void lts_destroy_torrent_status(torrent_status* status);
+
+    // Synchronous progress callback fired once before hashing starts (current_piece=0,
+    // total_pieces≥0, piece_size, total_size) and once per piece during hashing. The
+    // initial fire delivers piece_size + total_size to the managed side so it can
+    // populate the OverallSize field of its progress event without a separate query.
+    // ctx is the opaque pointer the caller passed into lts_create_torrent.
+    typedef void (*lts_create_torrent_progress_cb)(
+        int64_t current_piece,
+        int64_t total_pieces,
+        int64_t piece_size,
+        int64_t total_size,
+        void* ctx);
+
+    // Builds a .torrent file from a source path and writes the bencoded result to
+    // output_path. Hashing is synchronous on the calling thread — wrap on a worker
+    // in managed code. Returns 0 on success, a negative code on failure:
+    //   -1 = invalid argument (null required path / bad params)
+    //   -2 = source path missing or unreadable
+    //   -3 = hashing / generate / bencode threw (libtorrent error)
+    //   -4 = file write failed
+    //   -5 = cancelled via cancel_flag (no output file written)
+    //
+    // Tracker wire format (mirrors qBittorrent's flat-list-with-blank-tier-boundary
+    // representation):
+    // newline-separated URLs; a blank line increments the tier counter. The first
+    // tier is 0 and is implicit — only emit a blank line to start tier 1+.
+    //
+    // web_seeds is newline-separated URLs (no tier concept). comment / created_by
+    // are nullable. piece_size = 0 lets libtorrent pick. ignore_hidden = 1 skips
+    // dotfile-named entries (Unix-hidden convention) via lt::add_files's filter.
+    //
+    // progress_cb fires once with current_piece=0 before hashing, then once per
+    // piece. May be nullptr to skip progress reporting. cancel_flag is a pointer
+    // to an int32_t the managed side can set to 1 from another thread; the native
+    // side polls it in the per-piece progress callback and aborts cleanly. May be
+    // nullptr when cancellation isn't needed. error_buf, when non-null, receives
+    // a UTF-8 message (NUL-terminated, truncated to error_buf_size - 1) describing
+    // a failure; on success the buffer is left untouched.
+    LTS_EXPORT int32_t lts_create_torrent(
+        const char* source_path,
+        const char* output_path,
+        int32_t piece_size,
+        int32_t is_private,
+        const char* comment,
+        const char* created_by,
+        const char* trackers,
+        const char* web_seeds,
+        int32_t ignore_hidden,
+        lts_create_torrent_progress_cb progress_cb,
+        void* progress_ctx,
+        int32_t* cancel_flag,
+        char* error_buf,
+        int32_t error_buf_size);
 
 #ifdef __cplusplus
 }

@@ -40,7 +40,14 @@ internal static class TrackerInfoMarshaller
                     entry.fails,
                     entry.updating,
                     entry.last_error ?? string.Empty,
-                    nextAnnounce));
+                    nextAnnounce,
+                    entry.trackerid ?? string.Empty,
+                    entry.message ?? string.Empty,
+                    entry.start_sent,
+                    entry.complete_sent,
+                    entry.min_announce_epoch == 0
+                        ? DateTimeOffset.MinValue
+                        : DateTimeOffset.FromUnixTimeSeconds(entry.min_announce_epoch)));
             }
 
             return trackers;

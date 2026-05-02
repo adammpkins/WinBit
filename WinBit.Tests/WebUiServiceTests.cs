@@ -15,7 +15,7 @@ public sealed class WebUiServiceTests
         settings.Current.WebUi.Enabled = true;
         settings.Current.WebUi.Port = 0; // ephemeral
 
-        var service = new WebUiService(settings, new WebUiAuthService(settings), new Helpers.StubTorrentSession(), new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), Helpers.TestPaths.Ambient);
+        var service = new WebUiService(settings, new WebUiAuthService(settings), new Helpers.StubTorrentSession(), new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new Helpers.StubTorrentStateStore(), Helpers.TestPaths.Ambient);
         await service.StartAsync(CancellationToken.None);
         try
         {
@@ -40,7 +40,7 @@ public sealed class WebUiServiceTests
         settings.Current.WebUi.Enabled = false;
         settings.Current.WebUi.Port = 0;
 
-        var service = new WebUiService(settings, new WebUiAuthService(settings), new Helpers.StubTorrentSession(), new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), Helpers.TestPaths.Ambient);
+        var service = new WebUiService(settings, new WebUiAuthService(settings), new Helpers.StubTorrentSession(), new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new Helpers.StubTorrentStateStore(), Helpers.TestPaths.Ambient);
         await service.StartAsync(CancellationToken.None);
         try
         {
@@ -60,7 +60,7 @@ public sealed class WebUiServiceTests
         settings.Current.WebUi.Enabled = true;
         settings.Current.WebUi.Port = 0;
 
-        var service = new WebUiService(settings, new WebUiAuthService(settings), new Helpers.StubTorrentSession(), new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), Helpers.TestPaths.Ambient);
+        var service = new WebUiService(settings, new WebUiAuthService(settings), new Helpers.StubTorrentSession(), new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new Helpers.StubTorrentStateStore(), Helpers.TestPaths.Ambient);
         await service.StartAsync(CancellationToken.None);
         var first = service.BoundPort;
         await service.StopAsync(CancellationToken.None);

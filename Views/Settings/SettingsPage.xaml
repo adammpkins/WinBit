@@ -52,6 +52,11 @@
                     <FontIcon Glyph="&#xE7B3;" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Tag="watchedfolders" Content="Watched Folders">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE8B7;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Tag="advanced" Content="Advanced">
                 <NavigationViewItem.Icon>
                     <FontIcon Glyph="&#xE713;" />

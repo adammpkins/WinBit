@@ -24,7 +24,7 @@ public sealed class TransferEndpointsTests : IAsyncLifetime
     {
         Settings.Current.WebUi.Enabled = true;
         Settings.Current.WebUi.Port = 0;
-        _service = new WebUiService(Settings, new WebUiAuthService(Settings), _session, new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), Helpers.TestPaths.Ambient);
+        _service = new WebUiService(Settings, new WebUiAuthService(Settings), _session, new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new Helpers.StubTorrentStateStore(), Helpers.TestPaths.Ambient);
     }
 
     public async Task InitializeAsync()

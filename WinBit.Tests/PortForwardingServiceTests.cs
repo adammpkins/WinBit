@@ -85,6 +85,12 @@ public sealed class PortForwardingServiceTests
             => Task.FromResult(Result.Success());
         public Task<Result> SetSequentialDownloadAsync(TorrentId id, bool enabled, CancellationToken ct = default)
             => Task.FromResult(Result.Success());
+        public Task<Result> SetFirstLastPiecePriorityAsync(TorrentId id, bool enable, CancellationToken ct = default)
+            => Task.FromResult(Result.Success());
+        public Task<Result> ForceStartTorrentAsync(TorrentId id, bool forceStart, CancellationToken ct = default)
+            => Task.FromResult(Result.Success());
+        public Task<Result> RelocateTorrentAsync(TorrentId id, string newPath, CancellationToken ct = default)
+            => Task.FromResult(Result.Success());
         public Task RenameFileAsync(TorrentId id, int fileIndex, string newRelativePath, CancellationToken ct = default)
             => Task.CompletedTask;
         public Task SetFilePriorityAsync(TorrentId id, int fileIndex, FileDownloadPriority priority, CancellationToken ct = default)
@@ -100,6 +106,15 @@ public sealed class PortForwardingServiceTests
             Task.FromResult<IReadOnlyList<PeerInfo>>(Array.Empty<PeerInfo>());
         public Task<IReadOnlyList<TrackerInfo>> GetTrackersAsync(TorrentId id, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<TrackerInfo>>(Array.Empty<TrackerInfo>());
+        public Task<Result> AddTrackerAsync(TorrentId id, string url, int tier = 0, CancellationToken ct = default) => Task.FromResult(Result.Success());
+        public Task<Result> RemoveTrackerAsync(TorrentId id, string url, CancellationToken ct = default) => Task.FromResult(Result.Success());
+        public Task<Result> EditTrackerAsync(TorrentId id, string oldUrl, string newUrl, int newTier, CancellationToken ct = default) => Task.FromResult(Result.Success());
+        public Task<IReadOnlyList<WebSeedInfo>> GetWebSeedsAsync(TorrentId id, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<WebSeedInfo>>(Array.Empty<WebSeedInfo>());
+        public Task<Result> AddWebSeedAsync(TorrentId id, string url, CancellationToken ct = default) => Task.FromResult(Result.Success());
+        public Task<Result> RemoveWebSeedAsync(TorrentId id, string url, CancellationToken ct = default) => Task.FromResult(Result.Success());
+        public Task<Result> AddPeerAsync(TorrentId id, string ipAddress, int port, CancellationToken ct = default) => Task.FromResult(Result.Success());
+        public Task<byte[]?> ExportTorrentBytesAsync(TorrentId id, CancellationToken ct = default) => Task.FromResult<byte[]?>(null);
         public Task<IReadOnlyList<TorrentFileEntry>> GetTorrentFilesAsync(TorrentId id, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<TorrentFileEntry>>(Array.Empty<TorrentFileEntry>());
         public Task<IReadOnlyList<bool>> GetPiecesAsync(TorrentId id, CancellationToken ct = default) =>

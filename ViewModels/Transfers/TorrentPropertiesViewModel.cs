@@ -32,6 +32,11 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
     private readonly ObservableCollection<TorrentFileEntry> _files = new();
     private readonly Dictionary<int, TorrentFileEntry> _filesByIndex = new();
 
+    private bool _webSeedsTabActive;
+    private CancellationTokenSource? _webSeedsCts;
+    private readonly ObservableCollection<WebSeedRowViewModel> _webSeeds = new();
+    private readonly Dictionary<string, WebSeedRowViewModel> _webSeedsByUrl = new();
+
     private bool _piecesTabActive;
     private CancellationTokenSource? _piecesCts;
 
@@ -40,6 +45,18 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
 
     [ObservableProperty]
     private bool _hasSelectedTorrent;
+
+    [ObservableProperty]
+    private WebSeedRowViewModel? _selectedWebSeed;
+
+    /// <summary>True when a web seed row is selected; drives button IsEnabled bindings.</summary>
+    public bool HasSelectedWebSeed => SelectedWebSeed is not null;
+
+    [ObservableProperty]
+    private TrackerRowViewModel? _selectedTracker;
+
+    /// <summary>True when a tracker row is selected; drives button IsEnabled bindings.</summary>
+    public bool HasSelectedTracker => SelectedTracker is not null;
 
     [ObservableProperty]
     private IReadOnlyList<bool> _pieceMap = Array.Empty<bool>();
@@ -71,6 +88,7 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
     public ObservableCollection<PeerRowViewModel> Peers => _peers;
     public ObservableCollection<TrackerRowViewModel> Trackers => _trackers;
     public ObservableCollection<TorrentFileEntry> Files => _files;
+    public ObservableCollection<WebSeedRowViewModel> WebSeeds => _webSeeds;
 
     public TorrentPropertiesViewModel(
         ITorrentSessionService session,
@@ -78,6 +96,16 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
     {
         _session = session;
         _dispatcher = dispatcher;
+    }
+
+    partial void OnSelectedTrackerChanged(TrackerRowViewModel? value)
+    {
+        OnPropertyChanged(nameof(HasSelectedTracker));
+    }
+
+    partial void OnSelectedWebSeedChanged(WebSeedRowViewModel? value)
+    {
+        OnPropertyChanged(nameof(HasSelectedWebSeed));
     }
 
     public void SetSelectedTorrent(TorrentId? id)
@@ -89,6 +117,7 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         RestartTrackersPollIfNeeded();
         RestartContentPollIfNeeded();
         RestartPiecesPollIfNeeded();
+        RestartWebSeedsPollIfNeeded();
 
         if (id is null)
         {
@@ -126,6 +155,13 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         if (_piecesTabActive == active) return;
         _piecesTabActive = active;
         RestartPiecesPollIfNeeded();
+    }
+
+    public void SetWebSeedsTabActive(bool active)
+    {
+        if (_webSeedsTabActive == active) return;
+        _webSeedsTabActive = active;
+        RestartWebSeedsPollIfNeeded();
     }
 
     private void RestartPiecesPollIfNeeded()
@@ -211,6 +247,42 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
             {
                 var trackers = await _session.GetTrackersAsync(id, ct).ConfigureAwait(false);
                 _dispatcher.Enqueue(() => ApplyTrackers(trackers));
+            }
+            while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false));
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void RestartWebSeedsPollIfNeeded()
+    {
+        _webSeedsCts?.Cancel();
+        _webSeedsCts?.Dispose();
+        _webSeedsCts = null;
+
+        if (_selectedId is null || !_webSeedsTabActive)
+        {
+            _dispatcher.Enqueue(() =>
+            {
+                _webSeeds.Clear();
+                _webSeedsByUrl.Clear();
+            });
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _webSeedsCts = cts;
+        _ = PollWebSeedsAsync(_selectedId.Value, cts.Token);
+    }
+
+    private async Task PollWebSeedsAsync(TorrentId id, CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+        try
+        {
+            do
+            {
+                var seeds = await _session.GetWebSeedsAsync(id, ct).ConfigureAwait(false);
+                _dispatcher.Enqueue(() => ApplyWebSeeds(seeds));
             }
             while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false));
         }
@@ -325,6 +397,34 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         }
     }
 
+    private void ApplyWebSeeds(IReadOnlyList<WebSeedInfo> incoming)
+    {
+        var seen = new HashSet<string>();
+        foreach (var info in incoming)
+        {
+            var key = info.Url.ToString();
+            seen.Add(key);
+            if (_webSeedsByUrl.TryGetValue(key, out var row))
+            {
+                row.Url = key;
+            }
+            else
+            {
+                var newRow = new WebSeedRowViewModel { Url = key };
+                _webSeedsByUrl[key] = newRow;
+                _webSeeds.Add(newRow);
+            }
+        }
+
+        // Remove web seeds no longer present in the incoming snapshot.
+        var departed = _webSeedsByUrl.Keys.Except(seen).ToList();
+        foreach (var url in departed)
+        {
+            if (_webSeedsByUrl.Remove(url, out var row))
+                _webSeeds.Remove(row);
+        }
+    }
+
     private void ApplyFiles(IReadOnlyList<TorrentFileEntry> incoming)
     {
         var seen = new HashSet<int>();
@@ -419,6 +519,24 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         GeneralPieces = string.Empty;
     }
 
+    public async Task<Result> AddTrackerAsync(string url, int tier)
+    {
+        if (_selectedId is not { } id) return Result.Failure("No torrent selected.");
+        return await _session.AddTrackerAsync(id, url, tier);
+    }
+
+    public async Task<Result> RemoveTrackerAsync(string url)
+    {
+        if (_selectedId is not { } id) return Result.Failure("No torrent selected.");
+        return await _session.RemoveTrackerAsync(id, url);
+    }
+
+    public async Task<Result> EditTrackerAsync(string oldUrl, string newUrl, int newTier)
+    {
+        if (_selectedId is not { } id) return Result.Failure("No torrent selected.");
+        return await _session.EditTrackerAsync(id, oldUrl, newUrl, newTier);
+    }
+
     public async Task RenameFileAsync(int fileIndex, string newRelativePath)
     {
         if (_selectedId is not { } id) return;
@@ -438,6 +556,18 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
             await _session.RenameFileAsync(id, index, newPath);
     }
 
+    public async Task<Result> AddWebSeedAsync(string url)
+    {
+        if (_selectedId is not { } id) return Result.Failure("No torrent selected.");
+        return await _session.AddWebSeedAsync(id, url);
+    }
+
+    public async Task<Result> RemoveWebSeedAsync(string url)
+    {
+        if (_selectedId is not { } id) return Result.Failure("No torrent selected.");
+        return await _session.RemoveWebSeedAsync(id, url);
+    }
+
     public void Dispose()
     {
         _pollCts?.Cancel();
@@ -448,5 +578,7 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         _contentCts?.Dispose();
         _piecesCts?.Cancel();
         _piecesCts?.Dispose();
+        _webSeedsCts?.Cancel();
+        _webSeedsCts?.Dispose();
     }
 }

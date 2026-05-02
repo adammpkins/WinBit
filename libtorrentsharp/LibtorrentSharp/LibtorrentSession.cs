@@ -25,7 +25,7 @@ public class LibtorrentSession : IDisposable
 
     // Keyed by SHA-1 (v1) info-hash. v2-only torrents aren't keyed here because the
     // current C ABI surfaces sha1 buffers in alerts; supporting v2-only handles is a
-    // follow-up alongside f-handle-flags + the v2 alert path.
+    // future follow-up alongside the v2 alert path.
     private readonly ConcurrentDictionary<Sha1Hash, TorrentHandle> _attachedManagers = new();
 
     // Diagnostic: counts peer-alert marshaling exceptions silently swallowed by ProxyRaisedEvent.
@@ -92,7 +92,7 @@ public class LibtorrentSession : IDisposable
     /// </summary>
     public unsafe LibtorrentSession(SettingsPack pack)
     {
-        ValidateSettingsPack(pack);
+        ValidateSettingsPack(pack, ensureAlertMask: true);
 
         var packHandle = pack.BuildNative();
 
@@ -389,9 +389,8 @@ public class LibtorrentSession : IDisposable
         // Pre-register the manager with a placeholder native handle so the
         // dispatcher's AddTorrent case finds it even when add_torrent_alert
         // fires synchronously on the alert thread before AttachTorrent
-        // returns. Closes the slice-110-documented AddTorrentAlert race
-        // (Subject==null on the alert wrapper) at the source — the slice-122
-        // test tolerance stays as defense-in-depth.
+        // returns. Closes the -documented AddTorrentAlert race
+        // (Subject==null on the alert wrapper) at the source — the // test tolerance stays as defense-in-depth.
         var manager = new TorrentHandle(IntPtr.Zero, resolvedSavePath, torrent);
         _attachedManagers.TryAdd(key, manager);
 
@@ -466,7 +465,7 @@ public class LibtorrentSession : IDisposable
             return v1;
         }
         throw new NotSupportedException(
-            "TorrentInfo lacks a v1 (SHA-1) info-hash. v2-only torrents aren't supported by the current binding; track f-handle-flags + alert-pump-v2 in docs/libtorrent-binding.md.");
+            "TorrentInfo lacks a v1 (SHA-1) info-hash. v2-only torrents are not supported by the current binding.");
     }
 
     /// <summary>
@@ -830,16 +829,19 @@ public class LibtorrentSession : IDisposable
     /// <summary>
     /// Performs a validation check on the current settings pack, updating any values to values required by this library to function
     /// </summary>
-    private static void ValidateSettingsPack(SettingsPack settingsPack)
+    // ensureAlertMask=true for session creation: always inject RequiredAlertCategories even
+    // when the caller omitted alert_mask entirely (fresh SettingsPack).
+    // ensureAlertMask=false for delta packs (UpdateSettings): only OR in the required set
+    // when the caller explicitly included alert_mask — otherwise libtorrent's apply_settings
+    // would overwrite the runtime mask with "0 | RequiredAlerts", silently stripping every
+    // category (Connect, Peer, Upload, …) that was set at session creation.
+    private static void ValidateSettingsPack(SettingsPack settingsPack, bool ensureAlertMask = false)
     {
-        // Only OR in RequiredAlertCategories when the caller explicitly included alert_mask.
-        // Delta packs (e.g. speed-limit-only updates) must not touch alert_mask at all:
-        // libtorrent's apply_settings overwrites the runtime mask with whatever is in the
-        // pack, so injecting "0 | RequiredAlerts" into a delta pack silently strips every
-        // category that was set during session creation (Connect, Peer, Upload, …).
         var existingMask = settingsPack.Get<int>("alert_mask");
         if (existingMask.HasValue)
             settingsPack.Set("alert_mask", existingMask.Value | (int)RequiredAlertCategories);
+        else if (ensureAlertMask)
+            settingsPack.Set("alert_mask", (int)RequiredAlertCategories);
     }
 
     /// <summary>
@@ -1151,7 +1153,7 @@ public class LibtorrentSession : IDisposable
                 // misses. Forward with null Subject rather than silently
                 // drop — callers correlate magnet resume failures by
                 // InfoHash. Same forward-with-null pattern as the
-                // slice-101 PeerBlocked dispatcher fix.
+                // PeerBlocked dispatcher fix.
                 _attachedManagers.TryGetValue(new Sha1Hash(saveResumeFailedAlert.info_hash), out var saveResumeFailedSubject);
                 forwardAlert = new SaveResumeDataFailedAlert(saveResumeFailedAlert, saveResumeFailedSubject);
                 break;
@@ -1197,7 +1199,7 @@ public class LibtorrentSession : IDisposable
                 // torrent. Forward with null Subject for magnet handles —
                 // same pattern as slices 101/102/103/108/109/110/111/112/
                 // 113/114. Runtime verification of the magnet path
-                // deferred per slice-115 (the lock-during-recheck trigger
+                // deferred per (the lock-during-recheck trigger
                 // pattern requires the magnet to first complete download
                 // so its payload exists to lock — substantive enough for
                 // its own slice).
@@ -1397,7 +1399,7 @@ public class LibtorrentSession : IDisposable
                 // metadata arrival fire one of these per file as it
                 // completes. Forward with null Subject for magnet
                 // handles — same pattern as slices 101/102/103/108/
-                // 109/110/111. Corrects slice-111's overconfident
+                // 109/110/111. Corrects 's overconfident
                 // "8 of 8 magnet-source dispatcher cases fixed" claim:
                 // a wider audit reveals at least 7 more dispatcher
                 // cases (StorageMoved, FileRenamed, TorrentError,

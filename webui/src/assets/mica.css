@@ -1,0 +1,133 @@
+/* WinBit design system — WinUI Fluent Dark / Mica theme */
+
+:root {
+  /* Background layers — solid Mica-dark base */
+  --bg: #1c1c1c;
+  --surface-0: #1c1c1c;
+  --surface-1: #242424;
+  --surface-2: #2c2c2c;
+  --surface-3: rgba(255, 255, 255, 0.10);
+
+  /* Kept for gradient references in other contexts */
+  --mica-bg-start: #1c1c1c;
+  --mica-bg-mid: #1c1c1c;
+  --mica-bg-end: #1c1c1c;
+
+  /* Accent — WinBit purple (#744DA9) */
+  --accent: #744DA9;
+  --accent-light: #8b6aba;
+  --accent-dark: #5a3a87;
+  --accent-glow: rgba(116, 77, 169, 0.25);
+
+  /* Selection background using accent */
+  --surface-active: rgba(116, 77, 169, 0.15);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.13);
+  --border-accent: rgba(116, 77, 169, 0.5);
+
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.4);
+  --text-accent: var(--accent-light);
+
+  --status-dl: #4FC3F7;
+  --status-seed: #66BB6A;
+  --status-pause: #FFA726;
+  --status-err: #EF5350;
+  --status-check: #CE93D8;
+  --status-queue: #78909C;
+
+  --sidebar-width: 224px;
+  --toolbar-height: 36px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --t-fast: 0.12s ease;
+  --t-base: 200ms ease;
+  --t-slow: 350ms ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { width: 100%; height: 100%; overflow: hidden; }
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Mica grain — matches Windows 11 Mica noise texture */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  opacity: 0.036;
+  mix-blend-mode: screen;
+}
+
+#app { width: 100%; height: 100%; position: relative; z-index: 1; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); }
+
+/* Fluent component dark-mode overrides */
+fluent-button::part(control) {
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: var(--radius-sm);
+}
+
+fluent-text-field {
+  display: block;
+}
+fluent-text-field::part(root) {
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+fluent-dialog::part(overlay) {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+}
+fluent-dialog::part(dialog) {
+  background: rgba(22, 20, 40, 0.92);
+  backdrop-filter: blur(32px) saturate(200%);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(124, 106, 247, 0.08);
+}
+
+/* Light theme overrides */
+[data-theme="light"] {
+  --bg: #f3f3f3;
+  --surface-0: #f3f3f3;
+  --surface-1: #ebebeb;
+  --surface-2: #e0e0e0;
+  --surface-active: rgba(116, 77, 169, 0.10);
+  --border-subtle: rgba(0, 0, 0, 0.07);
+  --border-default: rgba(0, 0, 0, 0.13);
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-tertiary: #888888;
+  --text-accent: var(--accent-dark);
+}
+
+/* Utility */
+.text-secondary { color: var(--text-secondary); }
+.text-accent { color: var(--text-accent); }
+.mono { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 12px; }

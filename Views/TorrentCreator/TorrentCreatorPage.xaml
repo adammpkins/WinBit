@@ -19,14 +19,6 @@
                        TextWrapping="Wrap"
                        Margin="0,0,0,12" />
 
-            <InfoBar x:Name="UnsupportedBar"
-                     IsOpen="True"
-                     IsClosable="False"
-                     Severity="Warning"
-                     Title="Torrent creation is currently unavailable"
-                     Message="The libtorrent engine doesn't yet expose torrent creation. Tracking under Phase G of LIBTORRENT_TASKS.md."
-                     Margin="0,0,0,12" />
-
             <controls:SettingsCard Header="Source"
                                    Description="File or folder to hash into the torrent.">
                 <controls:SettingsCard.HeaderIcon>
@@ -134,7 +126,6 @@
                         Style="{ThemeResource AccentButtonStyle}"
                         Content="Create torrent"
                         Click="OnCreateClicked"
-                        IsEnabled="False"
                         AutomationProperties.Name="Create torrent" />
                 <Button x:Name="CancelButton"
                         Content="Cancel"

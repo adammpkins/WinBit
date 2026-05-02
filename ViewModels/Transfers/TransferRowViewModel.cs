@@ -70,6 +70,12 @@ public sealed partial class TransferRowViewModel : ObservableObject
     [ObservableProperty]
     private bool isSequentialDownload;
 
+    [ObservableProperty]
+    private bool isFirstLastPiecePriority;
+
+    [ObservableProperty]
+    private bool isForceStart;
+
     public double ProgressPercent => Progress * 100.0;
 
     public string SizeText => FormatBytes(TotalSize);

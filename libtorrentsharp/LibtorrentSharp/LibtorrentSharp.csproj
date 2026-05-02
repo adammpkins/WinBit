@@ -15,11 +15,13 @@
 
     <IsPackable>true</IsPackable>
     <PackageId>LibtorrentSharp</PackageId>
+    <Version>0.1.0-alpha</Version>
+    <Authors>Adam Perkins;Albie Spriddell</Authors>
     <Description>.NET binding for libtorrent-rasterbar.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/adampmcdev/winbit</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/adampmcdev/winbit/tree/main/libtorrentsharp</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/adammpkins/LibtorrentSharp</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/adammpkins/LibtorrentSharp</PackageProjectUrl>
     <PackageTags>bittorrent;libtorrent;torrent;p2p;networking</PackageTags>
 
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -37,6 +39,10 @@
       <Pack>true</Pack>
       <PackagePath>runtimes</PackagePath>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LibtorrentSharp.Tests" />
   </ItemGroup>
 
 </Project>

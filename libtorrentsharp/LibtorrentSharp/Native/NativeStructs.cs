@@ -70,8 +70,7 @@ internal static class NativeStructs
         [MarshalAs(UnmanagedType.I1)]
         public readonly bool file_path_is_absolute;
 
-        [MarshalAs(UnmanagedType.I1)]
-        public readonly bool pad_file;
+        public readonly byte flags;
     }
 
     /// <summary>
@@ -135,6 +134,19 @@ internal static class NativeStructs
 
         public readonly long total_uploaded;
         public readonly long total_downloaded;
+
+        public readonly int connection_type;
+        public readonly int num_hashfails;
+        public readonly int downloading_piece_index;
+        public readonly int downloading_block_index;
+        public readonly int downloading_progress;
+        public readonly int downloading_total;
+        public readonly int failcount;
+        public readonly int payload_up_rate;
+        public readonly int payload_down_rate;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 20)]
+        public readonly byte[] pid;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 8)]
@@ -172,6 +184,20 @@ internal static class NativeStructs
         public readonly string last_error;
 
         public readonly long next_announce_epoch;
+
+        [MarshalAs(UnmanagedType.LPUTF8Str)]
+        public readonly string trackerid;
+
+        [MarshalAs(UnmanagedType.LPUTF8Str)]
+        public readonly string message;
+
+        [MarshalAs(UnmanagedType.I1)]
+        public readonly bool start_sent;
+
+        [MarshalAs(UnmanagedType.I1)]
+        public readonly bool complete_sent;
+
+        public readonly long min_announce_epoch;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 8)]
@@ -263,5 +289,22 @@ internal static class NativeStructs
     {
         public readonly int length;
         public readonly IntPtr slices;
+    }
+
+    /// <summary>
+    /// Single web seed URL entry. Matches native <c>cs_web_seed_information</c>.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 8)]
+    public readonly struct WebSeed
+    {
+        [MarshalAs(UnmanagedType.LPUTF8Str)]
+        public readonly string url;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 8)]
+    public readonly struct WebSeedList
+    {
+        public readonly int count;
+        public readonly IntPtr items;
     }
 }

@@ -36,13 +36,23 @@ internal static class PeerInfoMarshaller
                     address,
                     entry.port,
                     entry.client ?? string.Empty,
-                    entry.flags,
+                    (PeerFlags)entry.flags,
                     (PeerSource)entry.source,
                     entry.progress,
                     entry.up_rate,
                     entry.down_rate,
                     entry.total_uploaded,
-                    entry.total_downloaded));
+                    entry.total_downloaded,
+                    (PeerConnectionType)entry.connection_type,
+                    entry.num_hashfails,
+                    entry.downloading_piece_index,
+                    entry.downloading_block_index,
+                    entry.downloading_progress,
+                    entry.downloading_total,
+                    entry.failcount,
+                    entry.payload_up_rate,
+                    entry.payload_down_rate,
+                    entry.pid ?? Array.Empty<byte>()));
             }
 
             return peers;
