@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./Assets/AppIcon.png" alt="WinBit logo" width="280">
+</p>
+
 # WinBit
 
 A modern, beautiful, Windows-native BitTorrent client. WinBit is a ground-up rebuild aimed at feature parity with [qBittorrent](https://www.qbittorrent.org/), built in C# / WinUI 3 with a Fluent Design front end.
