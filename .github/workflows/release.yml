@@ -113,26 +113,27 @@ jobs:
           "msix_path=$stagedPath"   | Out-File $env:GITHUB_OUTPUT -Append
           "msix_name=$stagedName"   | Out-File $env:GITHUB_OUTPUT -Append
 
-      - name: Upload unsigned MSIX as workflow artifact
-        id: upload-unsigned
-        uses: actions/upload-artifact@v4
-        with:
-          name: WinBit-unsigned
-          path: ${{ steps.unsigned.outputs.msix_path }}
-          if-no-files-found: error
-          retention-days: 1
-
       - name: Submit MSIX to SignPath for signing
-        id: signpath
-        uses: signpath/github-action-submit-signing-request@v1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: 7d49de31-8b0f-4a88-94e0-4a66b6a6f2b6
-          project-slug: winbit
-          signing-policy-slug: release-signing
-          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: ${{ runner.temp }}/signed
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          # SignPath v4.4.6+ auto-detects the GitHub Actions OIDC environment
+          # (ACTIONS_ID_TOKEN_REQUEST_URL / TOKEN env vars) and fetches the OIDC
+          # token itself, so the policy's "Require trusted build system" check
+          # passes without manual token plumbing — but we need
+          # `id-token: write` in the workflow permissions to make those env
+          # vars available.
+          Install-Module -Name SignPath -Force -Scope CurrentUser -AcceptLicense
+          New-Item -ItemType Directory -Path "$env:RUNNER_TEMP/signed" -Force | Out-Null
+          Submit-SigningRequest `
+            -InputArtifactPath "${{ steps.unsigned.outputs.msix_path }}" `
+            -ApiToken "$env:SIGNPATH_API_TOKEN" `
+            -OrganizationId "7d49de31-8b0f-4a88-94e0-4a66b6a6f2b6" `
+            -ProjectSlug "winbit" `
+            -SigningPolicySlug "release-signing" `
+            -OutputArtifactPath "$env:RUNNER_TEMP/signed/WinBit-${{ steps.tag.outputs.tag }}-x64.msix" `
+            -WaitForCompletion
 
       - name: Locate signed MSIX
         id: signed
