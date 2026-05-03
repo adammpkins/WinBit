@@ -94,14 +94,15 @@ jobs:
       - name: Build signed MSIX
         shell: pwsh
         run: |
+          # Restore happens implicitly because publish needs win-x64 RID assets
+          # that the earlier slnx-level restore may not have produced.
           dotnet publish WinBit.csproj -c Release -r win-x64 `
             -p:Platform=x64 `
             -p:GenerateAppxPackageOnBuild=true `
             -p:AppxPackageSigningEnabled=true `
             -p:PackageCertificateThumbprint='${{ steps.cert.outputs.thumbprint }}' `
             -p:AppxBundle=Never `
-            -p:UapAppxPackageBuildMode=SideloadOnly `
-            --no-restore
+            -p:UapAppxPackageBuildMode=SideloadOnly
 
       - name: Locate MSIX
         id: artifact
