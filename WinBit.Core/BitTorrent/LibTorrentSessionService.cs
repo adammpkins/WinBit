@@ -461,7 +461,15 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             case TorrentStatusAlert statusAlert when statusAlert.Subject is { } manager:
                 if (TryMakeTorrentId(manager, out var statusId))
                 {
-                    _handles[statusId] = manager;
+                    // Only refresh the handle for torrents we still know about.
+                    // libtorrent keeps emitting status alerts for a few ticks
+                    // after DetachTorrent until the seed connections wind down;
+                    // an unconditional `_handles[id] = manager` would resurrect
+                    // a torrent the user just removed.
+                    if (_handles.ContainsKey(statusId))
+                    {
+                        _handles[statusId] = manager;
+                    }
                 }
                 break;
 
@@ -1280,8 +1288,10 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                 _torrentInfos.TryRemove(id, out _);
                 _trackerHostsCache.TryRemove(id, out _);
                 _firstLastPiecePriorityEnabled.TryRemove(id, out _);
+                _dateLookup.TryRemove(id, out _);
                 Interlocked.Exchange(ref _pendingPublish, 1);
                 _ = _customNames.RemoveNameAsync(id);
+                _ = _stateStore.RemoveTorrentAsync(id, CancellationToken.None);
                 return Task.FromResult(Result.Success());
             }
 
@@ -1291,8 +1301,10 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                 _torrentInfos.TryRemove(id, out _);
                 _trackerHostsCache.TryRemove(id, out _);
                 _firstLastPiecePriorityEnabled.TryRemove(id, out _);
+                _dateLookup.TryRemove(id, out _);
                 Interlocked.Exchange(ref _pendingPublish, 1);
                 _ = _customNames.RemoveNameAsync(id);
+                _ = _stateStore.RemoveTorrentAsync(id, CancellationToken.None);
                 return Task.FromResult(Result.Success());
             }
 
