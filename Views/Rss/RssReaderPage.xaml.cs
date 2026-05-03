@@ -73,6 +73,7 @@ public sealed partial class RssReaderPage : Page
         {
             TreeItems.Add(child);
         }
+        FeedEmptyState.Visibility = TreeItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static RssTreeItem BuildTree(RssFolder folder, string parentPath = "")

@@ -40,6 +40,15 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
     private bool _piecesTabActive;
     private CancellationTokenSource? _piecesCts;
 
+    private bool _speedTabActive;
+    private CancellationTokenSource? _speedCts;
+
+    [ObservableProperty]
+    private IReadOnlyList<long> _speedDownloadSamples = Array.Empty<long>();
+
+    [ObservableProperty]
+    private IReadOnlyList<long> _speedUploadSamples = Array.Empty<long>();
+
     [ObservableProperty]
     private bool _hasFiles;
 
@@ -118,6 +127,7 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         RestartContentPollIfNeeded();
         RestartPiecesPollIfNeeded();
         RestartWebSeedsPollIfNeeded();
+        RestartSpeedPollIfNeeded();
 
         if (id is null)
         {
@@ -145,7 +155,6 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
 
     public void SetContentTabActive(bool active)
     {
-        if (_contentTabActive == active) return;
         _contentTabActive = active;
         RestartContentPollIfNeeded();
     }
@@ -155,6 +164,13 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         if (_piecesTabActive == active) return;
         _piecesTabActive = active;
         RestartPiecesPollIfNeeded();
+    }
+
+    public void SetSpeedTabActive(bool active)
+    {
+        if (_speedTabActive == active) return;
+        _speedTabActive = active;
+        RestartSpeedPollIfNeeded();
     }
 
     public void SetWebSeedsTabActive(bool active)
@@ -179,6 +195,50 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         var cts = new CancellationTokenSource();
         _piecesCts = cts;
         _ = PollPiecesAsync(_selectedId.Value, cts.Token);
+    }
+
+    private void RestartSpeedPollIfNeeded()
+    {
+        _speedCts?.Cancel();
+        _speedCts?.Dispose();
+        _speedCts = null;
+
+        if (_selectedId is null || !_speedTabActive)
+        {
+            _dispatcher.Enqueue(() =>
+            {
+                SpeedDownloadSamples = Array.Empty<long>();
+                SpeedUploadSamples = Array.Empty<long>();
+            });
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _speedCts = cts;
+        _ = PollSpeedAsync(_selectedId.Value, cts.Token);
+    }
+
+    private async Task PollSpeedAsync(TorrentId id, CancellationToken ct)
+    {
+        var dlHistory = new Queue<long>(601);
+        var upHistory = new Queue<long>(601);
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                var snap = _session.GetSnapshots().FirstOrDefault(s => s.Id == id);
+                if (snap == default) continue;
+                dlHistory.Enqueue(snap.DownloadSpeedBps);
+                upHistory.Enqueue(snap.UploadSpeedBps);
+                while (dlHistory.Count > 600) dlHistory.Dequeue();
+                while (upHistory.Count > 600) upHistory.Dequeue();
+                var dl = (IReadOnlyList<long>)dlHistory.ToList();
+                var up = (IReadOnlyList<long>)upHistory.ToList();
+                _dispatcher.Enqueue(() => { SpeedDownloadSamples = dl; SpeedUploadSamples = up; });
+            }
+        }
+        catch (OperationCanceledException) { }
     }
 
     private void RestartPollIfNeeded()
@@ -486,7 +546,9 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         var creationDate = detail.CreationDate.HasValue
             ? detail.CreationDate.Value.ToLocalTime().ToString(DateFormat)
             : Dash;
-        var addedDate = detail.AddedDate.ToLocalTime().ToString(DateFormat);
+        var addedDate = detail.AddedDate.HasValue
+            ? detail.AddedDate.Value.ToLocalTime().ToString(DateFormat)
+            : Dash;
         var completionDate = detail.CompletionDate.HasValue
             ? detail.CompletionDate.Value.ToLocalTime().ToString(DateFormat)
             : Dash;
@@ -580,5 +642,7 @@ public sealed partial class TorrentPropertiesViewModel : ObservableObject, IDisp
         _piecesCts?.Dispose();
         _webSeedsCts?.Cancel();
         _webSeedsCts?.Dispose();
+        _speedCts?.Cancel();
+        _speedCts?.Dispose();
     }
 }

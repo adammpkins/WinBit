@@ -1,6 +1,6 @@
 # WinBit
 
-A modern, beautiful, Windows-native BitTorrent client. WinBit is a ground-up rebuild of [qBittorrent](https://www.qbittorrent.org/) in C# / WinUI 3, aimed at feature parity with a Fluent Design front end.
+A modern, beautiful, Windows-native BitTorrent client. WinBit is a ground-up rebuild aimed at feature parity with [qBittorrent](https://www.qbittorrent.org/), built in C# / WinUI 3 with a Fluent Design front end.
 
 ## Why
 
@@ -8,29 +8,30 @@ qBittorrent is functionally excellent but visually dated — it wears its Qt her
 
 ## Status
 
-Milestone **M1 — Scaffolding** in progress. See [`TASKS.md`](./TASKS.md) for the full roadmap (M1..M12) and [`plans/`](./docs/) for design details.
+In active development. See [`TASKS.md`](./TASKS.md) for the roadmap and [`docs/`](./docs/) for design details.
 
 ## Design mission
 
 > **Modern and beautiful.**
 
-This is a first-class design constraint, not a finish-line polish item. It drives control choice, layout, motion, and scope decisions throughout every milestone. The concrete rules live in [`docs/ui-design-language.md`](./docs/ui-design-language.md).
+This is a first-class design constraint, not a finish-line polish item. It drives control choice, layout, motion, and scope decisions throughout. The concrete rules live in [`docs/ui-design-language.md`](./docs/ui-design-language.md).
 
 ## Architecture at a glance
 
-Three-project solution:
+Three-project solution plus an in-repo binding library:
 
 | Project | Purpose |
 |---|---|
-| `WinBit.Core` | Pure C# class library. BitTorrent engine wrapper (MonoTorrent), settings, persistence (SQLite + JSON), RSS, WebUI (Kestrel), logging. No Windows UI dependencies. |
+| `WinBit.Core` | Pure C# class library. BitTorrent engine wrapper (libtorrent via LibtorrentSharp), settings, persistence (SQLite + JSON), RSS, WebUI (Kestrel), logging. No Windows UI dependencies. |
 | `WinBit` | WinUI 3 desktop app. Views, viewmodels, DI composition root, Fluent controls. |
 | `WinBit.Tests` | xUnit tests against `WinBit.Core`. |
+| `libtorrentsharp/LibtorrentSharp` | Full-fidelity C# binding to libtorrent-rasterbar, incubated in-repo as a future standalone NuGet. |
 
 Full map in [`docs/architecture.md`](./docs/architecture.md).
 
 ## Feature goals
 
-Full qBittorrent parity by M12: transfer list, categories/tags, share limits, bandwidth scheduler, RSS + auto-downloader, IP filter, UPnP/NAT-PMP, DHT/PEX/LSD, proxy, Web UI (qBittorrent v2 API compatible), search engine plugins, watched folders, torrent creator, execution log, tray + toasts + sleep prevention, `.torrent` / `magnet:` file associations.
+Full qBittorrent parity: transfer list, categories/tags, share limits, bandwidth scheduler, RSS + auto-downloader, IP filter, UPnP/NAT-PMP, DHT/PEX/LSD, proxy, Web UI (qBittorrent v2 API compatible), search engine plugins, watched folders, torrent creator, execution log, tray + toasts + sleep prevention, `.torrent` / `magnet:` file associations.
 
 ## Build & run
 
@@ -59,18 +60,15 @@ From Visual Studio, set `WinBit` as the startup project and press F5. From the C
 dotnet run --project WinBit -c Debug
 ```
 
-More detail (packaging, MSIX, Python plugin host) in [`docs/development.md`](./docs/development.md).
-
-## Source reference
-
-The full qBittorrent C++ source lives at [`qbittorrent/`](./qbittorrent/) for cross-reference. WinBit does **not** consume it at build time — it's a specification and behavior oracle, especially for the RSS auto-downloader, bandwidth scheduler, category TMM rules, and WebUI API shapes.
+More detail (packaging, MSIX) in [`docs/development.md`](./docs/development.md).
 
 ## Documentation
 
-- [`TASKS.md`](./TASKS.md) — milestone roadmap.
+- [`TASKS.md`](./TASKS.md) — feature roadmap.
 - [`docs/architecture.md`](./docs/architecture.md) — solution layout + service interfaces.
 - [`docs/ui-design-language.md`](./docs/ui-design-language.md) — colors, typography, motion, control rules.
-- [`docs/torrent-engine.md`](./docs/torrent-engine.md) — MonoTorrent mapping, gaps, caveats.
+- [`docs/torrent-engine.md`](./docs/torrent-engine.md) — libtorrent integration + engine choice rationale.
+- [`docs/libtorrent-binding.md`](./docs/libtorrent-binding.md) — LibtorrentSharp architecture.
 - [`docs/persistence.md`](./docs/persistence.md) — SQLite schema, JSON shapes, file-system layout.
 - [`docs/webui-api.md`](./docs/webui-api.md) — REST surface (qBittorrent v2 parity).
 - [`docs/rss-autodownloader.md`](./docs/rss-autodownloader.md) — rule semantics.
@@ -78,4 +76,4 @@ The full qBittorrent C++ source lives at [`qbittorrent/`](./qbittorrent/) for cr
 
 ## License
 
-WinBit inherits qBittorrent's GPL obligations where it ports behavior. License text will be finalized in M12 before any distribution; until then treat this repository as source-available for development only.
+WinBit is licensed under the **GNU General Public License v2.0 or later** (GPL-2.0-or-later) — the same license as [qBittorrent](https://www.qbittorrent.org/), whose behavior WinBit ports. See [`LICENSE`](./LICENSE) for the full text.

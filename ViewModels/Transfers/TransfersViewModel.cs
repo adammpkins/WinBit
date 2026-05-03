@@ -118,6 +118,11 @@ public sealed partial class TransfersViewModel : ObservableObject
                 var name = _session.GetName(snap.Id) ?? snap.Id.Value;
                 row = new TransferRowViewModel(snap.Id, name);
                 row.TrackerHosts = _session.GetTrackerHosts(snap.Id);
+                // AddedUtc is immutable once set; CompletedUtc is null-to-value-only, assigned here
+                // for torrents that were already complete at startup, and updated below for mid-session
+                // completions on existing rows.
+                row.AddedUtc = snap.AddedUtc;
+                row.CompletedUtc = snap.CompletedUtc;
                 _rowsById[snap.Id] = row;
                 _rows.Add(row);
             }
@@ -139,6 +144,11 @@ public sealed partial class TransfersViewModel : ObservableObject
                         row.TrackerHosts = hosts;
                     }
                 }
+
+                // CompletedUtc transitions null → value when a torrent finishes mid-session;
+                // never update once set so the timestamp stays anchored to first completion.
+                if (!row.CompletedUtc.HasValue && snap.CompletedUtc.HasValue)
+                    row.CompletedUtc = snap.CompletedUtc;
             }
 
             row.State = snap.State;

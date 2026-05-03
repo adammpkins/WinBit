@@ -40,9 +40,12 @@ public static class WinBitAppAssets
                 return;
             }
 
-            // Try exact file; fall back to index.html for SPA client-side routing
+            // Try exact file match first
             if (await TryServeAsync(ctx, path).ConfigureAwait(false)) return;
-            if (await TryServeAsync(ctx, "/index.html").ConfigureAwait(false)) return;
+
+            // Only fall back to index.html for extension-less paths (SPA client-side routing).
+            // Paths with a file extension that aren't found should 404, not serve the app shell.
+            if (!Path.HasExtension(path) && await TryServeAsync(ctx, "/index.html").ConfigureAwait(false)) return;
 
             await next().ConfigureAwait(false);
         });
@@ -60,6 +63,12 @@ public static class WinBitAppAssets
         if (!ContentTypes.TryGetContentType(fileName, out var contentType))
             contentType = "application/octet-stream";
 
+        // Vite is configured with stable (non-hashed) filenames so the .NET embedded-resource
+        // pipeline can pick them up by name. That means /assets/Foo.js gets reused content
+        // across builds — so we MUST NOT serve them as immutable, or Chrome will hold a stale
+        // chunk that imports a NEW chunk under the same name and the symbol map mismatches
+        // (one bundle's `b` resolves to a different export than the other bundle's expectation).
+        // Use no-cache everywhere; the bytes are local so revalidation is cheap.
         ctx.Response.Headers.CacheControl = "no-cache";
 
         ctx.Response.ContentType = contentType;

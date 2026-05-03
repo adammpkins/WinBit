@@ -34,8 +34,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- qBittorrent admin UI at /qbittorrent/*, served by QBittorrentAssets. -->
-    <EmbeddedResource Include="WebUi\WebAssets\**\*.*" />
     <!-- WinBit Vue SPA — built by Vite into WinBitApp/, served by WinBitAppAssets. -->
     <EmbeddedResource Include="WebUi\WinBitApp\**\*.*" />
   </ItemGroup>

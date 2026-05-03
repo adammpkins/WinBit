@@ -13,9 +13,7 @@ public static class WebUiAuthorization
     public static bool IsAuthorized(HttpContext ctx, IWebUiAuthService auth)
     {
         if (auth.IsWhitelistedIp(ctx.Connection.RemoteIpAddress))
-        {
             return true;
-        }
         return auth.IsValidSession(ctx.Request.Cookies[AuthEndpoints.SessionCookieName]);
     }
 }

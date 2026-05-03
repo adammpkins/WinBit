@@ -249,6 +249,10 @@ public sealed class TransfersGridLayout
     public string? SortColumn { get; set; }
     /// <summary>true = descending; only meaningful when <see cref="SortColumn"/> is non-null.</summary>
     public bool SortReverse { get; set; }
+    /// <summary>Column keys that have been toggled off in the WebUI transfers table.
+    /// Only non-required columns (size, status, progress, dlspeed, upspeed, ratio, eta) are valid here;
+    /// "name" is always visible and must never appear in this list.</summary>
+    public List<string> HiddenColumns { get; set; } = new();
 }
 
 public sealed class TransferColumnState

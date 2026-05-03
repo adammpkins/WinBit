@@ -53,11 +53,17 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
     // Cap PersistFastResumeAsync's wait. libtorrent normally produces save_resume_data alerts
     // within milliseconds, but a stuck native call shouldn't deadlock the autosave loop.
     private static readonly TimeSpan ResumeRequestTimeout = TimeSpan.FromSeconds(5);
+    // One log entry per tracker URL per window — prevents burst duplicates when multiple torrents
+    // share the same dead tracker or libtorrent probes multiple endpoints simultaneously.
+    private static readonly TimeSpan TrackerErrorLogCooldown = TimeSpan.FromMinutes(5);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _trackerErrorCooldowns = new();
 
-    // Per-tick heartbeat cadence. StatusPollingLoop ticks at 1 Hz, but the adapter
-    // only emits a log line every DiagInterval — enough signal to see a stall without
-    // spamming the file on a healthy swarm.
-    private static readonly TimeSpan DiagInterval = TimeSpan.FromSeconds(5);
+    // Parses the human-readable error reason from libtorrent's tracker_error_alert::message().
+    // Format: "<name> (<url>)[<endpoint>] v<N> <error_reason> "<failure_reason>" (<times>)"
+    // Group 1 captures <error_reason> — the part between the endpoint bracket, version, and the
+    // opening quote of failure_reason. Used when ErrorMessage (failure_reason) is empty.
+    private static readonly System.Text.RegularExpressions.Regex _trackerMsgErrPattern =
+        new(@"\] v\d+ (.+?) """, System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private readonly ILogService _log;
     private readonly Paths _paths;
@@ -93,10 +99,6 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
     // We register a TCS per request and the alert handler completes it, keyed by info-hash.
     private readonly ConcurrentDictionary<TorrentId, TaskCompletionSource<byte[]>> _pendingResumeRequests = new();
 
-    // Heartbeat throttle for EmitDiag. StatusPollingLoop calls CaptureAndPublishSnapshots
-    // every second — the adapter only actually writes a diag line every DiagInterval.
-    private DateTime _lastDiagEmitUtc = DateTime.MinValue;
-
     // Resolved once in StartAsync. -1 means lts.dll absent or metric name mismatch,
     // in which case _dhtNodeCount stays 0 — safe fallback for non-DHT builds.
     private int _dhtNodesMetricIdx = -1;
@@ -105,18 +107,15 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
     // polling thread always sees the latest value the alert pump wrote.
     private volatile int _dhtNodeCount;
 
-    // Accumulated peer-event counters reset each DiagInterval. Interlocked so the
-    // alert pump thread (OnAlertReceived) and the polling thread (EmitDiag) never race.
-    private int _diagPeerConnectIn;
-    private int _diagPeerConnectOut;
-    private int _diagPeerDisconnect;
-    private int _diagPeerError;
-    private int _diagBlocksUploaded;
-
     // Per-add metadata that LibtorrentSharp doesn't surface back from MagnetHandle: the original
     // magnet URI (for clipboard copy) and the display name parsed at add time. Populated in
     // AddAsync, cleared on RemoveAsync / Stop.
     private readonly ConcurrentDictionary<TorrentId, MagnetMetadata> _magnetMetadata = new();
+
+    // Immutable-after-add date fields that libtorrent does not expose on its status struct.
+    // Written by AddAsync and RehydrateSavedTorrentsAsync (potentially concurrent callers);
+    // read from the polling-loop thread in BuildSnapshotBatch — must be a ConcurrentDictionary.
+    private readonly ConcurrentDictionary<TorrentId, (DateTime AddedUtc, DateTime? CompletedUtc)> _dateLookup = new();
 
     // Tracker host cache: accumulated from tracker alert URLs so GetTrackerHosts() never
     // needs to call GetTrackers() (which blocks on libtorrent's io_context via sync_call_ret).
@@ -316,6 +315,13 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
 
         _log.Write($"Cold-start: rehydrating {records.Count} saved torrent(s).", LogSeverity.Info);
 
+        // Bulk-load dates before the rehydration loop so each torrent's entry is available
+        // to BuildSnapshotBatch even if individual resume attempts fail partway through.
+        foreach (var record in records)
+        {
+            _dateLookup[record.Id] = (record.AddedUtc, record.CompletedUtc);
+        }
+
         foreach (var record in records)
         {
             try
@@ -474,41 +480,43 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                 }
                 break;
 
-            case PeerAlert peerAlert:
-                switch (peerAlert.AlertType)
-                {
-                    case PeerAlertType.ConnectedIncoming:  Interlocked.Increment(ref _diagPeerConnectIn);  break;
-                    case PeerAlertType.ConnectedOutgoing:  Interlocked.Increment(ref _diagPeerConnectOut); break;
-                    case PeerAlertType.Disconnected:
-                        Interlocked.Increment(ref _diagPeerDisconnect);
-                        _log.Write($"Peer disc {SeedingDiagHash(peerAlert.InfoHash)} [{peerAlert.Address}]: {peerAlert.Message}", LogSeverity.Normal);
-                        break;
-                    case PeerAlertType.Errored:
-                        Interlocked.Increment(ref _diagPeerError);
-                        _log.Write($"Peer err  {SeedingDiagHash(peerAlert.InfoHash)} [{peerAlert.Address}]: {peerAlert.Message}", LogSeverity.Normal);
-                        break;
-                }
-                break;
-
             case TrackerReplyAlert trackerReply:
-                _log.Write(
-                    $"Tracker reply {SeedingDiagHash(trackerReply.InfoHash)}: url={trackerReply.TrackerUrl} peers={trackerReply.NumPeers}",
-                    LogSeverity.Normal);
                 CacheTrackerHost(TorrentId.FromInfoHash(trackerReply.InfoHash.ToString()), trackerReply.TrackerUrl);
                 break;
 
             case TrackerErrorAlert trackerError:
+            {
+                // ErrorMessage is the tracker's HTTP failure_reason; empty for network errors.
+                // Extract just the error reason from alert::message() for network errors.
+                var errReason = string.IsNullOrEmpty(trackerError.ErrorMessage)
+                    ? ExtractTrackerErrorReason(trackerError.Message)
+                    : trackerError.ErrorMessage;
+                // "skipping tracker announce" means libtorrent knows the tracker is unreachable
+                // and is suppressing its announce slot — no actionable info, suppress like announce/reply.
+                if (errReason.Contains("skipping tracker announce", StringComparison.OrdinalIgnoreCase))
+                    break;
+                // Rate-limit per URL: multiple torrents sharing a dead tracker, plus multi-endpoint
+                // UDP/HTTP probes, fire several alerts per URL per announce cycle. Log only the first
+                // occurrence within the cooldown window.
+                var now = DateTimeOffset.UtcNow;
+                if (_trackerErrorCooldowns.TryGetValue(trackerError.TrackerUrl, out var lastLogged) &&
+                    now - lastLogged < TrackerErrorLogCooldown)
+                    break;
+                _trackerErrorCooldowns[trackerError.TrackerUrl] = now;
                 _log.Write(
-                    $"Tracker error {SeedingDiagHash(trackerError.InfoHash)}: url={trackerError.TrackerUrl} err={trackerError.ErrorMessage}",
+                    $"Tracker error {SeedingDiagHash(trackerError.InfoHash)}: url={trackerError.TrackerUrl} err={errReason}",
                     LogSeverity.Normal);
-                CacheTrackerHost(TorrentId.FromInfoHash(trackerError.InfoHash.ToString()), trackerError.TrackerUrl);
+                break;
+            }
+
+            case TrackerAnnounceAlert:
                 break;
 
-            case TrackerAnnounceAlert trackerAnnounce:
-                _log.Write(
-                    $"Tracker announce {SeedingDiagHash(trackerAnnounce.InfoHash)}: url={trackerAnnounce.TrackerUrl}",
-                    LogSeverity.Normal);
-                CacheTrackerHost(TorrentId.FromInfoHash(trackerAnnounce.InfoHash.ToString()), trackerAnnounce.TrackerUrl);
+            case UdpErrorAlert udpError:
+                // Loopback UDP errors (127.0.0.1, ::1) come from LSD/DHT talking to itself
+                // and carry no actionable info — suppress them silently.
+                if (!IPAddress.IsLoopback(udpError.Endpoint.Address))
+                    LogNoisyAlert(alert);
                 break;
 
             case TorrentResumedAlert resumed:
@@ -523,15 +531,39 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                     LogSeverity.Normal);
                 break;
 
-            case BlockUploadedAlert:
-                Interlocked.Increment(ref _diagBlocksUploaded);
+            case TorrentFinishedAlert finished:
+            {
+                var id = TorrentId.FromInfoHash(finished.InfoHash.ToString());
+                var now = DateTime.UtcNow;
+                var didSet = false;
+                _dateLookup.AddOrUpdate(
+                    id,
+                    _ => { didSet = true; return (now, now); },
+                    (_, existing) =>
+                    {
+                        if (existing.CompletedUtc.HasValue) return existing;
+                        didSet = true;
+                        return (existing.AddedUtc, now);
+                    });
+                if (didSet)
+                {
+                    _ = Task.Run(() => _stateStore.UpdateCompletedUtcAsync(id, now), CancellationToken.None);
+                    _log.Write($"Torrent {id.Value[..8]} completed.", LogSeverity.Info);
+                }
                 break;
+            }
 
             case SessionStatsAlert statsAlert:
                 if (_dhtNodesMetricIdx >= 0 && _dhtNodesMetricIdx < statsAlert.Counters.Length)
                 {
                     _dhtNodeCount = (int)statsAlert.Counters[_dhtNodesMetricIdx];
                 }
+                break;
+
+            case PortmapErrorAlert portmapError
+                when portmapError.ErrorMessage.Contains("no router found", StringComparison.OrdinalIgnoreCase):
+                // UPnP/NAT-PMP "no router found" fires on every startup per network interface
+                // when UPnP is enabled but the network has no compatible router — not actionable.
                 break;
 
             default:
@@ -553,6 +585,12 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
     private const int AlertCategoryPortMapping = 1 << 2;
     private const int AlertCategoryImportantMask =
         AlertCategoryError | AlertCategoryPerformanceWarning | AlertCategoryPortMapping;
+
+    private static string ExtractTrackerErrorReason(string alertMessage)
+    {
+        var m = _trackerMsgErrPattern.Match(alertMessage);
+        return m.Success ? m.Groups[1].Value : alertMessage;
+    }
 
     private void LogNoisyAlert(Alert alert)
     {
@@ -584,8 +622,7 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
     /// each <see cref="LibtorrentSharp.TorrentStatus"/> into a <see cref="TorrentSnapshot"/>,
     /// caches the batch for <see cref="GetSnapshots"/>, and dispatches once via
     /// <see cref="IDispatcherQueueProvider"/> whenever any torrent exists — one hop per tick
-    /// regardless of alert flux. Skips the work entirely on an empty engine when the diag
-    /// emit isn't due.
+    /// regardless of alert flux. Skips the work entirely on a truly idle engine.
     /// </summary>
     public void CaptureAndPublishSnapshots()
     {
@@ -595,17 +632,15 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
         _client?.PostSessionStats();
 
         var pending = Interlocked.Exchange(ref _pendingPublish, 0) != 0;
-        var diagDue = (DateTime.UtcNow - _lastDiagEmitUtc) >= DiagInterval;
         var hasTorrents = !_handles.IsEmpty || !_magnets.IsEmpty;
 
-        // Skip only on a truly idle engine with no torrents, no pending alert, and
-        // no diag due. Once any torrent is registered we publish every tick:
-        // libtorrent does not auto-emit state_update_alert (we don't drive
-        // post_torrent_updates), so a stable swarm produces near-zero alert flux
-        // and gating publish on alerts would strand the UI at the last alert's
-        // peer/seed counts. The `pending` branch keeps removal-flush working when
-        // the last torrent was just removed (TorrentRemovedAlert sets pending).
-        if (!hasTorrents && !pending && !diagDue)
+        // Skip only on a truly idle engine with no torrents and no pending alert. Once
+        // any torrent is registered we publish every tick: libtorrent does not
+        // auto-emit state_update_alert (we don't drive post_torrent_updates), so a
+        // stable swarm produces near-zero alert flux and gating publish on alerts would
+        // strand the UI at the last alert's peer/seed counts. The `pending` branch keeps
+        // removal-flush working when the last torrent was just removed.
+        if (!hasTorrents && !pending)
         {
             return;
         }
@@ -619,12 +654,6 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
         if (pending)
         {
             LogStateTransitions(previous, snapshots);
-        }
-
-        if (diagDue)
-        {
-            EmitDiag(snapshots);
-            _lastDiagEmitUtc = DateTime.UtcNow;
         }
 
         if (snapshots.Count > 0)
@@ -680,68 +709,6 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
         }
     }
 
-    private void EmitDiag(IReadOnlyList<TorrentSnapshot> snapshots)
-    {
-        var connectIn      = Interlocked.Exchange(ref _diagPeerConnectIn,    0);
-        var connectOut     = Interlocked.Exchange(ref _diagPeerConnectOut,   0);
-        var disconnect     = Interlocked.Exchange(ref _diagPeerDisconnect,   0);
-        var error          = Interlocked.Exchange(ref _diagPeerError,        0);
-        var blocksUploaded = Interlocked.Exchange(ref _diagBlocksUploaded,   0);
-
-        _log.Write(
-            $"Libtorrent diag — torrents:{snapshots.Count} peer-events(+{DiagInterval.TotalSeconds:F0}s): in={connectIn} out={connectOut} disc={disconnect} err={error} blocks-up={blocksUploaded}",
-            LogSeverity.Info);
-
-        var peerAlertAttempts = _client?.PeerAlertAttemptCount ?? 0;
-        var peerAlertExCount  = _client?.PeerAlertExceptionCount ?? 0;
-        _log.Write(
-            $"  PeerAlert dispatch: attempts={peerAlertAttempts} errors={peerAlertExCount}" +
-            (peerAlertExCount > 0 ? $" last='{_client?.LastPeerAlertException}'" : string.Empty),
-            LogSeverity.Normal);
-        _log.Write($"  Alert histogram: {_client?.AlertTypeHistogram()}", LogSeverity.Normal);
-
-        foreach (var s in snapshots)
-        {
-            var shortId = s.Id.Value.Length >= 8 ? s.Id.Value[..8] : s.Id.Value;
-            var err = string.IsNullOrEmpty(s.ErrorMessage) ? string.Empty : $" error:{s.ErrorMessage}";
-            _log.Write(
-                $"  {shortId} state:{s.State} seeds:{s.Seeds} peers:{s.Peers} progress:{s.Progress * 100:F1}% down:{s.DownloadSpeedBps}B/s up:{s.UploadSpeedBps}B/s ratio:{s.Ratio:F2}{err}",
-                LogSeverity.Info);
-
-            if (TryReadStatus(s.Id, out var flagStatus))
-            {
-                var f = flagStatus.Flags;
-                _log.Write(
-                    $"  {shortId} flags: paused={f.HasFlag(LibtorrentSharp.Enums.TorrentFlags.Paused)}" +
-                    $" autoManaged={f.HasFlag(LibtorrentSharp.Enums.TorrentFlags.AutoManaged)}" +
-                    $" superSeeding={f.HasFlag(LibtorrentSharp.Enums.TorrentFlags.SuperSeeding)}" +
-                    $" uploadMode={f.HasFlag(LibtorrentSharp.Enums.TorrentFlags.UploadMode)}",
-                    LogSeverity.Normal);
-            }
-
-            if (s.State == TorrentState.Seeding && s.Peers > 0 && s.UploadSpeedBps == 0)
-                _log.Write(
-                    $"  {shortId} seeding-health: Seeding+peers={s.Peers} but upload=0 — choke or no-interest",
-                    LogSeverity.Normal);
-
-            if (s.Peers > 0)
-            {
-                EmitPeerDiag(s.Id, shortId);
-            }
-        }
-    }
-
-    // peer_info flag constants from libtorrent peer_info.hpp
-    private const uint PeerFlagHandshake        = 1 << 6;   // BT handshake not complete
-    private const uint PeerFlagConnecting       = 1 << 7;   // half-open SYN
-    private const uint PeerFlagOutgoing         = 1 << 5;   // we dialed out; absent = incoming
-    private const uint PeerFlagChoked           = 1 << 1;   // we have choked this peer (no upload)
-    private const uint PeerFlagRemoteInterested = 1 << 2;   // peer wants pieces from us
-    private const uint PeerFlagRemoteChoked     = 1 << 3;   // peer has choked us
-    private const uint PeerFlagSeed             = 1 << 10;  // peer has all pieces (seeder)
-    private const uint PeerFlagRc4Encrypted     = 1 << 20;  // MSE RC4-encrypted connection
-    private const uint PeerFlagPlaintextMse     = 1 << 21;  // MSE handshake but plaintext payload
-
     public Task<IReadOnlyList<WinBit.Core.BitTorrent.PeerInfo>> GetPeersAsync(TorrentId id, CancellationToken ct = default)
     {
         IReadOnlyList<LibtorrentSharp.PeerInfo> raw;
@@ -767,7 +734,20 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             DownloadSpeedBps = p.DownloadRate,
             UploadSpeedBps = p.UploadRate,
             IsSeeder = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.Seed),
-            IsEncrypted = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.Rc4Encrypted) || p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.PlaintextEncrypted),
+            IsEncrypted = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.Rc4Encrypted),
+            IsHandshakeEncrypted = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.PlaintextEncrypted),
+            IsInteresting = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.Interesting),
+            IsChoked = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.Choked),
+            IsRemoteInteresting = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.RemoteInterested),
+            IsRemoteChoked = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.RemoteChoked),
+            IsOptimisticUnchoke = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.OptimisticUnchoke),
+            IsSnubbed = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.Snubbed),
+            IsIncomingConnection = !p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.OutgoingConnection),
+            IsFromDht = p.Source.HasFlag(LibtorrentSharp.Enums.PeerSource.Dht),
+            IsFromPex = p.Source.HasFlag(LibtorrentSharp.Enums.PeerSource.Pex),
+            IsFromLsd = p.Source.HasFlag(LibtorrentSharp.Enums.PeerSource.Lsd),
+            IsUtp = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.UtpSocket),
+            IsHolepunched = p.Flags.HasFlag(LibtorrentSharp.Enums.PeerFlags.Holepunched),
         }).ToList();
 
         return Task.FromResult<IReadOnlyList<WinBit.Core.BitTorrent.PeerInfo>>(peers);
@@ -834,7 +814,9 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
         if (_magnets.TryGetValue(id, out var magnet))
         {
             var isSeed = magnet.GetCurrentStatus().Progress >= 1.0f;
-            var entries = magnet.GetFiles()
+            var allFiles = magnet.GetFiles();
+            var fileProgress = isSeed ? Array.Empty<long>() : magnet.GetFileProgress(allFiles.Count);
+            var entries = allFiles
                 .Where(f => !f.Info.IsPadFile)
                 .Select(f => new TorrentFileEntry
                 {
@@ -843,7 +825,7 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                     RelativePath = f.Info.Path.Replace('\\', '/'),
                     SizeBytes = f.Info.FileSize,
                     Priority = MapFilePriority(f.Priority),
-                    DownloadedBytes = isSeed ? f.Info.FileSize : 0L,
+                    DownloadedBytes = isSeed ? f.Info.FileSize : (fileProgress.Length > f.Info.Index ? fileProgress[f.Info.Index] : 0L),
                 })
                 .ToList();
             return Task.FromResult<IReadOnlyList<TorrentFileEntry>>(entries);
@@ -899,58 +881,6 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             WinBit.Core.BitTorrent.FileDownloadPriority.Maximum       => LibtorrentSharp.Enums.FileDownloadPriority.High,
             _                                                           => LibtorrentSharp.Enums.FileDownloadPriority.Normal,
         };
-
-    private void EmitPeerDiag(TorrentId id, string shortId)
-    {
-        try
-        {
-            IReadOnlyList<LibtorrentSharp.PeerInfo> peers;
-            if (_handles.TryGetValue(id, out var handle))
-            {
-                peers = handle.GetPeers();
-            }
-            else if (_magnets.TryGetValue(id, out var magnet))
-            {
-                peers = magnet.GetPeers();
-            }
-            else
-            {
-                return;
-            }
-
-            var total            = peers.Count;
-            var handshaking      = 0;
-            var connecting       = 0;
-            var outgoing         = 0;
-            var remoteInterested = 0;
-            var chokedByUs       = 0;
-            var remoteChokedUs   = 0;
-            long totalUploaded   = 0;
-
-            foreach (var p in peers)
-            {
-                var f = (uint)p.Flags;
-                if ((f & PeerFlagHandshake)        != 0) handshaking++;
-                if ((f & PeerFlagConnecting)       != 0) connecting++;
-                if ((f & PeerFlagOutgoing)         != 0) outgoing++;
-                if ((f & PeerFlagRemoteInterested) != 0) remoteInterested++;
-                if ((f & PeerFlagChoked)           != 0) chokedByUs++;
-                if ((f & PeerFlagRemoteChoked)     != 0) remoteChokedUs++;
-                totalUploaded += p.TotalUploaded;
-            }
-
-            var established = total - handshaking - connecting;
-            var incoming    = total - outgoing;
-            _log.Write(
-                $"    {shortId} peer-detail: total={total} established={established} handshake={handshaking} connecting={connecting} " +
-                $"incoming={incoming} outgoing={outgoing} remote-interested={remoteInterested} choked-by-us={chokedByUs} remote-choked-us={remoteChokedUs} total-up={totalUploaded}B",
-                LogSeverity.Info);
-        }
-        catch (Exception ex)
-        {
-            _log.Write($"    {shortId} peer-diag failed: {ex.Message}", LogSeverity.Warning);
-        }
-    }
 
     public IReadOnlyList<TorrentSnapshot> GetSnapshots() => Volatile.Read(ref _lastSnapshots);
 
@@ -1047,10 +977,13 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
         {
             try
             {
+                _dateLookup.TryGetValue(id, out var dates);
                 batch.Add(BuildSnapshot(id, manager.GetCurrentStatus()) with
                 {
                     TotalSize = manager.Info.Metadata.TotalSize,
                     HasFirstLastPiecePriority = _firstLastPiecePriorityEnabled.ContainsKey(id),
+                    AddedUtc = dates.AddedUtc,
+                    CompletedUtc = dates.CompletedUtc,
                 });
             }
             catch (Exception ex)
@@ -1068,9 +1001,12 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
 
             try
             {
+                _dateLookup.TryGetValue(id, out var dates);
                 batch.Add(BuildSnapshot(id, magnet.GetCurrentStatus()) with
                 {
-                    TotalSize = magnet.TotalSize
+                    TotalSize = magnet.TotalSize,
+                    AddedUtc = dates.AddedUtc,
+                    CompletedUtc = dates.CompletedUtc,
                 });
             }
             catch (Exception ex)
@@ -1086,7 +1022,11 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
         new()
         {
             Id = id,
-            State = MapState(status.State),
+            State = status.Flags.HasFlag(LibtorrentSharp.Enums.TorrentFlags.Paused)
+                ? (status.Flags.HasFlag(LibtorrentSharp.Enums.TorrentFlags.AutoManaged)
+                    ? TorrentState.Queued
+                    : TorrentState.Paused)
+                : MapState(status.State),
             Progress = status.Progress,
             BytesDownloaded = status.BytesDownloaded,
             BytesUploaded = status.BytesUploaded,
@@ -1101,10 +1041,10 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             IsForceStart = !status.Flags.HasFlag(LibtorrentSharp.Enums.TorrentFlags.AutoManaged) && !status.Flags.HasFlag(LibtorrentSharp.Enums.TorrentFlags.Paused),
         };
 
-    // libtorrent has no Paused / Stopped state — that's a flag (torrent_flags::paused) on the
-    // status struct, not part of the state enum. The dedicated mapping for those arrives with
-    // a-actions when we own Pause/Resume; for now a paused torrent reports its underlying
-    // state (Downloading / DownloadingMetadata / etc.) which still renders sensibly.
+    // libtorrent has no Paused / Stopped value in its state enum — pause is a flag
+    // (torrent_flags::paused) on the status struct. BuildSnapshot checks the flag before
+    // calling here, so MapState only runs for torrents that are actively running.
+    // paused && autoManaged → Queued (auto-manager holds it); paused && !autoManaged → Paused.
     private static TorrentState MapState(LibtorrentSharp.Enums.TorrentState state) => state switch
     {
         LibtorrentSharp.Enums.TorrentState.CheckingFiles => TorrentState.Checking,
@@ -1291,12 +1231,14 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             // for SaveFastResumeAsync (which is UPDATE-only). Without this, resume blobs
             // would silently never persist for libtorrent-added torrents.
             // Fire-and-forget: don't block AddAsync (and therefore the dialog) on the SQLite write.
+            var addedUtc = DateTime.UtcNow;
+            _dateLookup[addedId] = (addedUtc, CompletedUtc: null);
             var record = new TorrentStateRecord
             {
                 Id = addedId,
                 Name = displayName,
                 SavePath = parameters.SavePath,
-                AddedUtc = DateTime.UtcNow,
+                AddedUtc = addedUtc,
                 Category = parameters.Category,
                 Tags = parameters.Tags.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(parameters.Tags),
             };
@@ -1443,7 +1385,14 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
     }
 
     public Task<Result> PauseAsync(TorrentId id, CancellationToken ct = default) =>
-        Task.FromResult(InvokeOnHandle(id, m => m.Pause(), m => m.Pause(), "Pause"));
+        Task.FromResult(InvokeOnHandle(
+            id,
+            // Bypass Pause() — the native lts_pause_torrent sets auto_managed which lets the
+            // queue re-enable the torrent immediately. Force-stop by clearing auto_managed
+            // then setting the paused flag directly so the auto-manager can't undo it.
+            m => { m.UnsetFlags(LibtorrentSharp.Enums.TorrentFlags.AutoManaged); m.SetFlags(LibtorrentSharp.Enums.TorrentFlags.Paused); },
+            m => { m.UnsetFlags(LibtorrentSharp.Enums.TorrentFlags.AutoManaged); m.SetFlags(LibtorrentSharp.Enums.TorrentFlags.Paused); },
+            "Pause"));
 
     public Task<Result> ResumeAsync(TorrentId id, CancellationToken ct = default) =>
         Task.FromResult(InvokeOnHandle(id, m => m.Resume(), m => m.Resume(), "Resume"));
@@ -1617,10 +1566,9 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
     public async Task<TorrentDetailInfo?> GetTorrentDetailAsync(TorrentId id, CancellationToken ct = default)
     {
         var stateRecord = await _stateStore.GetByIdAsync(id, ct).ConfigureAwait(false);
-        if (stateRecord is null)
-        {
-            return null;
-        }
+        // stateRecord may be null for torrents loaded via libtorrent resume but lacking a
+        // state-DB entry (e.g. the DB was cleared). We still show what we can; AddedDate
+        // and CompletionDate will render as "—" when the record is missing.
 
         string? savePath = null;
         string? comment = null;
@@ -1665,9 +1613,15 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             else
             {
                 // Pure magnet or resume-loaded magnet without a cached TorrentInfo —
-                // NumPieces is available on the handle once metadata resolves.
+                // NumPieces and PieceLength are available on the handle once metadata resolves.
                 totalPieces = magnet.NumPieces;
+                pieceLength = magnet.PieceLength;
             }
+        }
+        else
+        {
+            // Torrent is not loaded in the libtorrent session — nothing to show.
+            return null;
         }
 
         return new TorrentDetailInfo(
@@ -1676,8 +1630,10 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             Comment: comment,
             Creator: creator,
             CreationDate: creationDate,
-            AddedDate: new DateTimeOffset(stateRecord.AddedUtc, TimeSpan.Zero),
-            CompletionDate: stateRecord.CompletedUtc.HasValue
+            AddedDate: stateRecord is not null
+                ? new DateTimeOffset(stateRecord.AddedUtc, TimeSpan.Zero)
+                : null,
+            CompletionDate: stateRecord?.CompletedUtc.HasValue == true
                 ? new DateTimeOffset(stateRecord.CompletedUtc.Value, TimeSpan.Zero)
                 : null,
             TotalPieces: totalPieces,

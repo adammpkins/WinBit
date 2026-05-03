@@ -30,7 +30,7 @@ public sealed class TorrentCreatorEndpointsTests : IAsyncLifetime
             new StubTorrentSession(), new NoopLog(), new PeerLogService(),
             new StubCategoryService(), new StubTagService(),
             new StubRssService(), new StubAutoDownloaderService(),
-            new StubRssArticleCache(), new StubRssRefresher(), _queue, new StubTorrentStateStore(), TestPaths.Ambient);
+            new StubRssArticleCache(), new StubRssRefresher(), _queue, new StubTorrentStateStore(), TestPaths.Ambient, new StubSearchPluginHost());
     }
 
     public async Task InitializeAsync()

@@ -60,4 +60,6 @@ public sealed partial class TrackerRowViewModel : ObservableObject
 
         LastError = info.LastError;
     }
+
+    public override string ToString() => Url;
 }

@@ -27,6 +27,13 @@ public interface ITorrentStateStore
     /// </summary>
     Task<byte[]?> LoadFastResumeAsync(TorrentId id, int expectedVersion, CancellationToken ct = default);
 
+    /// <summary>
+    /// Sets <c>completed_utc</c> for an existing torrent row. If no row exists for
+    /// <paramref name="id"/>, the call is a no-op. Used by the alert pump on
+    /// <c>TorrentFinishedAlert</c> to record mid-session completions without a full upsert.
+    /// </summary>
+    Task UpdateCompletedUtcAsync(TorrentId id, DateTime completedUtc, CancellationToken ct = default);
+
     Task<IReadOnlyList<TorrentStateRecord>> GetAllAsync(CancellationToken ct = default);
 
     Task<TorrentStateRecord?> GetByIdAsync(TorrentId id, CancellationToken ct = default);

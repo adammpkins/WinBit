@@ -26,4 +26,6 @@ public sealed partial class PeerRowViewModel : ObservableObject
         DownloadText = PeerInfoFormatter.FormatSpeed(info.DownloadSpeedBps);
         UploadText = PeerInfoFormatter.FormatSpeed(info.UploadSpeedBps);
     }
+
+    public override string ToString() => Address;
 }

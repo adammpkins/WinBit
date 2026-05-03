@@ -6,6 +6,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using WinBit.Core.BitTorrent;
@@ -52,6 +53,7 @@ public sealed partial class MainWindow : Window
 
         _navigation.Initialize(RootFrame);
         RootFrame.Loaded += OnRootFrameLoaded;
+        ((FrameworkElement)Content).Loaded += OnLoaded;
         _themes.ThemeChanged += OnThemeChanged;
         AppWindow.Closing += OnAppWindowClosing;
         Closed += OnWindowClosed;
@@ -170,6 +172,33 @@ public sealed partial class MainWindow : Window
             }
             yield return Path.Combine(AppContext.BaseDirectory, "AppX", "Assets", name);
             yield return Path.Combine(AppContext.BaseDirectory, "Assets", name);
+        }
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e) => SetTrayIcon();
+
+    private void SetTrayIcon()
+    {
+        // H.NotifyIcon resolves IconSource via Windows.Storage.StorageFile.GetFileFromApplicationUriAsync,
+        // which only accepts ms-appx:// / ms-appdata:// URIs. Passing a file:// URI throws asynchronously
+        // on the dispatcher continuation and bypasses any local try/catch. Only set IconSource when running
+        // packaged (where ms-appx:// resolves). Unpackaged runs leave the tray with a default icon.
+        try
+        {
+            _ = Windows.ApplicationModel.Package.Current.InstalledLocation;
+        }
+        catch
+        {
+            return;
+        }
+
+        try
+        {
+            TrayIcon.IconSource = new BitmapImage(new Uri("ms-appx:///Assets/AppIcon.ico"));
+        }
+        catch
+        {
+            // Tray icon is best-effort — the system tray falls back to a generic icon if this fails.
         }
     }
 

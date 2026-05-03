@@ -51,24 +51,46 @@
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
                     CornerRadius="8">
-                <controls:TreeView x:Name="FeedTree"
-                                   SelectionMode="Single"
-                                   ItemInvoked="OnFeedInvoked"
-                                   Background="Transparent"
-                                   Margin="8">
-                    <controls:TreeView.ItemTemplate>
-                        <DataTemplate x:DataType="local:RssTreeItem">
-                            <controls:TreeViewItem ItemsSource="{x:Bind Children, Mode=OneWay}"
-                                                   AutomationProperties.Name="{x:Bind Label, Mode=OneWay}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon FontSize="14" Glyph="{x:Bind Glyph, Mode=OneWay}" />
-                                    <TextBlock Text="{x:Bind Label, Mode=OneWay}"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </controls:TreeViewItem>
-                        </DataTemplate>
-                    </controls:TreeView.ItemTemplate>
-                </controls:TreeView>
+                <Grid>
+                    <controls:TreeView x:Name="FeedTree"
+                                       SelectionMode="Single"
+                                       ItemInvoked="OnFeedInvoked"
+                                       Background="Transparent"
+                                       Margin="8">
+                        <controls:TreeView.ItemTemplate>
+                            <DataTemplate x:DataType="local:RssTreeItem">
+                                <controls:TreeViewItem ItemsSource="{x:Bind Children, Mode=OneWay}"
+                                                       AutomationProperties.Name="{x:Bind Label, Mode=OneWay}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon FontSize="14" Glyph="{x:Bind Glyph, Mode=OneWay}" />
+                                        <TextBlock Text="{x:Bind Label, Mode=OneWay}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </controls:TreeViewItem>
+                            </DataTemplate>
+                        </controls:TreeView.ItemTemplate>
+                    </controls:TreeView>
+
+                    <StackPanel x:Name="FeedEmptyState"
+                                Visibility="Collapsed"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="12">
+                        <FontIcon Glyph="&#xE704;"
+                                  FontSize="40"
+                                  HorizontalAlignment="Center"
+                                  Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <TextBlock Text="No feeds"
+                                   Style="{ThemeResource SubtitleTextBlockStyle}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="Click &quot;Add feed…&quot; to subscribe to an RSS feed."
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="200"
+                                   TextAlignment="Center" />
+                    </StackPanel>
+                </Grid>
             </Border>
 
             <Grid Grid.Column="1" RowSpacing="8">

@@ -27,7 +27,8 @@ public sealed class SearchEndpointsTests : IAsyncLifetime
             new StubCategoryService(), new StubTagService(),
             new StubRssService(), new StubAutoDownloaderService(),
             new StubRssArticleCache(), new StubRssRefresher(),
-            new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new StubTorrentStateStore(), TestPaths.Ambient);
+            new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()),
+            new StubTorrentStateStore(), TestPaths.Ambient, new StubSearchPluginHost());
     }
 
     public async Task InitializeAsync()
@@ -45,7 +46,7 @@ public sealed class SearchEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Plugins_returns_empty_array_when_authenticated()
+    public async Task Plugins_returns_empty_array_when_no_plugins_registered()
     {
         await Login();
         var body = await _client.GetStringAsync("/api/v2/search/plugins");
@@ -53,37 +54,51 @@ public sealed class SearchEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Status_returns_empty_array()
+    public async Task Status_returns_empty_array_when_no_jobs()
     {
         await Login();
         (await _client.GetStringAsync("/api/v2/search/status")).Should().Be("[]");
     }
 
     [Fact]
-    public async Task Results_returns_stopped_envelope_with_zero_rows()
+    public async Task Results_returns_404_for_unknown_job_id()
     {
         await Login();
-        var json = JsonDocument.Parse(await _client.GetStringAsync("/api/v2/search/results")).RootElement;
-        json.GetProperty("status").GetString().Should().Be("Stopped");
-        json.GetProperty("total").GetInt32().Should().Be(0);
-        json.GetProperty("results").GetArrayLength().Should().Be(0);
+        var response = await _client.GetAsync("/api/v2/search/results?id=99999");
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    [Theory]
-    [InlineData("start")]
-    [InlineData("stop")]
-    [InlineData("delete")]
-    [InlineData("installPlugin")]
-    [InlineData("uninstallPlugin")]
-    [InlineData("enablePlugin")]
-    [InlineData("updatePlugins")]
-    public async Task Mutating_routes_return_409_with_unavailable_body(string verb)
+    [Fact]
+    public async Task Start_creates_job_and_returns_id()
     {
         await Login();
-        var response = await _client.PostAsync($"/api/v2/search/{verb}",
+        var response = await _client.PostAsync("/api/v2/search/start",
+            new FormUrlEncodedContent([new KeyValuePair<string, string>("pattern", "ubuntu")]));
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        json.GetProperty("id").GetInt32().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Start_requires_pattern_field()
+    {
+        await Login();
+        var response = await _client.PostAsync("/api/v2/search/start",
             new FormUrlEncodedContent(Array.Empty<KeyValuePair<string, string>>()));
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        (await response.Content.ReadAsStringAsync()).Should().Be("Search service unavailable");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Stop_and_delete_return_ok_for_unknown_id()
+    {
+        await Login();
+        var stop = await _client.PostAsync("/api/v2/search/stop",
+            new FormUrlEncodedContent([new KeyValuePair<string, string>("id", "99999")]));
+        stop.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var delete = await _client.PostAsync("/api/v2/search/delete",
+            new FormUrlEncodedContent([new KeyValuePair<string, string>("id", "99999")]));
+        delete.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

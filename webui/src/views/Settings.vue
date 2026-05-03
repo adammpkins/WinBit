@@ -2,7 +2,7 @@
   <div class="settings-root">
     <div class="settings-header">
       <h1 class="page-title">Settings</h1>
-      <div v-if="saved" class="save-badge">✓ Saved</div>
+      <div v-if="saved" class="save-badge"><span class="fi" style="margin-right:4px">&#xE73E;</span>Saved</div>
     </div>
 
     <div v-if="!prefs" class="loading-state text-secondary">Loading settings…</div>
@@ -44,11 +44,11 @@
               @click="setPref('accent_color', c)"
             />
             <div
-              class="accent-swatch accent-swatch--clear"
+              class="accent-swatch accent-swatch--clear fi"
               :class="{ active: !prefs.accent_color }"
               @click="setPref('accent_color', null)"
               title="Default"
-            >✕</div>
+            >&#xE711;</div>
           </div>
         </div>
       </section>
@@ -68,6 +68,28 @@
             class="setting-input"
             @change="setPref('save_path', $event.target.value)"
           />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Pre-allocate Disk Space</span>
+            <span class="setting-desc text-secondary">Reserve full file size on disk before downloading</span>
+          </div>
+          <div class="toggle" :class="{ on: prefs.preallocate_all }"
+            @click="setPref('preallocate_all', !prefs.preallocate_all)">
+            <div class="toggle-thumb" />
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Auto Torrent Management</span>
+            <span class="setting-desc text-secondary">Automatically move torrents based on category save paths</span>
+          </div>
+          <div class="toggle" :class="{ on: prefs.auto_tmm_enabled }"
+            @click="setPref('auto_tmm_enabled', !prefs.auto_tmm_enabled)">
+            <div class="toggle-thumb" />
+          </div>
         </div>
       </section>
 
@@ -94,6 +116,30 @@
 
         <div class="setting-row">
           <div class="setting-info">
+            <span class="setting-label">Username</span>
+            <span class="setting-desc text-secondary">Web UI login username (min 3 characters)</span>
+          </div>
+          <input type="text" class="port-input" style="width: 160px; text-align: left; font-family: inherit"
+            :value="prefs.web_ui_username ?? 'admin'"
+            @change="setPref('web_ui_username', $event.target.value)" />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Password</span>
+            <span class="setting-desc text-secondary">New password (min 6 characters, leave blank to keep current)</span>
+          </div>
+          <div class="speed-input-wrap">
+            <input type="password" class="port-input" style="width: 160px; text-align: left; font-family: inherit"
+              v-model="newPassword"
+              placeholder="New password"
+              @keydown.enter="applyPassword" />
+            <fluent-button appearance="lightweight" @click="applyPassword">Set</fluent-button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
             <span class="setting-label">Remote Access</span>
             <span class="setting-desc text-secondary">
               Allow connections from other devices on the network — WebUI restarts automatically
@@ -110,9 +156,166 @@
 
         <Transition name="slide-fade">
           <div v-if="restarting" class="restart-notice">
-            ↻ WebUI restarting… reconnecting
+            <span class="fi" style="margin-right:6px">&#xE72C;</span>WebUI restarting… reconnecting
           </div>
         </Transition>
+      </section>
+
+      <!-- Speed -->
+      <section class="settings-section panel">
+        <h2 class="section-title">Speed</h2>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Download Limit</span>
+            <span class="setting-desc text-secondary">Global download speed cap (0 = unlimited)</span>
+          </div>
+          <div class="speed-input-wrap">
+            <input type="number" class="port-input" min="0"
+              :value="bpsToKbps(prefs.dl_limit)"
+              @change="setPref('dl_limit', kbpsToBps(+$event.target.value))" />
+            <span class="speed-unit">kB/s</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Upload Limit</span>
+            <span class="setting-desc text-secondary">Global upload speed cap (0 = unlimited)</span>
+          </div>
+          <div class="speed-input-wrap">
+            <input type="number" class="port-input" min="0"
+              :value="bpsToKbps(prefs.up_limit)"
+              @change="setPref('up_limit', kbpsToBps(+$event.target.value))" />
+            <span class="speed-unit">kB/s</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Alt Download Limit</span>
+            <span class="setting-desc text-secondary">Alternative speed mode download cap</span>
+          </div>
+          <div class="speed-input-wrap">
+            <input type="number" class="port-input" min="0"
+              :value="bpsToKbps(prefs.alt_dl_limit)"
+              @change="setPref('alt_dl_limit', kbpsToBps(+$event.target.value))" />
+            <span class="speed-unit">kB/s</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Alt Upload Limit</span>
+            <span class="setting-desc text-secondary">Alternative speed mode upload cap</span>
+          </div>
+          <div class="speed-input-wrap">
+            <input type="number" class="port-input" min="0"
+              :value="bpsToKbps(prefs.alt_up_limit)"
+              @change="setPref('alt_up_limit', kbpsToBps(+$event.target.value))" />
+            <span class="speed-unit">kB/s</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Schedule Bandwidth</span>
+            <span class="setting-desc text-secondary">Auto-switch to alt-speed on a schedule</span>
+          </div>
+          <div class="toggle" :class="{ on: prefs.scheduler_enabled }"
+            @click="setPref('scheduler_enabled', !prefs.scheduler_enabled)">
+            <div class="toggle-thumb" />
+          </div>
+        </div>
+
+        <template v-if="prefs.scheduler_enabled">
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">From</span>
+              <span class="setting-desc text-secondary">Alt-speed start time</span>
+            </div>
+            <div class="time-inputs">
+              <input type="number" class="port-input time-h" min="0" max="23"
+                :value="prefs.schedule_from_hour ?? 8"
+                @change="setPref('schedule_from_hour', +$event.target.value)" />
+              <span class="time-sep">:</span>
+              <input type="number" class="port-input time-m" min="0" max="59"
+                :value="prefs.schedule_from_min ?? 0"
+                @change="setPref('schedule_from_min', +$event.target.value)" />
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">To</span>
+              <span class="setting-desc text-secondary">Alt-speed end time</span>
+            </div>
+            <div class="time-inputs">
+              <input type="number" class="port-input time-h" min="0" max="23"
+                :value="prefs.schedule_to_hour ?? 20"
+                @change="setPref('schedule_to_hour', +$event.target.value)" />
+              <span class="time-sep">:</span>
+              <input type="number" class="port-input time-m" min="0" max="59"
+                :value="prefs.schedule_to_min ?? 0"
+                @change="setPref('schedule_to_min', +$event.target.value)" />
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Days</span>
+              <span class="setting-desc text-secondary">Which days the schedule applies</span>
+            </div>
+            <select class="days-select"
+              :value="prefs.scheduler_days ?? 0"
+              @change="setPref('scheduler_days', +$event.target.value)">
+              <option value="0">Every day</option>
+              <option value="1">Weekdays</option>
+              <option value="2">Weekends</option>
+              <option value="3">Monday</option>
+              <option value="4">Tuesday</option>
+              <option value="5">Wednesday</option>
+              <option value="6">Thursday</option>
+              <option value="7">Friday</option>
+              <option value="8">Saturday</option>
+              <option value="9">Sunday</option>
+            </select>
+          </div>
+        </template>
+      </section>
+
+      <!-- Connection -->
+      <section class="settings-section panel">
+        <h2 class="section-title">Connection</h2>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Listen Port</span>
+            <span class="setting-desc text-secondary">BitTorrent incoming connection port</span>
+          </div>
+          <input
+            type="number"
+            class="port-input"
+            :value="prefs.listen_port ?? 6881"
+            min="1"
+            max="65535"
+            @change="setPref('listen_port', +$event.target.value)"
+          />
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">UPnP / NAT-PMP</span>
+            <span class="setting-desc text-secondary">Automatic port forwarding via UPnP</span>
+          </div>
+          <div
+            class="toggle"
+            :class="{ on: prefs.upnp ?? true }"
+            @click="setPref('upnp', !(prefs.upnp ?? true))"
+          >
+            <div class="toggle-thumb" />
+          </div>
+        </div>
       </section>
 
       <!-- BitTorrent -->
@@ -132,6 +335,20 @@
             <div class="toggle-thumb" />
           </div>
         </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Encryption Mode</span>
+            <span class="setting-desc text-secondary">MSE/PE protocol encryption for peer connections</span>
+          </div>
+          <select class="days-select"
+            :value="prefs.encryption ?? 0"
+            @change="setPref('encryption', +$event.target.value)">
+            <option value="0">Prefer encryption</option>
+            <option value="1">Require encryption</option>
+            <option value="2">Disable encryption</option>
+          </select>
+        </div>
       </section>
 
     </div>
@@ -149,6 +366,14 @@ const saved = ref(false)
 const restarting = ref(false)
 const portDraft = ref(0)
 const portChanged = ref(false)
+const newPassword = ref('')
+
+function applyPassword() {
+  if (newPassword.value.length >= 6) {
+    setPref('web_ui_password', newPassword.value)
+    newPassword.value = ''
+  }
+}
 let saveTimer = null
 
 const prefs = computed(() => preferences.value ? { ...preferences.value } : null)
@@ -173,6 +398,9 @@ const btItems = [
   { key: 'pex',  label: 'Peer Exchange (PEX)', desc: 'Share peer lists between connected peers' },
   { key: 'lsd',  label: 'Local Service Discovery', desc: 'Find peers on your local network' },
 ]
+
+function bpsToKbps(bps) { return bps ? Math.round(bps / 1024) : 0 }
+function kbpsToBps(kbps) { return kbps ? kbps * 1024 : 0 }
 
 async function setPref(key, value) {
   await appStore.savePreferences({ [key]: value })
@@ -248,6 +476,39 @@ async function pollReconnect() {
 
 .setting-input { min-width: 220px; }
 .setting-input--sm { min-width: 90px; }
+
+.port-input {
+  width: 90px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  font-size: 13px;
+  text-align: right;
+  font-family: monospace;
+}
+.port-input:focus {
+  outline: none;
+  border-color: var(--accent, #744da9);
+}
+
+.speed-input-wrap { display: flex; align-items: center; gap: 6px; }
+.speed-unit { font-size: 12px; color: rgba(255,255,255,0.4); white-space: nowrap; }
+.time-inputs { display: flex; align-items: center; gap: 4px; }
+.time-h { width: 52px !important; }
+.time-m { width: 52px !important; }
+.time-sep { color: rgba(255,255,255,0.5); font-size: 14px; font-weight: 600; }
+.days-select {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: white;
+  padding: 5px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.days-select:focus { outline: none; border-color: var(--accent); }
 
 /* Theme toggle */
 .theme-toggle { display: flex; gap: 4px; }

@@ -11,6 +11,7 @@ using WinBit.Core.Categories;
 using WinBit.Core.Logging;
 using WinBit.Core.Persistence;
 using WinBit.Core.Rss;
+using WinBit.Core.Search;
 using WinBit.Core.Settings;
 using WinBit.Core.Tags;
 using WinBit.Core.WebUi.Endpoints;
@@ -44,6 +45,7 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
     private readonly ITorrentCreatorQueue _creatorQueue;
     private readonly ITorrentStateStore _stateStore;
     private readonly Paths _paths;
+    private readonly ISearchPluginHost _searchPluginHost;
     private WebApplication? _app;
     private int? _boundPort;
     private string? _currentBindAddress;
@@ -60,7 +62,7 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         ICategoryService categories, ITagService tags,
         IRssService rss, IAutoDownloaderService autoDownloader, IRssArticleCache rssArticles,
         IRssRefresher rssRefresher, ITorrentCreatorQueue creatorQueue,
-        ITorrentStateStore stateStore, Paths paths)
+        ITorrentStateStore stateStore, Paths paths, ISearchPluginHost searchPluginHost)
     {
         _settings = settings;
         _auth = auth;
@@ -76,15 +78,29 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         _creatorQueue = creatorQueue;
         _stateStore = stateStore;
         _paths = paths;
+        _searchPluginHost = searchPluginHost;
     }
 
     public async Task StartAsync(CancellationToken ct)
     {
+        // Always subscribe to settings so we can react to the toggle being
+        // flipped on later — even if we're disabled at host-start time.
+        if (_settingsWatcher is null)
+        {
+            _settingsWatcher = OnSettingsChanged;
+            _settings.Changed += _settingsWatcher;
+        }
+
         if (!_settings.Current.WebUi.Enabled)
         {
             return;
         }
 
+        await StartHostAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task StartHostAsync(CancellationToken ct)
+    {
         var builder = WebApplication.CreateBuilder();
 
         // Route Kestrel's logs through our ILogService so the Logs tab picks up request noise
@@ -110,10 +126,7 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         });
 
         var app = builder.Build();
-        // qBittorrent admin UI at /qbittorrent/* — registered before API endpoints so its
-        // middleware can opt-out of /api/* routes and fall through to them.
-        QBittorrentAssets.Map(app, _auth);
-        // WinBit native Vue SPA — catch-all after API endpoints.
+        // WinBit Vue SPA — catch-all after API endpoints.
         WinBitAppAssets.Map(app);
 
         AppEndpoints.Map(app, _settings, _auth);
@@ -124,7 +137,7 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         SyncEndpoints.Map(app, _session, _settings, _categories, _tags, _auth);
         RssEndpoints.Map(app, _rss, _autoDownloader, _rssArticles, _rssRefresher, _auth);
         TorrentCreatorEndpoints.Map(app, _creatorQueue, _auth);
-        SearchEndpoints.Map(app, _auth);
+        SearchEndpoints.Map(app, _auth, _searchPluginHost);
 
         await app.StartAsync(ct).ConfigureAwait(false);
 
@@ -132,9 +145,6 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         _currentBindAddress = bindAddress;
         _currentPort = port;
         _app = app;
-
-        _settingsWatcher = OnSettingsChanged;
-        _settings.Changed += _settingsWatcher;
 
         _log.Write($"Web UI listening on {bindAddress}:{_boundPort?.ToString() ?? "?"}.");
     }
@@ -147,6 +157,11 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
             _settingsWatcher = null;
         }
 
+        await StopHostAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task StopHostAsync(CancellationToken ct)
+    {
         if (_app is null) return;
 
         await _app.StopAsync(ct).ConfigureAwait(false);
@@ -155,28 +170,39 @@ public sealed class WebUiService : IHostedService, IWebUiService, IAsyncDisposab
         _boundPort = null;
         _currentBindAddress = null;
         _currentPort = null;
+        _log.Write("Web UI stopped.");
     }
 
     private void OnSettingsChanged(object? sender, AppSettings s)
     {
-        if (!s.WebUi.Enabled) return;
+        var enabled = s.WebUi.Enabled;
+        var running = _app is not null;
 
-        var newBind = s.WebUi.EnableRemoteAccess ? "0.0.0.0" : s.WebUi.BindAddress;
-        var newPort = s.WebUi.Port;
+        // Toggle off → stop. Toggle on → start. Already-running rebind/port
+        // changes restart in place. Disabled-and-already-stopped is a no-op.
+        if (!enabled && !running) return;
+        if (enabled && running)
+        {
+            var newBind = s.WebUi.EnableRemoteAccess ? "0.0.0.0" : s.WebUi.BindAddress;
+            var newPort = s.WebUi.Port;
+            if (newBind == _currentBindAddress && newPort == _currentPort) return;
+        }
 
-        if (newBind == _currentBindAddress && newPort == _currentPort) return;
-
-        // Only one restart in flight at a time. The delay lets the HTTP response
-        // that triggered this change finish before Kestrel tears down.
         if (Interlocked.Exchange(ref _restartPending, 1) != 0) return;
 
         _ = Task.Run(async () =>
         {
             try
             {
+                // Let the HTTP response that triggered this change finish before
+                // Kestrel tears down (only matters for in-place restart, but the
+                // small delay is harmless on cold start/stop too).
                 await Task.Delay(500).ConfigureAwait(false);
-                await StopAsync(CancellationToken.None).ConfigureAwait(false);
-                await StartAsync(CancellationToken.None).ConfigureAwait(false);
+                await StopHostAsync(CancellationToken.None).ConfigureAwait(false);
+                if (enabled)
+                {
+                    await StartHostAsync(CancellationToken.None).ConfigureAwait(false);
+                }
             }
             finally
             {

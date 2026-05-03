@@ -410,6 +410,31 @@ public sealed class MagnetHandle
     public int NumPieces => IsValid ? NativeMethods.TorrentHandleNumPieces(Handle) : 0;
 
     /// <summary>
+    /// Uniform piece length in bytes. Returns 0 when metadata has not yet resolved.
+    /// </summary>
+    public int PieceLength
+    {
+        get
+        {
+            if (!IsValid) return 0;
+            // get_torrent_info throws an SEH exception for resume-loaded handles whose
+            // native torrent_info is not retained in the session (e.g. seeding-only resume).
+            // Return 0 in that case — same sentinel as "metadata not yet resolved".
+            try
+            {
+                var infoPtr = NativeMethods.GetTorrentInfo(Handle);
+                if (infoPtr == IntPtr.Zero) return 0;
+                try { return NativeMethods.TorrentInfoPieceLength(infoPtr); }
+                finally { NativeMethods.FreeTorrentInfo(infoPtr); }
+            }
+            catch (System.Runtime.InteropServices.SEHException)
+            {
+                return 0;
+            }
+        }
+    }
+
+    /// <summary>
     /// Total size of all files in bytes. Returns 0 when metadata has not yet
     /// resolved (pre-metadata magnet or resume-loaded handle before checking completes).
     /// </summary>
@@ -552,6 +577,19 @@ public sealed class MagnetHandle
         {
             NativeMethods.FreeTorrentFileList(ref list);
         }
+    }
+
+    /// <summary>
+    /// Snapshot of bytes downloaded per file. Index <c>i</c> matches the file's <c>Index</c>
+    /// in the list returned by <see cref="GetFiles()"/>. Returns an empty array when the handle
+    /// is invalid or <paramref name="numFiles"/> is zero.
+    /// </summary>
+    public long[] GetFileProgress(int numFiles)
+    {
+        if (!IsValid || numFiles <= 0) return Array.Empty<long>();
+        var result = new long[numFiles];
+        NativeMethods.GetFileProgress(Handle, result, numFiles);
+        return result;
     }
 
     /// <summary>

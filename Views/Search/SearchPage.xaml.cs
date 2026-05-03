@@ -91,4 +91,10 @@ public sealed partial class SearchPage : Page
     };
 
     private Visibility HasHits(int count) => count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    private Visibility ShowInitial(int count, string? text) =>
+        count == 0 && text is null ? Visibility.Visible : Visibility.Collapsed;
+
+    private Visibility ShowNoResults(int count, string? text) =>
+        count == 0 && text is not null ? Visibility.Visible : Visibility.Collapsed;
 }

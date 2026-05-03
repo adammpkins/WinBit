@@ -71,8 +71,7 @@
                       CornerRadius="4"
                       AlternateRowBackground="{ThemeResource LayerFillColorAltBrush}"
                       Background="Transparent"
-                      Padding="16,12,16,16"
-                      RightTapped="OnTransfersGridRightTapped">
+                      Padding="16,12,16,16">
                 <tv:TableView.ContextFlyout>
                     <MenuFlyout Opening="OnContextMenuOpening">
                         <MenuFlyoutItem x:Name="RenameMenuItem" Text="Rename" Click="OnRenameClicked">
@@ -541,7 +540,9 @@
 
                         <controls:SpeedGraph Grid.Row="1"
                                              x:Name="SpeedChart"
-                                             MinHeight="180" />
+                                             MinHeight="180"
+                                             DownloadSamples="{x:Bind ViewModel.Properties.SpeedDownloadSamples, Mode=OneWay}"
+                                             UploadSamples="{x:Bind ViewModel.Properties.SpeedUploadSamples, Mode=OneWay}" />
 
                         <StackPanel Grid.Row="2"
                                     Orientation="Horizontal"
@@ -563,10 +564,6 @@
                                            Style="{ThemeResource CaptionTextBlockStyle}"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
-                            <TextBlock Text="Rolling 10-minute window populates once the selection + per-tab poll lands."
-                                       Style="{ThemeResource CaptionTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                       VerticalAlignment="Center" />
                         </StackPanel>
                     </Grid>
                 </PivotItem>

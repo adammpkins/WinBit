@@ -51,4 +51,8 @@ public readonly record struct TorrentSnapshot
     public bool IsForceStart { get; init; }
 
     public long TotalSize { get; init; }
+
+    public DateTime AddedUtc { get; init; }
+
+    public DateTime? CompletedUtc { get; init; }
 }

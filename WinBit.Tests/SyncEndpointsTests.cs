@@ -30,7 +30,7 @@ public sealed class SyncEndpointsTests : IAsyncLifetime
         Settings.Current.WebUi.Port = 0;
         _service = new WebUiService(Settings, new WebUiAuthService(Settings), _session,
             new NoopLog(), new PeerLogService(), _categories, _tags,
-            new StubRssService(), new StubAutoDownloaderService(), new StubRssArticleCache(), new StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new StubTorrentStateStore(), TestPaths.Ambient);
+            new StubRssService(), new StubAutoDownloaderService(), new StubRssArticleCache(), new StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new StubTorrentStateStore(), TestPaths.Ambient, new StubSearchPluginHost());
     }
 
     public async Task InitializeAsync()

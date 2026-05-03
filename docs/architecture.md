@@ -1,5 +1,7 @@
 # Architecture
 
+Authoritative map of WinBit's solution structure and service boundaries.
+
 ## Solution layout
 
 Five projects, referenced by `WinBit.slnx`:
@@ -17,7 +19,7 @@ libtorrentsharp\LibtorrentSharp.Tests\ # xUnit for the binding (Network tests op
 
 Full directory tree lives in the plan file. Highlights:
 
-- `WinBit.Core/BitTorrent/` — torrent engine layer. `ITorrentSessionService` contract with two implementations: `TorrentSessionService` (MonoTorrent, active on `main`) and `LibTorrentSessionService` (libtorrent adapter behind `AdvancedSettings.UseLibtorrentEngine`). Plus bandwidth scheduler, encryption/peer-discovery/speed-profile appliers, torrent creator queue, snapshots, state/error formatting, tracker + peer info types.
+- `WinBit.Core/BitTorrent/` — torrent engine layer. `ITorrentSessionService` contract implemented by `LibTorrentSessionService` (libtorrent adapter via the in-repo LibtorrentSharp binding). Plus bandwidth scheduler, encryption/peer-discovery/speed-profile appliers, torrent creator queue, snapshots, state/error formatting, tracker + peer info types.
 - `WinBit.Core/Settings/` — `AppSettings` POCO tree + JSON store.
 - `WinBit.Core/Persistence/` — SQLite store for torrent state + fast-resume; JSON for everything else.
 - `WinBit.Core/Rss/` — feeds, articles, auto-downloader rules.
@@ -34,7 +36,7 @@ Signatures are sketched in the plan file. Milestones fill them in:
 
 | Service | Milestone | Notes |
 |---|---|---|
-| `ITorrentSessionService` | M3 | Two impls: `TorrentSessionService` (MonoTorrent `ClientEngine` wrapper, active on `main`); `LibTorrentSessionService` (libtorrent adapter behind `UseLibtorrentEngine` flag, incubating on `engine/libtorrent-bindings`). Decision record: [`torrent-engine.md`](./torrent-engine.md). |
+| `ITorrentSessionService` | M3 | `LibTorrentSessionService` wraps libtorrent-rasterbar via the in-repo LibtorrentSharp binding. Decision record: [`torrent-engine.md`](./torrent-engine.md). |
 | `ISettingsService` + `ISettingsStore` | M2 | POCO tree, JSON persistence, debounced save |
 | `ITorrentStateStore` | M2/M3 | SQLite, WAL mode, serialized writer |
 | `ICategoryService` / `ITagService` | M5 | With TMM path rules |
@@ -54,6 +56,8 @@ Signatures are sketched in the plan file. Milestones fill them in:
 - `App.Services` is a static accessor on `App` for views to resolve their VMs.
 
 ## Threading
+
+Async end-to-end, single UI dispatcher, 1 Hz batched polling, WAL-mode SQLite with single-writer queue.
 
 ## Cross-cutting
 

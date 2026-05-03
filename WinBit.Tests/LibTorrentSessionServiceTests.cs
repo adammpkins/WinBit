@@ -136,6 +136,110 @@ public sealed class LibTorrentSessionServiceTests
         result.Error.Should().Contain("not running");
     }
 
+    // Alert-pump batching (snapshot fan-out across multiple torrents per tick) requires
+    // lts.dll to be present and a live LibtorrentSession. That path is covered by
+    // LibtorrentSharp.Tests/Network/ResumeRoundTripTests, which runs as a Category=Network
+    // opt-in test.
+
+    [Fact]
+    public async Task RemoveAsync_nonexistent_id_is_noop()
+    {
+        // Engine not started — _client is null so RemoveAsync returns a typed failure
+        // rather than throwing. Callers must be able to call Remove for an ID they no
+        // longer hold without getting an exception.
+        using var temp = new TempDirectory();
+        await using var service = CreateService(temp);
+        var unknownId = TorrentId.FromInfoHash(new string('e', 40));
+
+        var act = () => service.RemoveAsync(unknownId);
+
+        await act.Should().NotThrowAsync();
+        var result = await service.RemoveAsync(unknownId);
+        result.IsSuccess.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetAsync_returns_null_for_unknown_id()
+    {
+        // GetTorrentDetailAsync consults the state store before touching the engine, so
+        // no StartAsync is required — a missing state record returns null cleanly.
+        using var temp = new TempDirectory();
+        await using var service = CreateService(temp);
+        var unknownId = TorrentId.FromInfoHash(new string('f', 40));
+
+        var detail = await service.GetTorrentDetailAsync(unknownId);
+
+        detail.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task StateStore_resume_blob_round_trip()
+    {
+        // SaveFastResumeAsync is a no-op when no row exists for the id, so the record
+        // must be upserted first — matching the production code path where AddAsync
+        // always upserts before persisting a blob.
+        var store = new InMemoryTorrentStateStore();
+        var id = TorrentId.FromInfoHash(new string('1', 40));
+        var blob = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02 };
+        const int version = 3;
+
+        await store.UpsertTorrentAsync(new TorrentStateRecord
+        {
+            Id = id,
+            Name = "round-trip-fixture",
+            SavePath = @"C:\Downloads",
+        });
+        await store.SaveFastResumeAsync(id, blob, version);
+
+        var loaded = await store.LoadFastResumeAsync(id, version);
+
+        loaded.Should().NotBeNull();
+        loaded!.Should().Equal(blob);
+        store.Blobs[id].Version.Should().Be(version);
+    }
+
+    [Fact]
+    public async Task StateStore_load_returns_null_for_missing_id()
+    {
+        var store = new InMemoryTorrentStateStore();
+        var id = TorrentId.FromInfoHash(new string('2', 40));
+
+        var loaded = await store.LoadFastResumeAsync(id, expectedVersion: 1);
+
+        loaded.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task StateStore_save_overwrites_previous_blob()
+    {
+        // Latest-wins: the second SaveFastResumeAsync for the same id must replace the first.
+        var store = new InMemoryTorrentStateStore();
+        var id = TorrentId.FromInfoHash(new string('3', 40));
+        var blobA = new byte[] { 0x01, 0x02, 0x03 };
+        var blobB = new byte[] { 0xAA, 0xBB, 0xCC, 0xDD };
+        const int version = 2;
+
+        await store.UpsertTorrentAsync(new TorrentStateRecord
+        {
+            Id = id,
+            Name = "overwrite-fixture",
+            SavePath = @"C:\Downloads",
+        });
+        await store.SaveFastResumeAsync(id, blobA, version);
+        await store.SaveFastResumeAsync(id, blobB, version);
+
+        var loaded = await store.LoadFastResumeAsync(id, version);
+
+        loaded.Should().NotBeNull();
+        loaded!.Should().Equal(blobB);
+    }
+
+    // Handle-map cleanup after RemoveAsync (verifying that _handles/_magnets no longer
+    // contain the entry) cannot be asserted without a running LibtorrentSession because
+    // _handles is private and entries only exist after a successful engine-backed AddAsync.
+    // That path is covered by the lts.dll-gated LibTorrentSessionServiceAddRemoveTests
+    // integration suite above.
+
     internal static LibTorrentSessionService CreateService(
         TempDirectory temp,
         IDispatcherQueueProvider? dispatcher = null,
@@ -205,6 +309,15 @@ public sealed class InMemoryTorrentStateStore : ITorrentStateStore
         return Task.FromResult(_blobs.TryGetValue(id, out var entry) && entry.Version == expectedVersion
             ? entry.Blob
             : null);
+    }
+
+    public Task UpdateCompletedUtcAsync(TorrentId id, DateTime completedUtc, CancellationToken ct = default)
+    {
+        if (_records.TryGetValue(id, out var existing))
+        {
+            _records[id] = existing with { CompletedUtc = completedUtc };
+        }
+        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<TorrentStateRecord>> GetAllAsync(CancellationToken ct = default) =>

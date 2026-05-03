@@ -8,21 +8,21 @@ Delivered in **M10**.
 
 In-process **Kestrel** via `WebUiService : IHostedService`. Started/stopped with the app host. Configuration surfaces through `AppSettings.WebUi` (enabled, port, HTTPS cert path, whitelist).
 
-## Routes (planned)
+## Routes
 
-Mirrors qBittorrent v2 (see qBittorrent's WebUI API surface for reference controllers):
+Mirrors the qBittorrent v2 API surface:
 
-| Route prefix | Controller (Core) | qBittorrent reference |
-|---|---|---|
-| `/api/v2/auth/*` | `AuthController` | `authcontroller.cpp` |
-| `/api/v2/app/*` | `AppController` | `appcontroller.cpp` |
-| `/api/v2/transfer/*` | `TransferController` | `transfercontroller.cpp` |
-| `/api/v2/torrents/*` | `TorrentsController` | `torrentscontroller.cpp` |
-| `/api/v2/sync/*` | `SyncController` | `synccontroller.cpp` |
-| `/api/v2/log/*` | `LogController` | `logcontroller.cpp` |
-| `/api/v2/rss/*` | `RssController` | `rsscontroller.cpp` |
-| `/api/v2/search/*` | `SearchController` | `searchcontroller.cpp` |
-| `/api/v2/torrentcreator/*` | `TorrentCreatorController` | `torrentcreatorcontroller.cpp` |
+| Route prefix | Controller (Core) |
+|---|---|
+| `/api/v2/auth/*` | `AuthController` |
+| `/api/v2/app/*` | `AppController` |
+| `/api/v2/transfer/*` | `TransferController` |
+| `/api/v2/torrents/*` | `TorrentsController` |
+| `/api/v2/sync/*` | `SyncController` |
+| `/api/v2/log/*` | `LogController` |
+| `/api/v2/rss/*` | `RssController` |
+| `/api/v2/search/*` | `SearchController` |
+| `/api/v2/torrentcreator/*` | `TorrentCreatorController` |
 
 ## Authentication
 
@@ -39,7 +39,7 @@ Mirrors qBittorrent v2 (see qBittorrent's WebUI API surface for reference contro
 
 ## Static content
 
-Ship qBittorrent's HTML admin UI (from qBittorrent's WebUI templates) as static files served by Kestrel. We already implement the API it talks to — the UI "just works." Post-M12 backlog item: replace with a native-feel web client.
+WinBit ships its own native Vue SPA (built from `webui/`) as the WebUI experience, served by Kestrel as embedded static content.
 
 ## Compatibility oracle
 

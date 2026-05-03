@@ -26,8 +26,9 @@ public static class RssEndpoints
             {
                 return Results.Unauthorized();
             }
+            var withData = string.Equals(ctx.Request.Query["withData"].ToString(), "true", StringComparison.OrdinalIgnoreCase);
             var root = await rss.GetTreeAsync(ctx.RequestAborted).ConfigureAwait(false);
-            return Results.Json(SerializeFolder(root));
+            return Results.Json(withData ? SerializeFolderWithData(root, articles) : SerializeFolder(root));
         });
 
         app.MapPost("/api/v2/rss/addFolder", async (HttpContext ctx) =>
@@ -324,6 +325,36 @@ public static class RssEndpoints
                 url = feed.Url,
                 uid = feed.Url, // we use URL as a stable uid — no per-feed GUID yet.
                 lastBuildDate = feed.LastRefreshUtc?.ToString("O"),
+            };
+        }
+        return dict;
+    }
+
+    internal static Dictionary<string, object> SerializeFolderWithData(RssFolder folder, IRssArticleCache cache)
+    {
+        var dict = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (var sub in folder.Folders)
+        {
+            dict[sub.Name] = SerializeFolderWithData(sub, cache);
+        }
+        foreach (var feed in folder.Feeds)
+        {
+            var title = string.IsNullOrWhiteSpace(feed.Title) ? feed.Url : feed.Title!;
+            var feedArticles = cache.Get(feed.Url).Select(a => new
+            {
+                id = a.Id,
+                title = a.Title,
+                date = a.PublishedUtc.ToString("O"),
+                torrentURL = a.TorrentUrl ?? string.Empty,
+                link = a.TorrentUrl ?? string.Empty,
+                isRead = cache.IsRead(feed.Url, a.Id),
+            }).ToArray();
+            dict[title] = new
+            {
+                url = feed.Url,
+                uid = feed.Url,
+                lastBuildDate = feed.LastRefreshUtc?.ToString("O"),
+                articles = feedArticles,
             };
         }
         return dict;

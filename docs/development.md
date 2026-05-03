@@ -57,24 +57,22 @@ Command-line arguments are forwarded to the running instance (see M11 single-ins
 
 ## Test
 
-Brief to `build-runner`:
-
 ```pwsh
 dotnet test WinBit.slnx
 ```
 
-(Or scoped: `dotnet test WinBit.Tests/WinBit.Tests.csproj` / `dotnet test libtorrentsharp/LibtorrentSharp.Tests/LibtorrentSharp.Tests.csproj`.) The agent returns a structured pass/fail summary instead of dumping raw xUnit output into the main session.
+(Or scoped: `dotnet test WinBit.Tests/WinBit.Tests.csproj` / `dotnet test libtorrentsharp/LibtorrentSharp.Tests/LibtorrentSharp.Tests.csproj`.)
 
 Unit tests live in `WinBit.Tests` and target `WinBit.Core` only. Major suites:
 
 - `SmokeTests` — DI composition, settings roundtrips, path creation.
 - `SqliteStoreTests`, `SqliteRssReadStoreTests` — persistence.
-- `BandwidthSchedulerTests`, `RuleMatcherTests`, `TmmPathResolverTests` — parity with qBittorrent C++ oracles.
-- `*EndpointsTests`, `NativeClientTests`, `QBittorrentAssetsTests`, `WebUiHttpsTests`, `WebUiWhitelistTests` — in-process Kestrel integration.
-- `Torznab*Tests`, `SearchPluginHostTests` — M12 search.
-- `ShellAssociationServiceTests`, `ActivationArgumentsTests`, `NamedPipeSingleInstanceTests`, `DefaultClientPromptPolicyTests` — M11 shell integration.
+- `BandwidthSchedulerTests`, `RuleMatcherTests`, `TmmPathResolverTests` — parity with qBittorrent's behavior for these features.
+- `*EndpointsTests`, `NativeClientTests`, `WebUiHttpsTests`, `WebUiWhitelistTests` — in-process Kestrel integration.
+- `Torznab*Tests`, `SearchPluginHostTests` — search.
+- `ShellAssociationServiceTests`, `ActivationArgumentsTests`, `NamedPipeSingleInstanceTests`, `DefaultClientPromptPolicyTests` — shell integration.
 
-The `WinBit.Tests` project has no WinUI references; the UI layer is deliberately excluded from unit coverage. See [`docs/regression-m4-m11.md`](./regression-m4-m11.md) for the per-milestone coverage map.
+The `WinBit.Tests` project has no WinUI references; the UI layer is deliberately excluded from unit coverage.
 
 ## CI
 
@@ -151,6 +149,8 @@ Supported runtime identifiers:
 - **Add dialog freezes for ~25 s under VS debugger (libtorrent engine)** — `System.Diagnostics.Debug.WriteLine` (and any `OutputDebugString`-based call) serializes every calling thread through the global `DBWinMutex` kernel object while the VS debugger is attached. The libtorrent alert pump generates 100+ log entries per second during torrent startup; a single `Debug.WriteLine` in `LogService.Write` stalled the UI thread completing the dialog deferral for ~25 s. Fix: `Debug.WriteLine` was removed from `LogService.Write`. The file log (`FileLogSink` → `%LOCALAPPDATA%\WinBit\logs\winbit-YYYY-MM-DD.log`) is the intended developer-facing log. Do not re-add `Debug.WriteLine` or `Trace.Write` to any path that may be called at high frequency.
 
 ## Workflow for new features
+
+End-to-end flow: Core first (define the interface in `WinBit.Core`, add unit tests in `WinBit.Tests`), wire DI (`AddWinBitCore`), build the viewmodel, build the view, verify. `TASKS.md` tracks the roadmap — pick an unchecked deliverable, ship it behind a single commit, flip the checkbox.
 
 ### Architecture-level changes — doc first
 

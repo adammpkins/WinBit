@@ -1,35 +1,38 @@
 <template>
-  <div class="table-wrap">
+  <div ref="tableWrapRef" class="table-wrap">
     <div v-if="!torrents.length" class="empty-state">
-      <div class="empty-icon">⬇</div>
+      <div class="empty-icon fi">&#xE896;</div>
       <p>No torrents yet</p>
       <p class="text-secondary" style="font-size:12px; margin-top:4px">Add a magnet link to get started</p>
     </div>
 
     <template v-else>
-      <div class="table-head">
+      <div
+        class="table-head"
+        :style="{ gridTemplateColumns: gridTemplate }"
+      >
         <div class="col col-name sortable" @click="toggleSort('name')">
           Name <span class="sort-indicator">{{ sortIndicator('name') }}</span>
         </div>
-        <div class="col col-size sortable" @click="toggleSort('size')">
+        <div v-if="!hiddenCols.has('size')" class="col col-size sortable" @click="toggleSort('size')">
           Size <span class="sort-indicator">{{ sortIndicator('size') }}</span>
         </div>
-        <div class="col col-status sortable" @click="toggleSort('state')">
+        <div v-if="!hiddenCols.has('status')" class="col col-status sortable" @click="toggleSort('state')">
           Status <span class="sort-indicator">{{ sortIndicator('state') }}</span>
         </div>
-        <div class="col col-progress sortable" @click="toggleSort('progress')">
+        <div v-if="!hiddenCols.has('progress')" class="col col-progress sortable" @click="toggleSort('progress')">
           Progress <span class="sort-indicator">{{ sortIndicator('progress') }}</span>
         </div>
-        <div class="col col-speed sortable" @click="toggleSort('dlspeed')">
+        <div v-if="!hiddenCols.has('dlspeed')" class="col col-speed sortable" @click="toggleSort('dlspeed')">
           ↓ Speed <span class="sort-indicator">{{ sortIndicator('dlspeed') }}</span>
         </div>
-        <div class="col col-speed sortable" @click="toggleSort('upspeed')">
+        <div v-if="!hiddenCols.has('upspeed')" class="col col-speed sortable" @click="toggleSort('upspeed')">
           ↑ Speed <span class="sort-indicator">{{ sortIndicator('upspeed') }}</span>
         </div>
-        <div class="col col-ratio sortable" @click="toggleSort('ratio')">
+        <div v-if="!hiddenCols.has('ratio')" class="col col-ratio sortable" @click="toggleSort('ratio')">
           Ratio <span class="sort-indicator">{{ sortIndicator('ratio') }}</span>
         </div>
-        <div class="col col-eta sortable" @click="toggleSort('eta')">
+        <div v-if="!hiddenCols.has('eta')" class="col col-eta sortable" @click="toggleSort('eta')">
           ETA <span class="sort-indicator">{{ sortIndicator('eta') }}</span>
         </div>
       </div>
@@ -40,29 +43,30 @@
           :key="t.hash"
           class="table-row"
           :class="{ selected: selectedHash === t.hash }"
+          :style="{ gridTemplateColumns: gridTemplate }"
         >
           <div class="col col-name">
             <span class="torrent-name" :title="t.name">{{ t.name }}</span>
           </div>
-          <div class="col col-size mono">{{ fmtSize(t.size) }}</div>
-          <div class="col col-status">
+          <div v-if="!hiddenCols.has('size')" class="col col-size mono">{{ fmtSize(t.size) }}</div>
+          <div v-if="!hiddenCols.has('status')" class="col col-status">
             <span class="badge" :class="stateClass(t.state)">{{ fmtState(t.state) }}</span>
           </div>
-          <div class="col col-progress">
+          <div v-if="!hiddenCols.has('progress')" class="col col-progress">
             <div class="progress-track">
               <div class="progress-fill" :class="stateClass(t.state)" :style="{ width: pct(t.progress) + '%' }" />
             </div>
             <span class="progress-label mono">{{ pct(t.progress).toFixed(1) }}%</span>
           </div>
-          <div class="col col-speed mono">{{ t.state === 'downloading' ? fmtSpeed(t.dlspeed) : '—' }}</div>
-          <div class="col col-speed mono">{{ fmtSpeed(t.upspeed) }}</div>
-          <div class="col col-ratio mono">{{ fmtRatio(t.ratio) }}</div>
-          <div class="col col-eta mono">{{ fmtEta(t.eta) }}</div>
+          <div v-if="!hiddenCols.has('dlspeed')" class="col col-speed mono">{{ t.state === 'downloading' ? fmtSpeed(t.dlspeed) : '—' }}</div>
+          <div v-if="!hiddenCols.has('upspeed')" class="col col-speed mono">{{ fmtSpeed(t.upspeed) }}</div>
+          <div v-if="!hiddenCols.has('ratio')" class="col col-ratio mono">{{ fmtRatio(t.ratio) }}</div>
+          <div v-if="!hiddenCols.has('eta')" class="col col-eta mono">{{ fmtEta(t.eta) }}</div>
         </div>
       </div>
     </template>
 
-    <!-- Context menu — teleported to body to escape any stacking context -->
+    <!-- Torrent row context menu — teleported to body to escape any stacking context -->
     <Teleport to="body">
       <div
         v-if="ctx.visible"
@@ -70,16 +74,38 @@
         :style="{ top: ctx.y + 'px', left: ctx.x + 'px' }"
         @mouseleave="ctx.visible = false"
       >
-        <button class="ctx-item" @click="ctxAction('pause')">⏸ Pause</button>
-        <button class="ctx-item" @click="ctxAction('resume')">▶ Resume</button>
+        <button class="ctx-item" @click="ctxAction('pause')"><span class="fi" style="margin-right:8px">&#xE769;</span>Pause</button>
+        <button class="ctx-item" @click="ctxAction('resume')"><span class="fi" style="margin-right:8px">&#xE768;</span>Resume</button>
         <div class="ctx-sep" />
-        <button class="ctx-item ctx-danger" @click="ctxAction('delete')">🗑 Delete</button>
+        <button class="ctx-item ctx-danger" @click="ctxAction('delete')"><span class="fi" style="margin-right:8px">&#xE74D;</span>Delete</button>
+      </div>
+    </Teleport>
+
+    <!-- Column visibility context menu — separate from the torrent row menu -->
+    <Teleport to="body">
+      <div
+        v-if="colCtx.visible"
+        class="context-menu col-ctx"
+        :style="{ top: colCtx.y + 'px', left: colCtx.x + 'px' }"
+        @mouseleave="colCtx.visible = false"
+      >
+        <div class="ctx-label">Show / Hide Columns</div>
+        <div class="ctx-sep" />
+        <button
+          v-for="col in COLUMNS.filter(c => !c.required)"
+          :key="col.key"
+          class="ctx-item col-toggle-item"
+          @click="toggleColumn(col.key)"
+        >
+          <span class="col-check fi" v-html="hiddenCols.has(col.key) ? '&#xE739;' : '&#xE73A;'"></span>
+          {{ col.label }}
+        </button>
       </div>
     </Teleport>
 
     <!-- Delete confirmation bar — absolute positioned at the bottom of .table-wrap -->
     <div v-if="delConfirm.visible" class="del-confirm-bar">
-      <span class="del-confirm-msg">🗑 Delete "{{ truncate(delConfirm.torrent?.name, 40) }}"?</span>
+      <span class="del-confirm-msg"><span class="fi" style="margin-right:6px">&#xE74D;</span>Delete "{{ truncate(delConfirm.torrent?.name, 40) }}"?</span>
       <button class="del-btn del-btn-soft" @click="confirmDelete(false)">Delete torrent only</button>
       <button class="del-btn del-btn-hard" @click="confirmDelete(true)">Delete with files</button>
       <button class="del-btn del-btn-cancel" @click="delConfirm.visible = false">Cancel</button>
@@ -88,7 +114,7 @@
 </template>
 
 <script setup>
-import { reactive, computed, onMounted, ref } from 'vue'
+import { reactive, computed, onMounted, onUnmounted, ref } from 'vue'
 import { api } from '../api/index.js'
 
 const props = defineProps({
@@ -98,8 +124,66 @@ const props = defineProps({
 
 const emit = defineEmits(['select'])
 
+const tableWrapRef = ref(null)
 const ctx = reactive({ visible: false, x: 0, y: 0, torrent: null })
 const delConfirm = reactive({ visible: false, torrent: null })
+
+// ── Column definitions ───────────────────────────────────────────────────────
+
+// required:true columns cannot be hidden; they are excluded from the toggle menu.
+const COLUMNS = [
+  { key: 'name',     label: 'Name',     width: '1fr',  required: true  },
+  { key: 'size',     label: 'Size',     width: '90px', required: false },
+  { key: 'status',   label: 'Status',   width: '100px',required: false },
+  { key: 'progress', label: 'Progress', width: '130px',required: false },
+  { key: 'dlspeed',  label: '↓ Speed',  width: '90px', required: false },
+  { key: 'upspeed',  label: '↑ Speed',  width: '90px', required: false },
+  { key: 'ratio',    label: 'Ratio',    width: '55px', required: false },
+  { key: 'eta',      label: 'ETA',      width: '55px', required: false },
+]
+
+const hiddenCols = ref(new Set())
+
+const visibleColumns = computed(() => COLUMNS.filter(c => !hiddenCols.value.has(c.key)))
+
+// Drives grid-template-columns on both .table-head and each .table-row so the DOM
+// columns always match without keeping a separate CSS rule in sync.
+const gridTemplate = computed(() => visibleColumns.value.map(c => c.width).join(' '))
+
+// ── Column context menu ──────────────────────────────────────────────────────
+
+const colCtx = ref({ visible: false, x: 0, y: 0 })
+
+function onWrapContextMenu(e) {
+  if (e.target.closest('.table-head')) {
+    e.preventDefault()
+    colCtx.value = { visible: true, x: e.clientX, y: e.clientY }
+  }
+}
+
+function toggleColumn(key) {
+  const next = new Set(hiddenCols.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  hiddenCols.value = next
+  saveColumnVisibility()
+}
+
+async function saveColumnVisibility() {
+  try {
+    await api.setPreferences({ transfers_hidden_columns: [...hiddenCols.value] })
+  } catch { /* non-fatal */ }
+}
+
+// Close the column context menu on any outside click.
+function onDocumentClick(e) {
+  if (!colCtx.value.visible) return
+  // The menu is rendered inside a Teleport; there is no containing element to
+  // compare against, so we close on any click not originating inside .col-ctx.
+  if (!e.target.closest?.('.col-ctx')) {
+    colCtx.value.visible = false
+  }
+}
 
 // ── Sort state ──────────────────────────────────────────────────────────────
 
@@ -107,13 +191,25 @@ const sortColumn = ref(null)   // null = unsorted; otherwise a column key string
 const sortReverse = ref(false)
 
 onMounted(async () => {
+  document.addEventListener('click', onDocumentClick, true)
+  tableWrapRef.value?.addEventListener('contextmenu', onWrapContextMenu)
   try {
     const prefs = await api.getPreferences()
     if (prefs) {
       sortColumn.value = prefs.transfers_sort_column ?? null
       sortReverse.value = prefs.transfers_sort_reverse ?? false
+      if (Array.isArray(prefs.transfers_hidden_columns)) {
+        hiddenCols.value = new Set(
+          prefs.transfers_hidden_columns.filter(k => COLUMNS.some(c => c.key === k && !c.required))
+        )
+      }
     }
   } catch { /* non-fatal — defaults are fine */ }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick, true)
+  tableWrapRef.value?.removeEventListener('contextmenu', onWrapContextMenu)
 })
 
 // Returns the raw sortable value for a torrent row given a column key.
@@ -297,10 +393,11 @@ function stateClass(state) {
 }
 .empty-icon { font-size: 40px; opacity: 0.25; margin-bottom: 12px; }
 
-/* Table layout */
+/* Table layout — grid-template-columns is set inline via :style so the column list
+   stays in sync with the visible columns without a second source of truth in CSS. */
 .table-head, .table-row {
   display: grid;
-  grid-template-columns: 1fr 90px 100px 130px 90px 90px 55px 55px;
+  grid-template-columns: unset;
   align-items: center;
   padding: 0 12px;
   gap: 0;
@@ -313,7 +410,7 @@ function stateClass(state) {
   top: 0;
   background: color-mix(in srgb, var(--surface-1) 80%, transparent);
   backdrop-filter: blur(8px);
-  z-index: 1;
+  z-index: 0;
 }
 
 .col {
@@ -466,4 +563,25 @@ function stateClass(state) {
 .ctx-item.ctx-danger { color: #ef9a9a; }
 .ctx-item.ctx-danger:hover { background: rgba(239, 83, 80, 0.12); }
 .ctx-sep { height: 1px; background: var(--border-subtle); margin: 4px 0; }
+
+/* Column visibility context menu extras */
+.ctx-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 6px 12px 2px;
+}
+.col-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.col-check {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
 </style>

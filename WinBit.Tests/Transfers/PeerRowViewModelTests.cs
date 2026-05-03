@@ -14,31 +14,137 @@ public sealed class PeerRowViewModelTests
     // ----- BuildFlags -----
 
     [Fact]
-    public void BuildFlags_neither_seeder_nor_encrypted_returns_dash()
+    public void BuildFlags_all_false_returns_K_question()
     {
-        var info = MakePeer(isSeeder: false, isEncrypted: false);
-        PeerInfoFormatter.BuildFlags(info).Should().Be("—");
+        // A freshly connecting peer has no interest declared on either side and both sides
+        // unchoked (the default libtorrent state), so K and ? both apply.
+        var info = MakePeer();
+        PeerInfoFormatter.BuildFlags(info).Should().Be("K?");
     }
 
     [Fact]
-    public void BuildFlags_seeder_only_returns_S()
+    public void BuildFlags_interesting_and_unchoked_returns_D()
     {
-        var info = MakePeer(isSeeder: true, isEncrypted: false);
-        PeerInfoFormatter.BuildFlags(info).Should().Be("S");
+        var info = MakePeer(isInteresting: true, isChoked: false);
+        // Also: !isRemoteChoked(false) && !isInteresting → K does NOT fire because isInteresting is true.
+        // !isChoked(false) && !isRemoteInterested(false) → ? fires.
+        PeerInfoFormatter.BuildFlags(info).Should().Be("D?");
     }
 
     [Fact]
-    public void BuildFlags_encrypted_only_returns_E()
+    public void BuildFlags_interesting_and_remote_choked_returns_d()
     {
-        var info = MakePeer(isSeeder: false, isEncrypted: true);
-        PeerInfoFormatter.BuildFlags(info).Should().Be("E");
+        // 'd' = we want pieces but the peer has choked us (IsRemoteChoked=true).
+        var info = MakePeer(isInteresting: true, isRemoteChoked: true);
+        // IsRemoteChoked=true suppresses K. IsRemoteInteresting=false, IsRemoteChoked=true → ? does not fire.
+        PeerInfoFormatter.BuildFlags(info).Should().Be("d");
     }
 
     [Fact]
-    public void BuildFlags_both_seeder_and_encrypted_returns_SE()
+    public void BuildFlags_remote_interested_and_not_choked_returns_KU()
     {
-        var info = MakePeer(isSeeder: true, isEncrypted: true);
-        PeerInfoFormatter.BuildFlags(info).Should().Be("SE");
+        // K comes first (from the IsInteresting=false branch), then U.
+        var info = MakePeer(isRemoteInteresting: true);
+        // IsInteresting=false, !IsChoked=true → K fires first.
+        // IsRemoteInteresting=true, !IsChoked=true → U fires.
+        PeerInfoFormatter.BuildFlags(info).Should().Be("KU");
+    }
+
+    [Fact]
+    public void BuildFlags_remote_interested_and_choked_returns_u()
+    {
+        // 'u' = the peer wants our pieces but we have choked it (IsChoked=true).
+        var info = MakePeer(isRemoteInteresting: true, isChoked: true);
+        // IsChoked=true suppresses K (K requires !IsChoked). IsRemoteInteresting=true, IsChoked=true → u.
+        PeerInfoFormatter.BuildFlags(info).Should().Be("u");
+    }
+
+    [Fact]
+    public void BuildFlags_incoming_connection_appends_I()
+    {
+        var info = MakePeer(isIncomingConnection: true);
+        PeerInfoFormatter.BuildFlags(info).Should().Contain("I");
+    }
+
+    [Fact]
+    public void BuildFlags_rc4_encrypted_appends_E()
+    {
+        var info = MakePeer(isEncrypted: true);
+        PeerInfoFormatter.BuildFlags(info).Should().Contain("E");
+    }
+
+    [Fact]
+    public void BuildFlags_plaintext_encrypted_appends_lowercase_e()
+    {
+        var info = MakePeer(isHandshakeEncrypted: true);
+        PeerInfoFormatter.BuildFlags(info).Should().Contain("e");
+        PeerInfoFormatter.BuildFlags(info).Should().NotContain("E");
+    }
+
+    [Fact]
+    public void BuildFlags_utp_appends_P()
+    {
+        var info = MakePeer(isUtp: true);
+        PeerInfoFormatter.BuildFlags(info).Should().Contain("P");
+    }
+
+    [Fact]
+    public void BuildFlags_holepunched_appends_h()
+    {
+        var info = MakePeer(isHolepunched: true);
+        PeerInfoFormatter.BuildFlags(info).Should().Contain("h");
+    }
+
+    [Fact]
+    public void BuildFlags_dht_appends_H()
+    {
+        var info = MakePeer(isFromDht: true);
+        PeerInfoFormatter.BuildFlags(info).Should().Contain("H");
+    }
+
+    [Fact]
+    public void BuildFlags_pex_appends_X()
+    {
+        var info = MakePeer(isFromPex: true);
+        PeerInfoFormatter.BuildFlags(info).Should().Contain("X");
+    }
+
+    [Fact]
+    public void BuildFlags_lsd_appends_L()
+    {
+        var info = MakePeer(isFromLsd: true);
+        PeerInfoFormatter.BuildFlags(info).Should().Contain("L");
+    }
+
+    [Fact]
+    public void BuildFlags_seeder_has_no_S_flag()
+    {
+        // Seeder status is shown in the Progress/State column, not as a flags character.
+        var info = MakePeer(isSeeder: true);
+        PeerInfoFormatter.BuildFlags(info).Should().NotContain("S");
+    }
+
+    [Fact]
+    public void BuildFlags_snubbed_appends_S()
+    {
+        var info = MakePeer(isSnubbed: true);
+        // isSnubbed uses 'S'; isSeeder does not affect flags string
+        PeerInfoFormatter.BuildFlags(info).Should().Contain("S");
+    }
+
+    [Fact]
+    public void BuildFlags_combo_downloading_encrypted_utp_returns_correct_order()
+    {
+        // Interesting + unchoked (D), RC4 encrypted (E), uTP (P). No remote interest so ? fires too.
+        var info = MakePeer(isInteresting: true, isChoked: false, isEncrypted: true, isUtp: true);
+        PeerInfoFormatter.BuildFlags(info).Should().Be("D?EP");
+    }
+
+    [Fact]
+    public void BuildFlags_optimistic_unchoke_appends_O()
+    {
+        var info = MakePeer(isOptimisticUnchoke: true);
+        PeerInfoFormatter.BuildFlags(info).Should().Contain("O");
     }
 
     // ----- FormatSpeed -----
@@ -113,7 +219,20 @@ public sealed class PeerRowViewModelTests
         long downloadBps = 0,
         long uploadBps = 0,
         bool isSeeder = false,
-        bool isEncrypted = false) => new PeerInfo
+        bool isEncrypted = false,
+        bool isHandshakeEncrypted = false,
+        bool isInteresting = false,
+        bool isChoked = false,
+        bool isRemoteInteresting = false,
+        bool isRemoteChoked = false,
+        bool isOptimisticUnchoke = false,
+        bool isSnubbed = false,
+        bool isIncomingConnection = false,
+        bool isFromDht = false,
+        bool isFromPex = false,
+        bool isFromLsd = false,
+        bool isUtp = false,
+        bool isHolepunched = false) => new PeerInfo
         {
             Address = address,
             Client = client,
@@ -122,5 +241,18 @@ public sealed class PeerRowViewModelTests
             UploadSpeedBps = uploadBps,
             IsSeeder = isSeeder,
             IsEncrypted = isEncrypted,
+            IsHandshakeEncrypted = isHandshakeEncrypted,
+            IsInteresting = isInteresting,
+            IsChoked = isChoked,
+            IsRemoteInteresting = isRemoteInteresting,
+            IsRemoteChoked = isRemoteChoked,
+            IsOptimisticUnchoke = isOptimisticUnchoke,
+            IsSnubbed = isSnubbed,
+            IsIncomingConnection = isIncomingConnection,
+            IsFromDht = isFromDht,
+            IsFromPex = isFromPex,
+            IsFromLsd = isFromLsd,
+            IsUtp = isUtp,
+            IsHolepunched = isHolepunched,
         };
 }

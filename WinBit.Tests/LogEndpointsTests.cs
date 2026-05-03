@@ -27,7 +27,7 @@ public sealed class LogEndpointsTests : IAsyncLifetime
         _service = new WebUiService(Settings, new WebUiAuthService(Settings),
             new StubTorrentSession(), _log, _peerLog,
             new StubCategoryService(), new StubTagService(),
-            new StubRssService(), new StubAutoDownloaderService(), new StubRssArticleCache(), new StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new StubTorrentStateStore(), TestPaths.Ambient);
+            new StubRssService(), new StubAutoDownloaderService(), new StubRssArticleCache(), new StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new StubTorrentStateStore(), TestPaths.Ambient, new StubSearchPluginHost());
     }
 
     public async Task InitializeAsync()

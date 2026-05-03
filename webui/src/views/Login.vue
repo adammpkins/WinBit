@@ -2,7 +2,7 @@
   <div class="login-root">
     <div class="login-card panel-elevated">
       <div class="login-brand">
-        <span class="login-icon">⚡</span>
+        <img class="login-icon" src="/winbit-icon.png" alt="" />
         <span class="login-name">WinBit</span>
       </div>
       <p class="login-sub">Sign in to continue</p>
@@ -103,8 +103,10 @@ async function login() {
 }
 
 .login-icon {
-  font-size: 28px;
+  width: 32px;
+  height: 32px;
   filter: drop-shadow(0 0 12px var(--accent-glow));
+  display: block;
 }
 
 .login-name {
@@ -148,9 +150,6 @@ async function login() {
 .login-btn {
   margin-top: 4px;
   width: 100%;
-  --accent-fill-rest: var(--accent);
-  --accent-fill-hover: var(--accent-light);
-  --accent-fill-active: var(--accent-dark);
 }
 
 /* Style fluent-text-field to match design */

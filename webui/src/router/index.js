@@ -6,6 +6,8 @@ const routes = [
   { path: '/', component: () => import('../views/Transfers.vue') },
   { path: '/settings', component: () => import('../views/Settings.vue') },
   { path: '/log', component: () => import('../views/Log.vue') },
+  { path: '/rss', component: () => import('../views/Rss.vue') },
+  { path: '/search', component: () => import('../views/Search.vue') },
 ]
 
 const router = createRouter({ history: createWebHashHistory(), routes })

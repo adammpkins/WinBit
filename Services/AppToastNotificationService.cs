@@ -31,7 +31,7 @@ public sealed class AppToastNotificationService : INotificationService, IDisposa
         }
         catch (Exception ex)
         {
-            _log.Write($"Toast notifications unavailable: {ex.Message}", LogSeverity.Warning);
+            _log.Write($"Toast notifications unavailable (notifications disabled): {ex.Message}", LogSeverity.Normal);
         }
     }
 

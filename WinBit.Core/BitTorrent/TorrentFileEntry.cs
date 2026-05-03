@@ -13,4 +13,6 @@ public sealed record TorrentFileEntry
     public double ProgressFraction => SizeBytes > 0 ? Math.Clamp((double)DownloadedBytes / SizeBytes, 0.0, 1.0) : 0.0;
 
     public string ProgressDisplay => SizeBytes > 0 ? $"{ProgressFraction * 100:F1}%" : "—";
+
+    public override string ToString() => Name;
 }

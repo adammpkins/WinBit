@@ -1,7 +1,7 @@
 <template>
   <nav class="sidebar">
     <div class="sidebar-brand">
-      <span class="brand-icon">⚡</span>
+      <img class="brand-icon" src="/winbit-icon.png" alt="" />
       <span class="brand-name">WinBit</span>
     </div>
 
@@ -13,7 +13,7 @@
         class="nav-item"
         active-class="nav-item--active"
       >
-        <span class="nav-icon">{{ item.icon }}</span>
+        <span class="nav-icon fi">{{ item.icon }}</span>
         <span class="nav-label">{{ item.label }}</span>
       </RouterLink>
     </div>
@@ -24,7 +24,7 @@
         class="logout-btn"
         @click="logout"
       >
-        ↩ Sign Out
+        <span class="fi" style="margin-right: 8px"></span>Sign Out
       </fluent-button>
       <span class="version-str text-secondary">{{ version }}</span>
     </div>
@@ -41,10 +41,15 @@ const router = useRouter()
 const appStore = useAppStore()
 const { version } = storeToRefs(appStore)
 
+// Segoe Fluent Icons glyphs — match the desktop app's nav icons.
+// E896 = SwapDownDown / Sync, E968 = MapPin (used for RSS feeds in qBit),
+// E721 = Search, E9F9 = Log, E713 = Settings.
 const nav = [
-  { to: '/',         icon: '⬇↑', label: 'Transfers' },
-  { to: '/log',      icon: '📋',  label: 'Log' },
-  { to: '/settings', icon: '⚙',   label: 'Settings' },
+  { to: '/',         icon: '', label: 'Transfers' },
+  { to: '/rss',      icon: '', label: 'RSS' },
+  { to: '/search',   icon: '', label: 'Search' },
+  { to: '/log',      icon: '', label: 'Log' },
+  { to: '/settings', icon: '', label: 'Settings' },
 ]
 
 async function logout() {
@@ -77,19 +82,18 @@ async function logout() {
 }
 
 .brand-icon {
-  font-size: 22px;
+  width: 24px;
+  height: 24px;
   filter: drop-shadow(0 0 10px var(--accent-glow));
   flex-shrink: 0;
+  display: block;
 }
 
 .brand-name {
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.3px;
-  background: linear-gradient(135deg, #e8e8f0 0%, var(--accent-light) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
 }
 
 .sidebar-nav {

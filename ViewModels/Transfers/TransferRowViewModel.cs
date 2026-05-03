@@ -155,4 +155,6 @@ public sealed partial class TransferRowViewModel : ObservableObject
         }
         return $"{eta.Seconds}s";
     }
+
+    public override string ToString() => Name;
 }

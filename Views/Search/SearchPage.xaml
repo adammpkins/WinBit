@@ -80,13 +80,44 @@
                 BorderThickness="1"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
             <Grid>
-                <TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
-                           Style="{ThemeResource BodyStrongTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           TextWrapping="Wrap"
-                           Margin="24" />
+                <StackPanel x:Name="InitialEmptyState"
+                            Visibility="{x:Bind ShowInitial(ViewModel.ResultCount, ViewModel.StatusText), Mode=OneWay}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="12">
+                    <FontIcon Glyph="&#xE721;"
+                              FontSize="48"
+                              HorizontalAlignment="Center"
+                              Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <TextBlock Text="Search for torrents"
+                               Style="{ThemeResource SubtitleTextBlockStyle}"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="Enter a query above to find results across your configured providers."
+                               Style="{ThemeResource BodyTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="320"
+                               TextAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel x:Name="NoResultsState"
+                            Visibility="{x:Bind ShowNoResults(ViewModel.ResultCount, ViewModel.StatusText), Mode=OneWay}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="12">
+                    <FontIcon Glyph="&#xE721;"
+                              FontSize="48"
+                              HorizontalAlignment="Center"
+                              Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+                               Style="{ThemeResource SubtitleTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="400"
+                               TextAlignment="Center" />
+                </StackPanel>
 
                 <ListView x:Name="ResultsList"
                           ItemsSource="{x:Bind ViewModel.Hits, Mode=OneWay}"

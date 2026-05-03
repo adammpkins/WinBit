@@ -137,6 +137,16 @@ public sealed class SqliteTorrentStateStore : ITorrentStateStore, IAsyncDisposab
             await cmd.ExecuteNonQueryAsync(inner).ConfigureAwait(false);
         }, ct);
 
+    public Task UpdateCompletedUtcAsync(TorrentId id, DateTime completedUtc, CancellationToken ct = default) =>
+        ExecuteWriteAsync(async (conn, inner) =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE torrent SET completed_utc = @v WHERE info_hash = @hash;";
+            cmd.Parameters.AddWithValue("@hash", id.Value);
+            cmd.Parameters.AddWithValue("@v", completedUtc.ToString("O"));
+            await cmd.ExecuteNonQueryAsync(inner).ConfigureAwait(false);
+        }, ct);
+
     public Task<byte[]?> LoadFastResumeAsync(TorrentId id, int expectedVersion, CancellationToken ct = default) =>
         ExecuteReadAsync<byte[]?>(async (conn, inner) =>
         {

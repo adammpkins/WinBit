@@ -18,6 +18,8 @@ public sealed class StubTorrentStateStore : ITorrentStateStore
     public Task<byte[]?> LoadFastResumeAsync(TorrentId id, int expectedVersion, CancellationToken ct = default) =>
         Task.FromResult<byte[]?>(null);
 
+    public Task UpdateCompletedUtcAsync(TorrentId id, DateTime completedUtc, CancellationToken ct = default) => Task.CompletedTask;
+
     public Task<IReadOnlyList<TorrentStateRecord>> GetAllAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<TorrentStateRecord>>(Array.Empty<TorrentStateRecord>());
 

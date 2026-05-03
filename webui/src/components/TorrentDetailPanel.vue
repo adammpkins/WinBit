@@ -10,7 +10,7 @@
         @click="activeTab = tab"
       >{{ tab }}</button>
       <div class="tab-spacer" />
-      <button class="close-btn" @click="$emit('close')" title="Close">✕</button>
+      <button class="close-btn fi" @click="$emit('close')" title="Close">&#xE711;</button>
     </div>
 
     <!-- General tab -->
@@ -59,21 +59,113 @@
       </div>
     </div>
 
-    <!-- Other tabs: stub until implemented -->
-    <div v-else class="tab-content tab-stub">
-      <span class="stub-text">{{ activeTab }} — coming soon</span>
+    <!-- Trackers tab -->
+    <div v-else-if="activeTab === 'Trackers'" class="tab-content">
+      <div v-if="!trackers.length" class="tab-empty">No trackers</div>
+      <table v-else class="detail-table">
+        <thead><tr><th>URL</th><th>Status</th><th>Seeds</th><th>Leeches</th><th>Message</th></tr></thead>
+        <tbody>
+          <tr v-for="t in trackers" :key="t.url">
+            <td class="mono url-cell">{{ t.url }}</td>
+            <td><span :class="'tracker-status s' + t.status">{{ trackerStatusLabel(t.status) }}</span></td>
+            <td class="mono">{{ t.num_seeds ?? '—' }}</td>
+            <td class="mono">{{ t.num_leeches ?? '—' }}</td>
+            <td class="msg-cell">{{ t.msg }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Peers tab -->
+    <div v-else-if="activeTab === 'Peers'" class="tab-content">
+      <div v-if="!peers.length" class="tab-empty">No connected peers</div>
+      <table v-else class="detail-table">
+        <thead><tr><th>IP</th><th>Client</th><th>Progress</th><th>↓ Speed</th><th>↑ Speed</th><th>Flags</th></tr></thead>
+        <tbody>
+          <tr v-for="p in peers" :key="p.ip + ':' + p.port">
+            <td class="mono">{{ p.ip }}:{{ p.port }}</td>
+            <td>{{ p.client || '—' }}</td>
+            <td class="mono">{{ (p.progress * 100).toFixed(1) }}%</td>
+            <td class="mono">{{ fmtSpeed(p.dl_speed) }}</td>
+            <td class="mono">{{ fmtSpeed(p.up_speed) }}</td>
+            <td class="mono flags">{{ p.flags }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Content tab -->
+    <div v-else-if="activeTab === 'Content'" class="tab-content">
+      <div v-if="!files.length" class="tab-empty">No file info available</div>
+      <table v-else class="detail-table">
+        <thead><tr><th>Name</th><th>Size</th><th>Progress</th></tr></thead>
+        <tbody>
+          <tr v-for="f in files" :key="f.index">
+            <td class="name-cell" :title="f.name">{{ f.name }}</td>
+            <td class="mono">{{ fmtSize(f.size) }}</td>
+            <td class="mono">{{ (f.progress * 100).toFixed(1) }}%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pieces tab -->
+    <div v-else-if="activeTab === 'Pieces'" class="tab-content">
+      <div v-if="!pieces.length" class="tab-empty">No piece data</div>
+      <div v-else class="pieces-bar">
+        <div
+          v-for="(state, i) in pieces"
+          :key="i"
+          class="piece"
+          :class="state === 2 ? 'piece-done' : state === 1 ? 'piece-dl' : 'piece-miss'"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { api } from '../api/index.js'
 
 const props = defineProps({ torrent: { type: Object, required: true } })
 defineEmits(['close'])
 
-const tabs = ['General', 'Trackers', 'Peers', 'Content', 'Speed']
+const tabs = ['General', 'Trackers', 'Peers', 'Content', 'Pieces']
 const activeTab = ref('General')
+const trackers = ref([])
+const peers = ref([])
+const files = ref([])
+const pieces = ref([])
+let pollTimer = null
+
+async function loadTabData() {
+  if (!props.torrent?.hash) return
+  const hash = props.torrent.hash
+  try {
+    if (activeTab.value === 'Trackers') {
+      trackers.value = await api.getTrackers(hash) ?? []
+    } else if (activeTab.value === 'Peers') {
+      const r = await api.getPeers(hash)
+      peers.value = r?.peers ? Object.values(r.peers) : []
+    } else if (activeTab.value === 'Content') {
+      files.value = await api.getFiles(hash) ?? []
+    } else if (activeTab.value === 'Pieces') {
+      pieces.value = await api.getPieceStates(hash) ?? []
+    }
+  } catch { /* non-fatal */ }
+}
+
+watch([activeTab, () => props.torrent?.hash], () => {
+  loadTabData()
+}, { immediate: true })
+
+onMounted(() => { pollTimer = setInterval(loadTabData, 3000) })
+onUnmounted(() => { clearInterval(pollTimer) })
+
+function trackerStatusLabel(s) {
+  return ['Disabled', 'Not contacted', 'Working', 'Updating', 'Not working'][s] ?? 'Unknown'
+}
 
 function fmtSize(bytes) {
   if (!bytes) return '—'
@@ -86,6 +178,14 @@ function fmtSize(bytes) {
 function fmtDate(unix) {
   if (!unix || unix <= 0) return '—'
   return new Date(unix * 1000).toLocaleString()
+}
+
+function fmtSpeed(bps) {
+  if (!bps || bps < 512) return bps > 0 ? bps + ' B/s' : '0 B/s'
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s']
+  let i = 0, v = bps
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
+  return v.toFixed(1) + ' ' + units[i]
 }
 </script>
 
@@ -183,17 +283,31 @@ function fmtDate(unix) {
   white-space: nowrap;
 }
 
-/* Stub for unimplemented tabs */
-.tab-stub {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.stub-text {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.3);
-  font-style: italic;
-}
-
 .mono { font-family: "Cascadia Code", "Consolas", monospace; }
+
+/* Shared table styles for Trackers, Peers, Content tabs */
+.detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.detail-table th { text-align: left; padding: 4px 8px; color: rgba(255,255,255,0.5); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+.detail-table td { padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.detail-table tr:hover td { background: rgba(255,255,255,0.04); }
+
+.tab-empty { color: rgba(255,255,255,0.35); font-size: 12px; padding: 16px; text-align: center; }
+
+.url-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-cell { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,255,255,0.5); }
+.name-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Tracker status colour coding */
+.tracker-status.s2 { color: #4ade80; }
+.tracker-status.s4 { color: #f87171; }
+.tracker-status.s3 { color: #facc15; }
+
+.flags { letter-spacing: 0.05em; color: rgba(255,255,255,0.5); }
+
+/* Pieces bar */
+.pieces-bar { display: flex; flex-wrap: wrap; gap: 1px; padding: 8px; }
+.piece { width: 4px; height: 8px; border-radius: 1px; }
+.piece-done { background: var(--accent, #744da9); }
+.piece-dl { background: #facc15; }
+.piece-miss { background: rgba(255,255,255,0.12); }
 </style>

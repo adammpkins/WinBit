@@ -26,4 +26,5 @@ public interface IWebUiAuthService
     /// <c>::ffff:127.0.0.1</c>).
     /// </summary>
     bool IsWhitelistedIp(System.Net.IPAddress? remote);
+
 }

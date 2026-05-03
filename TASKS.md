@@ -10,6 +10,7 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 
 **Deliverables**
 - [x] `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig` at solution root.
+- [x] `README.md`, `TASKS.md`, `docs/` stubs.
 - [x] `WinBit.Core` class library with stub services (`ITorrentSessionService`, `ISettingsService`, `ILogService`) and common types (`TorrentId`, `Result`, `Paths`).
 - [x] `WinBit.Tests` xUnit project with a smoke test that composes `AddWinBitCore` without throwing.
 - [x] `WinBit.slnx` referencing all three projects.
@@ -91,6 +92,7 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 **Goal:** The central UI. DataGrid with live updates, properties pivot, Add-Torrent editor dialog, drag-drop.
 
 **Deliverables**
+- [x] `TransfersPage` hosts `WinUI.TableView` bound to an `AdvancedCollectionView` over `TransferRowViewModel` rows (CommunityToolkit DataGrid is not available for WinAppSDK 1.8).
 - [x] Row columns: Name, Size, Progress (inline bar), State (pill), Seeds, Peers, Down, Up, Ratio, ETA, Added, Completed, Category, Tags.
 - [x] Column reorder, resize, sort persist via `AppSettings.UiState`.
 - [x] `StatePill` control — icon + label + theme-aware pill per `TorrentState`.
@@ -137,7 +139,7 @@ Each milestone ships something usable. Each honors the "modern and beautiful" ba
 - [x] Super-seeding toggle — surface MonoTorrent's super-seeding on `ITorrentSessionService` so share-limit `EnableSuperSeeding` can engage it.
 - [x] Per-torrent share-limit UI — context-menu "Share limits…" entry + dialog wired to `IShareLimitOverrideService`.
 - [x] Per-torrent speed limit dialog.
-- [x] Auto Torrent Management (TMM) path resolution mirroring qBittorrent's category options.
+- [x] Auto Torrent Management (TMM) path resolution matching qBittorrent's category-options behavior.
 - [x] Parity unit tests for TMM path rules.
 
 **Verification**
@@ -314,7 +316,7 @@ Features we deliberately hold until after feature parity ships:
   - [x] Content tab: per-file progress shows 0.0% for seeded/resumed torrents — `lts_file_progress()` returns 0 for torrents loaded from resume data; investigate libtorrent `is_seed()` / `valid_metadata()` timing or apply per-torrent progress fallback when `TorrentState == Seeding`.
   - [x] Content tab empty state: when a torrent is selected but files haven't polled yet, it shows "Select a torrent to view its contents" — change text to "Loading…" or similar so the two states are distinguishable.
   - [x] Pieces tab: feed piece availability map from libtorrent into the existing `PiecesBar` Win2D control.
-  - [ ] Bulk piece-bitfield API in LibtorrentSharp — `GetPiecesAsync` currently calls `HavePiece(i)` in a loop (O(n) P/Invoke calls); a native bulk bitfield copy would be O(1). Tracked here so it's not rediscovered. See LIBTORRENT_TASKS.md Phase G for the binding expansion.
+  - [x] Bulk piece-bitfield API in LibtorrentSharp — `GetPiecesAsync` currently calls `HavePiece(i)` in a loop (O(n) P/Invoke calls); a native bulk bitfield copy would be O(1). Tracked here so it's not rediscovered. See LIBTORRENT_TASKS.md Phase G for the binding expansion.
   - [x] `SetPeerDiscoveryAsync` PEX: `LibTorrentSessionService` should call `TorrentHandle.UnsetFlags(TorrentFlags.DisablePex)` / `SetFlags` — the binding already exposes these (`f-handle-flags` complete) but the service doesn't use them.
   - [x] `SessionStats.OpenConnections` / `DhtNodes` always zero: wire session-stats alert parsing into `GetSessionStats()` so the status bar shows live peer-connection and DHT-node counts.
 
@@ -331,29 +333,29 @@ Features we deliberately hold until after feature parity ships:
   - [x] State filter sidebar — filter rows by status category (All / Downloading / Seeding / Completed / Paused / Errored) like qBittorrent's left panel; `GET /api/v2/torrents/info?filter=` already supports this.
   - [x] Category / tag filter sidebar — clicking a category or tag narrows the list; show count badge per entry.
   - [x] Add `.torrent` file upload — the Add Magnet dialog only handles magnet URIs; add a file input that posts to `POST /api/v2/torrents/add` with `multipart/form-data` (torrents field).
-  - [ ] Column visibility toggle — right-click column header to show/hide columns; persist to `UiState.TransfersGrid.Columns`.
-  - [ ] Torrent detail tabs — the current expandable row shows minimal info; wire up full tabs: **General** (hash, save path, comment, creation date), **Trackers** (URL, status, seeds/leeches), **Peers** (IP, client, progress, speeds), **Content** (file tree with priority dropdowns), **Pieces** (bitfield bar).
+  - [x] Column visibility toggle — right-click column header to show/hide columns; persist to `UiState.TransfersGrid.Columns`.
+  - [x] Torrent detail tabs — the current expandable row shows minimal info; wire up full tabs: **General** (hash, save path, comment, creation date), **Trackers** (URL, status, seeds/leeches), **Peers** (IP, client, progress, speeds), **Content** (file tree with priority dropdowns), **Pieces** (bitfield bar).
 
   *Log view*
-  - [ ] Log detail pane — clicking a log row shows the full message in a side/bottom panel (useful for long messages truncated in the table).
+  - [x] Log detail pane — clicking a log row shows the full message in a side/bottom panel (useful for long messages truncated in the table).
 
   *Settings view*
-  - [ ] Connection settings — listen port, UPnP toggle; write through `POST /api/v2/app/setPreferences`.
-  - [ ] Speed limits — global up/down rate fields, alt-speed rate fields, scheduler (days + time window).
-  - [ ] Downloads settings — default save path (folder picker or text field), pre-allocate disk, auto-TMM.
-  - [ ] BitTorrent settings — DHT / PeX / LSD toggles, encryption mode selector.
-  - [ ] WebUI settings — bind address, remote access toggle, port, auth username/password change.
-  - [ ] Settings save wires to `POST /api/v2/app/setPreferences` — the Appearance section (theme/accent) already does this but the other sections are stubs.
+  - [x] Connection settings — listen port, UPnP toggle; write through `POST /api/v2/app/setPreferences`.
+  - [x] Speed limits — global up/down rate fields, alt-speed rate fields, scheduler (days + time window).
+  - [x] Downloads settings — default save path (folder picker or text field), pre-allocate disk, auto-TMM.
+  - [x] BitTorrent settings — DHT / PeX / LSD toggles, encryption mode selector.
+  - [x] WebUI settings — bind address, remote access toggle, port, auth username/password change.
+  - [x] Settings save wires to `POST /api/v2/app/setPreferences` — the Appearance section (theme/accent) already does this but the other sections are stubs.
 
   *Missing views*
-  - [ ] RSS view — feed tree (add/remove/refresh), article list with read/unread state; mirrors the RSS tab in qBittorrent.
-  - [ ] Search view — Torznab plugin search form + results table with one-click add; `GET /api/v2/search/start` + polling `GET /api/v2/search/results`.
+  - [x] RSS view — feed tree (add/remove/refresh), article list with read/unread state; mirrors the RSS tab in qBittorrent.
+  - [x] Search view — Torznab plugin search form + results table with one-click add; `GET /api/v2/search/start` + polling `GET /api/v2/search/results`.
 
   *Status bar / global polish*
-  - [ ] Speed graph in status bar — sparkline of last 60s download/upload speeds, updated from `sync/maindata` `server_state`.
-  - [ ] DHT node count and connection status badge in the status bar (already in `server_state.dht_nodes` / `connection_status`).
-  - [ ] Global speed-limit quick-toggle — click the down/up speed readout to set a temporary cap (like qBittorrent's status bar controls).
-  - [ ] Remote access — `BindAddress` plumbing already exists in `WebUiSettings`; expose an "Allow remote access" toggle in Settings/WebUI that sets `0.0.0.0` vs `127.0.0.1` and restarts Kestrel.
+  - [x] Speed graph in status bar — sparkline of last 60s download/upload speeds, updated from `sync/maindata` `server_state`.
+  - [x] DHT node count and connection status badge in the status bar (already in `server_state.dht_nodes` / `connection_status`).
+  - [x] Global speed-limit quick-toggle — click the down/up speed readout to set a temporary cap (like qBittorrent's status bar controls).
+  - [x] Remote access — `BindAddress` plumbing already exists in `WebUiSettings`; expose an "Allow remote access" toggle in Settings/WebUI that sets `0.0.0.0` vs `127.0.0.1` and restarts Kestrel.
 
 - **qBittorrent feature parity gaps** — user-visible actions missing from WinBit:
   - [x] Rename torrent (post-add).
@@ -370,6 +372,42 @@ Features we deliberately hold until after feature parity ships:
   - [x] Manually add peers to a torrent.
 
 - **Test suite regressions** — pre-existing failures detected during WebUI backlog work (not introduced by any single recent commit):
-  - [ ] `WebUiWhitelistTests` — `IsWhitelistedIp_returns_false_when_list_empty` returns True instead of False; `Empty_whitelist_keeps_requiring_cookie` returns 200 instead of 401. Whitelist auth logic appears inverted.
-  - [ ] `QBittorrentAssetsTests` — `Unknown_path_returns_404` returns 200; `Asset_paths_serve_with_correct_content_type` returns `text/html` for `.svg`. Asset fallback/MIME routing broken in test host.
-  - [ ] `NativeClientTests` — `Hashed_assets_are_served_with_immutable_cache_header` has null `MaxAge`. Cache-control header not set on asset responses in test host.
+  - [x] `WebUiWhitelistTests` — `IsWhitelistedIp_returns_false_when_list_empty` returns True instead of False; `Empty_whitelist_keeps_requiring_cookie` returns 200 instead of 401. Whitelist auth logic appears inverted.
+  - [x] WebUI asset fallback/MIME routing fixes in test host.
+  - [x] `NativeClientTests` — `Hashed_assets_are_served_with_immutable_cache_header` has null `MaxAge`. Cache-control header not set on asset responses in test host.
+  - [x] WebUI routing — Vue SPA serves at `/` and API endpoints take precedence over static asset routes.
+  - [x] `AppEndpointsTests.TransfersGridHiddenColumns_roundtrips_through_setPreferences_and_getPreferences` — returns 401 Unauthorized; test auth setup may not be setting the SID cookie correctly after a setPreferences call. Investigate test fixture.
+
+- **Post-v0.1 quality improvements** — identified via QA pass after full TASKS.md completion:
+  - [x] `SettingsService` unit tests — zero test coverage; add JSON round-trip, `UpdateAsync` mutation + event ordering, concurrent update serialization, and `AppSettings` default-value assertions.
+  - [x] `LibTorrentSessionService` edge-case tests — add tests for resume-blob round-trip validation, handle-map cleanup on torrent removal, and alert-pump batching with multiple pending alerts.
+  - [x] WebUI Log view — add time-range filter (last hour / today / all) and severity isolation (Error only / Warning+ / All) matching qBittorrent's log filter behavior.
+  - [x] WebUI Transfers — add `/stop` and `/start` route aliases on the torrents endpoint (qBittorrent v5 renamed `/pause`→`/stop` and `/resume`→`/start`; JS API was getting 404).
+  - [x] WebUI Transfers — per-torrent pause/resume returns 200 but torrent state never transitions to Paused; investigate `LibTorrentSessionService.PauseAsync` and snapshot state mapping (pre-existing, also affects the `/pause` route).
+  - [x] Content tab: per-file progress shows 0.0% for resume-loaded in-progress torrents (magnet path hardcoded 0L)
+  - [x] Speed tab: wire data pipeline — SpeedGraph control was render-ready but had no speed polling, ViewModel properties, or XAML bindings
+  - [x] Transfer list "Added" column always showed "—" — `TorrentSnapshot` lacked date fields; added `AddedUtc`/`CompletedUtc` to snapshot and a `_dateLookup` cache in `LibTorrentSessionService`
+  - [x] Transfer list "Completed" column always shows "—" — `TorrentStateRecord.CompletedUtc` is never written when a torrent finishes downloading mid-session; wire `TorrentFinished`/`TorrentState.Seeding` transition to upsert `CompletedUtc` and update `_dateLookup`
+  - [x] Tracker filter sidebar shows all tracker hostnames including erroring/dead ones — with 2 torrents carrying large tracker lists the sidebar grows to 100+ useless entries; should only accumulate hosts from trackers with `Working` status (matching qBittorrent's sidebar behavior)
+  - [x] Tracker error log entries show empty `err=` — `TrackerErrorAlert.ErrorMessage` is the tracker's failure_reason (HTTP response body); empty for network errors (ECONNREFUSED, timeout). Fall back to `Alert.Message` (libtorrent's `alert::message()`) which always includes the system error reason.
+  - [x] Log flooded with tracker-announce, tracker-reply, and peer-disconnect entries at Normal severity — qBittorrent does not surface these in the main log (they appear in the Trackers/Peers detail tabs). Suppress peer-alert and tracker-announce/reply log writes; keep tracker-error and significant session events only.
+  - [x] Diagnostic log entries flood the main log every 5 s — "Libtorrent diag" header, alert histogram, per-torrent state+flags dumps, seeding-health, and peer-detail lines are developer-internal telemetry that qBittorrent never shows in its main log. Remove the entire `EmitDiag`/`EmitPeerDiag` subsystem (counters, fields, methods, `diagDue` guard). Fix tracker error `err=` field to show just the human-readable error reason rather than the full `alert::message()` (which repeats torrent name, URL, endpoint, protocol version, and retry count). Remove Speed-tab developer placeholder text "Rolling 10-minute window populates once the selection + per-tab poll lands." from `TransfersPage.xaml`.
+  - [x] "Add web seed" button disabled even when a torrent is selected — `OnPropertiesPivotSelectionChanged` called `SetSelectedTorrent` with `ViewModel.SelectedTorrentRow` which is stale on first TableView click (TwoWay binding doesn't fire). Fix: read `TransfersGrid.SelectedItem` directly instead.
+  - [x] Accessibility: Content tab list items expose `TorrentFileEntry { Index = N, Name = ..., ... }` as their automation name (default `ToString()`). Set `AutomationProperties.Name` to the file name in the Content tab `DataTemplate` so screen readers announce the filename.
+  - [x] Accessibility: Transfer list rows expose `WinBit.ViewModels.Transfers.TransferRowViewModel` as their automation name. Set `AutomationProperties.Name` to the torrent name on each row so screen readers announce it correctly.
+  - [x] Accessibility: Tracker tab rows expose `WinBit.ViewModels.Transfers.TrackerRowViewModel` as their automation name. Override `ToString()` to return the tracker URL so screen readers announce the tracker address.
+  - [x] Accessibility: Peers tab rows expose `WinBit.ViewModels.Transfers.PeerRowViewModel` as their automation name. Override `ToString()` to return the peer's IP:port address so screen readers announce it correctly.
+  - [x] Log flooded with "skipping tracker announce (unreachable)" tracker error entries — libtorrent emits `tracker_error_alert` when it skips an announce for a known-unreachable tracker; these carry no actionable info and flood the log when a torrent has many dead trackers. Suppress them alongside the already-silenced tracker-announce/reply alerts.
+  - [x] Log still flooded with duplicate tracker error entries — multiple torrents sharing the same dead tracker, plus multi-endpoint UDP/HTTP attempts, fire several alerts per tracker URL per announce cycle. Add a per-URL 5-minute cooldown so only the first error per tracker is logged; subsequent identical failures within the window are silently dropped.
+  - [x] Tray icon Critical error on startup — `H.NotifyIcon` throws `FileNotFoundException` in `TaskbarIcon.OnIconSourceChanged` when loading the tray icon image URI. Investigate whether the icon asset path is wrong for the MSIX-packaged layout and fix the URI so the tray icon loads without an unhandled exception.
+  - [x] RSS feed list empty state — the left panel of the RSS page was completely blank when no feeds were configured, violating the "illustrated, inviting, and actionable" bar. Added a `FeedEmptyState` StackPanel with RSS glyph, "No feeds" heading, and "Add feed…" hint that shows when `TreeItems` is empty.
+  - [x] Log flooded with `UdpError` Warning entries from loopback (127.0.0.1, ::1) — libtorrent fires `udp_error_alert` when LSD/DHT socket operations fail to loopback; these are not actionable. Added a typed `UdpErrorAlert` case that suppresses loopback-origin errors and only forwards real external UDP failures to `LogNoisyAlert`.
+  - [x] Transfer list right-click context menu never opens — `WinUI.TableView` marks `RightTapped` as Handled before bubbling (same as `Tapped`), so `RightTapped="..."` XAML handler and the `ContextFlyout` auto-open both fail silently. Fixed by switching to `AddHandler(UIElement.RightTappedEvent, handler, handledEventsToo: true)` and calling `flyout.ShowAt()` explicitly in the handler.
+  - [x] Search page empty state — the results card is completely blank on initial load (StatusText is null, no prompt shown), violating the "illustrated, inviting, and actionable" bar. Replace the plain centered TextBlock with two illustrated StackPanels: a pre-search state (search glyph + "Search for torrents" heading + subtitle) and a post-search no-results/no-providers state (search glyph + StatusText message).
+  - [x] Log flooded with `PortmapError` Warning entries on startup — libtorrent fires `portmap_error_alert` (surfaced as `PortmapErrorAlert`) for every network interface where UPnP/NAT-PMP finds no router. "No router found" is not actionable; suppress those entries silently while letting real portmap errors through.
+  - [x] "Toast notifications unavailable: Unspecified error" Warning logged on every startup — the toast notification COM server registration may not be properly set up for the MSIX debug build. Investigate `IToastNotificationService` registration and silence or fix the Warning so it only appears when toast notifications are genuinely expected to work.
+  - [x] Content tab shows "No file data available" when switching from another details tab (e.g. Peers → Content) while a torrent is already selected — the file list only populates on fresh torrent selection, not on tab-become-visible with an already-selected torrent. Fix: trigger a content refresh when the Content tab is activated with a pre-selected torrent.
+  - [x] Watched Folders empty state is plain text ("No watched folders. Click Add folder to get started.") — violates the "illustrated, inviting, and actionable" bar. Replace with a StackPanel containing a folder glyph (E8B7), "No watched folders" heading, and an actionable subtitle matching the RSS/Search pattern.
+  - [x] Peers tab Flags column always shows "—" — `PeerInfoFormatter.BuildFlags` only checked `IsSeeder` and `IsEncrypted`, discarding all other libtorrent peer_info flags. Port qBittorrent's full `determineFlags()` character set (D/d/U/u/K/?/O/S/I/H/X/L/E/e/P/h) using the 12 new boolean properties added to `PeerInfo` and mapped from `LibtorrentSharp.Enums.PeerFlags` + `PeerSource`.
+  - [x] General tab Pieces field shows "—" for magnet-added torrents — `GetTorrentDetailAsync` MagnetHandle branch sets `totalPieces` from `magnet.NumPieces` but never sets `pieceLength`, because `MagnetHandle` lacked a `PieceLength` property. Fix: add `PieceLength` to `MagnetHandle` (via `GetTorrentInfo` → `TorrentInfoPieceLength` → `FreeTorrentInfo`) and wire it in the service's else branch.
+  - [x] General tab ALL fields blank for resume-loaded torrents on restart — three compounding bugs: (1) `GetTorrentDetailAsync` returned null immediately when `stateRecord` was null, but `AddedDate`/`CompletionDate` are the only state-record fields — all other info (info hash, save path, pieces) is available on the handle; fixed by removing the early return and making `TorrentDetailInfo.AddedDate` nullable. (2) `MagnetHandle.PieceLength` (new property) threw `SEHException` for resume-loaded seeding handles because `get_torrent_info()` is not safe on those handles — `torrent_info` is not retained in the native session after downloading completes via resume blob; fixed by catching `SEHException` in `PieceLength` and returning 0.

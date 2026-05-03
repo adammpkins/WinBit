@@ -104,7 +104,6 @@
                         Grid.Row="0"
                         Visibility="Collapsed"
                         ToolTipText="WinBit"
-                        IconSource="ms-appx:///Assets/AppIcon.ico"
                         NoLeftClickDelay="True"
                         LeftClickCommand="{x:Bind ToggleVisibilityCommand}"
                         DoubleClickCommand="{x:Bind ShowCommand}">

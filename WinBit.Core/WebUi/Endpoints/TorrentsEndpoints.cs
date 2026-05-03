@@ -36,7 +36,12 @@ public static class TorrentsEndpoints
 
         app.MapPost("/api/v2/torrents/pause",
             (Func<HttpContext, Task<IResult>>)(ctx => RunHashActionAsync(ctx, auth, session, PauseAction)));
+        // qBittorrent v5 renamed /pause→/stop and /resume→/start; support both so native WebUI and v5-aware clients work.
+        app.MapPost("/api/v2/torrents/stop",
+            (Func<HttpContext, Task<IResult>>)(ctx => RunHashActionAsync(ctx, auth, session, PauseAction)));
         app.MapPost("/api/v2/torrents/resume",
+            (Func<HttpContext, Task<IResult>>)(ctx => RunHashActionAsync(ctx, auth, session, ResumeAction)));
+        app.MapPost("/api/v2/torrents/start",
             (Func<HttpContext, Task<IResult>>)(ctx => RunHashActionAsync(ctx, auth, session, ResumeAction)));
         app.MapPost("/api/v2/torrents/recheck",
             (Func<HttpContext, Task<IResult>>)(ctx => RunHashActionAsync(ctx, auth, session, RecheckAction)));
@@ -155,6 +160,111 @@ public static class TorrentsEndpoints
             }
             return Results.Ok();
         });
+
+        app.MapGet("/api/v2/torrents/properties", async (HttpContext ctx, CancellationToken ct) =>
+        {
+            if (!IsAuthorized(ctx, auth)) return Results.Unauthorized();
+            var hash = ctx.Request.Query["hash"].ToString();
+            if (string.IsNullOrWhiteSpace(hash)) return Results.BadRequest();
+            var id = TorrentId.FromInfoHash(hash);
+            var detail = await session.GetTorrentDetailAsync(id, ct).ConfigureAwait(false);
+            if (detail is null) return Results.NotFound();
+            var snap = session.GetSnapshots().FirstOrDefault(s => s.Id == id);
+            return Results.Json(new
+            {
+                hash = id.Value,
+                save_path = detail.SavePath ?? string.Empty,
+                comment = detail.Comment ?? string.Empty,
+                created_by = detail.Creator ?? string.Empty,
+                creation_date = detail.CreationDate.HasValue ? (long?)detail.CreationDate.Value.ToUnixTimeSeconds() : null,
+                addition_date = detail.AddedDate.HasValue ? (long?)detail.AddedDate.Value.ToUnixTimeSeconds() : null,
+                completion_date = detail.CompletionDate.HasValue ? (long?)detail.CompletionDate.Value.ToUnixTimeSeconds() : null,
+                total_size = snap.TotalSize,
+                pieces_num = detail.TotalPieces,
+                piece_size = detail.PieceLength,
+                dl_speed = snap.DownloadSpeedBps,
+                up_speed = snap.UploadSpeedBps,
+                downloaded = snap.BytesDownloaded,
+                uploaded = snap.BytesUploaded,
+                ratio = snap.Ratio,
+            });
+        });
+
+        app.MapGet("/api/v2/torrents/trackers", async (HttpContext ctx, CancellationToken ct) =>
+        {
+            if (!IsAuthorized(ctx, auth)) return Results.Unauthorized();
+            var hash = ctx.Request.Query["hash"].ToString();
+            if (string.IsNullOrWhiteSpace(hash)) return Results.BadRequest();
+            var id = TorrentId.FromInfoHash(hash);
+            var trackers = await session.GetTrackersAsync(id, ct).ConfigureAwait(false);
+            var rows = trackers.Select(t => new
+            {
+                url = t.Url.ToString(),
+                status = MapTrackerStatus(t.Status),
+                tier = t.Tier,
+                num_seeds = t.Seeds,
+                num_leeches = t.Leeches,
+                num_downloaded = t.Completed,
+                msg = t.LastError ?? string.Empty,
+            }).ToArray();
+            return Results.Json(rows);
+        });
+
+        app.MapGet("/api/v2/torrents/peers", async (HttpContext ctx, CancellationToken ct) =>
+        {
+            if (!IsAuthorized(ctx, auth)) return Results.Unauthorized();
+            var hash = ctx.Request.Query["hash"].ToString();
+            if (string.IsNullOrWhiteSpace(hash)) return Results.BadRequest();
+            var id = TorrentId.FromInfoHash(hash);
+            var peers = await session.GetPeersAsync(id, ct).ConfigureAwait(false);
+            // qBittorrent returns { full_update: bool, peers: { "ip:port": { ... } } }
+            var dict = new Dictionary<string, object>();
+            foreach (var p in peers)
+            {
+                var parts = p.Address.Split(':');
+                dict[p.Address] = new
+                {
+                    ip = parts[0],
+                    port = parts.Length > 1 && int.TryParse(parts[^1], out var port) ? port : 0,
+                    client = p.Client ?? string.Empty,
+                    progress = p.Progress,
+                    dl_speed = p.DownloadSpeedBps,
+                    up_speed = p.UploadSpeedBps,
+                    flags = (p.IsSeeder ? "S" : "") + (p.IsEncrypted ? "E" : ""),
+                };
+            }
+            return Results.Json(new { full_update = true, peers = dict });
+        });
+
+        app.MapGet("/api/v2/torrents/files", async (HttpContext ctx, CancellationToken ct) =>
+        {
+            if (!IsAuthorized(ctx, auth)) return Results.Unauthorized();
+            var hash = ctx.Request.Query["hash"].ToString();
+            if (string.IsNullOrWhiteSpace(hash)) return Results.BadRequest();
+            var id = TorrentId.FromInfoHash(hash);
+            var files = await session.GetTorrentFilesAsync(id, ct).ConfigureAwait(false);
+            var rows = files.Select(f => new
+            {
+                index = f.Index,
+                name = f.RelativePath,
+                size = f.SizeBytes,
+                progress = f.ProgressFraction,
+                priority = (int)f.Priority,
+            }).ToArray();
+            return Results.Json(rows);
+        });
+
+        app.MapGet("/api/v2/torrents/pieceStates", async (HttpContext ctx, CancellationToken ct) =>
+        {
+            if (!IsAuthorized(ctx, auth)) return Results.Unauthorized();
+            var hash = ctx.Request.Query["hash"].ToString();
+            if (string.IsNullOrWhiteSpace(hash)) return Results.BadRequest();
+            var id = TorrentId.FromInfoHash(hash);
+            var pieces = await session.GetPiecesAsync(id, ct).ConfigureAwait(false);
+            // qBittorrent int array: 0=not downloaded, 1=downloading, 2=downloaded
+            var states = pieces.Select(have => have ? 2 : 0).ToArray();
+            return Results.Json(states);
+        });
     }
 
     private static Task<Result> PauseAction(ITorrentSessionService s, TorrentId id, CancellationToken ct) => s.PauseAsync(id, ct);
@@ -263,5 +373,16 @@ public static class TorrentsEndpoints
         TorrentState.Completed => "uploading",
         TorrentState.Error => "error",
         _ => "unknown",
+    };
+
+    // Maps to qBittorrent's tracker status integers: 1=not contacted, 2=working, 3=updating, 4=not working.
+    // 0 (disabled) is never emitted because WinBit has no disabled-tracker concept.
+    private static int MapTrackerStatus(TrackerStatus s) => s switch
+    {
+        TrackerStatus.NotContacted => 1,
+        TrackerStatus.Working => 2,
+        TrackerStatus.Updating => 3,
+        TrackerStatus.Failure => 4,
+        _ => 1,
     };
 }

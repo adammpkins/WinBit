@@ -9,8 +9,8 @@ using Xunit;
 namespace WinBit.Tests;
 
 /// <summary>
-/// Integration tests for WebUI asset serving: Vue SPA at root, qBittorrent UI at
-/// /qbittorrent/, and API routes taking precedence over static assets.
+/// Integration tests for WebUI asset serving: Vue SPA at root, and API routes
+/// taking precedence over static assets.
 /// </summary>
 public sealed class NativeClientTests : IAsyncLifetime
 {
@@ -29,7 +29,7 @@ public sealed class NativeClientTests : IAsyncLifetime
             new StubRssService(), new StubAutoDownloaderService(),
             new StubRssArticleCache(), new StubRssRefresher(),
             new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()),
-            new StubTorrentStateStore(), TestPaths.Ambient);
+            new StubTorrentStateStore(), TestPaths.Ambient, new StubSearchPluginHost());
     }
 
     public async Task InitializeAsync()
@@ -73,13 +73,6 @@ public sealed class NativeClientTests : IAsyncLifetime
         var assetRes = await _client.GetAsync("/" + match.Groups[1].Value);
         assetRes.StatusCode.Should().Be(HttpStatusCode.OK);
         assetRes.Headers.CacheControl!.MaxAge.Should().BeGreaterThan(TimeSpan.FromDays(300));
-    }
-
-    [Fact]
-    public async Task QBittorrent_UI_reachable_under_explicit_prefix()
-    {
-        (await _client.GetStringAsync("/qbittorrent/"))
-            .Should().Contain("qBittorrent WebUI");
     }
 
     [Fact]

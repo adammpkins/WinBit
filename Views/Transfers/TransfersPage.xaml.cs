@@ -24,8 +24,9 @@ namespace WinBit.Views.Transfers;
 public sealed partial class TransfersPage : Page
 {
     private readonly ISettingsService _settings;
-    // Cached delegate so AddHandler/RemoveHandler use the same instance.
+    // Cached delegates so AddHandler/RemoveHandler use the same instances.
     private readonly TappedEventHandler _gridTappedHandler;
+    private readonly RightTappedEventHandler _gridRightTappedHandler;
     private TorrentFileEntry? _contextMenuFile;
 
     public TransfersViewModel ViewModel { get; }
@@ -36,6 +37,7 @@ public sealed partial class TransfersPage : Page
         ViewModel = App.Services.GetRequiredService<TransfersViewModel>();
         _settings = App.Services.GetRequiredService<ISettingsService>();
         _gridTappedHandler = new TappedEventHandler(OnTransfersGridTapped);
+        _gridRightTappedHandler = new RightTappedEventHandler(OnTransfersGridRightTapped);
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -56,6 +58,9 @@ public sealed partial class TransfersPage : Page
         // handledEventsToo: true — TableView's internal cell selection marks Tapped as
         // Handled before it bubbles; without this flag our handler would never fire.
         TransfersGrid.AddHandler(UIElement.TappedEvent, _gridTappedHandler, handledEventsToo: true);
+        // TableView also marks RightTapped as Handled, preventing ContextFlyout from
+        // opening automatically; we show it explicitly in the handler below.
+        TransfersGrid.AddHandler(UIElement.RightTappedEvent, _gridRightTappedHandler, handledEventsToo: true);
         await ViewModel.RefreshFilterOptionsAsync();
         PopulateFilterTree();
     }
@@ -182,6 +187,7 @@ public sealed partial class TransfersPage : Page
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         PropertiesPivot.SelectionChanged -= OnPropertiesPivotSelectionChanged;
         TransfersGrid.RemoveHandler(UIElement.TappedEvent, _gridTappedHandler);
+        TransfersGrid.RemoveHandler(UIElement.RightTappedEvent, _gridRightTappedHandler);
         var layout = CaptureLayout();
         await _settings.UpdateAsync(s => s.UiState.TransfersGrid = layout);
     }
@@ -194,16 +200,21 @@ public sealed partial class TransfersPage : Page
         var isPeersActive = PropertiesPivot.SelectedIndex == 3;
         var isContentActive = PropertiesPivot.SelectedIndex == 4;
         var isPiecesActive = PropertiesPivot.SelectedIndex == 5;
+        var isSpeedActive = PropertiesPivot.SelectedIndex == 6;
         ViewModel.Properties.SetTrackersTabActive(isTrackersActive);
         ViewModel.Properties.SetWebSeedsTabActive(isWebSeedsActive);
         ViewModel.Properties.SetPeersTabActive(isPeersActive);
         ViewModel.Properties.SetContentTabActive(isContentActive);
         ViewModel.Properties.SetPiecesTabActive(isPiecesActive);
-        if (isTrackersActive || isWebSeedsActive || isPeersActive || isContentActive || isPiecesActive)
+        ViewModel.Properties.SetSpeedTabActive(isSpeedActive);
+        // Read from the control directly — TwoWay SelectedItem binding doesn't fire on first TableView click.
+        // Only forward a non-null selection; if SelectedItem is momentarily null (e.g. during rapid
+        // tab switches or in FlaUI-simulated clicks), we must not clear _selectedId and cancel a
+        // running content poll.
+        if ((isTrackersActive || isWebSeedsActive || isPeersActive || isContentActive || isPiecesActive || isSpeedActive)
+            && TransfersGrid.SelectedItem is TransferRowViewModel selectedRow)
         {
-            // SelectedTorrentRow is kept in sync by the TwoWay SelectedItem binding.
-            ViewModel.Properties.SetSelectedTorrent(
-                (ViewModel.SelectedTorrentRow as TransferRowViewModel)?.Id);
+            ViewModel.Properties.SetSelectedTorrent(selectedRow.Id);
         }
     }
 
@@ -585,13 +596,18 @@ public sealed partial class TransfersPage : Page
         // Always notify the properties panel regardless of prior selection state.
         ViewModel.Properties.SetSelectedTorrent(row.Id);
 
-        if (TransfersGrid.SelectedItems.Contains(row))
+        if (!TransfersGrid.SelectedItems.Contains(row))
         {
-            return;
+            TransfersGrid.SelectedItems.Clear();
+            TransfersGrid.SelectedItems.Add(row);
         }
 
-        TransfersGrid.SelectedItems.Clear();
-        TransfersGrid.SelectedItems.Add(row);
+        // TableView marks RightTapped as Handled, so the ContextFlyout cannot open
+        // automatically. Show it explicitly at the tap position.
+        if (TransfersGrid.ContextFlyout is MenuFlyout flyout)
+        {
+            flyout.ShowAt(TransfersGrid, e.GetPosition(TransfersGrid));
+        }
     }
 
     private static TransferRowViewModel? FindRowViewModel(DependencyObject? start)

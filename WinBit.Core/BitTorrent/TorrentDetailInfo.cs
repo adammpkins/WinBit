@@ -11,7 +11,7 @@ public sealed record TorrentDetailInfo(
     string? Comment,
     string? Creator,
     DateTimeOffset? CreationDate,
-    DateTimeOffset AddedDate,
+    DateTimeOffset? AddedDate,
     DateTimeOffset? CompletionDate,
     int TotalPieces,
     long PieceLength

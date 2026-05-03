@@ -1,6 +1,6 @@
 # LibtorrentSharp — design
 
-Companion to `docs/torrent-engine.md` (see [Engine alternatives evaluation (2026-04)](./torrent-engine.md#engine-alternatives-evaluation-2026-04)). This document defines the architecture and scope of **LibtorrentSharp**, a .NET binding to libtorrent-rasterbar that WinBit is building on `engine/libtorrent-bindings`.
+Companion to `docs/torrent-engine.md` (see [Engine alternatives evaluation (2026-04)](./torrent-engine.md#engine-alternatives-evaluation-2026-04)). This document defines the architecture and scope of **LibtorrentSharp**, a .NET binding to libtorrent-rasterbar that ships in-repo with WinBit and is intended to extract as a standalone NuGet.
 
 ## Goal
 

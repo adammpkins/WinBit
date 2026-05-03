@@ -1,6 +1,6 @@
 # RSS auto-downloader
 
-Rule semantics for the RSS auto-download engine, ported from qBittorrent's reference behavior at qBittorrent's RSS auto-download rule.
+Rule semantics for the RSS auto-download engine, ported from qBittorrent's RSS auto-download rule semantics.
 
 Delivered in **M9**.
 

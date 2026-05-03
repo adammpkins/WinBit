@@ -59,13 +59,26 @@
                     </Button>
                 </Grid>
 
-                <TextBlock x:Name="EmptyStateText"
-                           Text="No watched folders. Click Add folder to get started."
-                           Style="{ThemeResource BodyTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           HorizontalAlignment="Center"
-                           Margin="0,24,0,0"
-                           Visibility="Collapsed" />
+                <StackPanel x:Name="EmptyStateText"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="12"
+                            Visibility="Collapsed">
+                    <FontIcon Glyph="&#xE8B7;"
+                              FontSize="48"
+                              HorizontalAlignment="Center"
+                              Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <TextBlock Text="No watched folders"
+                               Style="{ThemeResource SubtitleTextBlockStyle}"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="Click &quot;Add folder&quot; to monitor a directory for .torrent files."
+                               Style="{ThemeResource BodyTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="320"
+                               TextAlignment="Center" />
+                </StackPanel>
 
                 <ListView x:Name="FolderList"
                           ItemTemplate="{StaticResource FolderItemTemplate}"

@@ -43,6 +43,7 @@
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-pill: 16px;
 
   --t-fast: 0.12s ease;
   --t-base: 200ms ease;
@@ -85,19 +86,104 @@ body::after {
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); }
 
 /* Fluent component dark-mode overrides */
+fluent-button {
+  /* No border at rest. Strip every stroke token Fluent draws on the control —
+     neutral (default/lightweight/stealth), accent (the inner stroke on accent
+     buttons that reads as a thin lighter ring around the pill), and outline
+     (used by the outline appearance). */
+  --neutral-stroke-rest: transparent;
+  --neutral-stroke-hover: transparent;
+  --neutral-stroke-active: transparent;
+  --neutral-stroke-focus: transparent;
+  --accent-stroke-control-rest: transparent;
+  --accent-stroke-control-hover: transparent;
+  --accent-stroke-control-active: transparent;
+  --accent-stroke-control-focus: transparent;
+  --neutral-stroke-input-rest: transparent;
+  --neutral-stroke-input-hover: transparent;
+  --neutral-stroke-strong-rest: transparent;
+  --stroke-control-strong-rest: transparent;
+  --control-corner-radius: var(--radius-pill);
+
+  /* Focus ring — only when keyboard-focused (active state). Fluent's default
+     uses system blue (#0078D4); override to white so the active ring matches
+     the desktop app's WinUI focus stroke. */
+  --focus-stroke-outer: var(--text-primary);
+  --focus-stroke-inner: var(--text-primary);
+  --focus-stroke-divider: var(--text-primary);
+}
 fluent-button::part(control) {
   font-family: inherit;
   font-size: 13px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  /* Force every stroke off at rest. The fluent-button shadow DOM draws an
+     inset 1px border via `border:` on .control plus an outer ring via
+     box-shadow on accent appearances; both must be cleared explicitly. */
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+fluent-button::part(control):focus-visible {
+  /* Active (keyboard-focused) state — solid white ring. */
+  box-shadow: 0 0 0 2px var(--text-primary);
+}
+
+fluent-button[appearance="accent"] {
+  --accent-fill-rest: var(--accent);
+  --accent-fill-hover: var(--accent-light);
+  --accent-fill-active: var(--accent-dark);
+  /* Text on the purple pill matches the body/surface gray for visual continuity
+     across the page — same color the surrounding panels and Mica base use,
+     reading as a "knockout" accent treatment rather than high-contrast white. */
+  --foreground-on-accent-rest: var(--bg);
+  --foreground-on-accent-hover: var(--bg);
+  --foreground-on-accent-active: var(--surface-1);
+}
+
+/* Lightweight buttons (Refresh, Remove, Pause All, Sign Out, etc.) default to
+   system-accent text in Fluent UI Web Components — that's why everything reads
+   blue. Override neutral-foreground tokens so the text is white, matching the
+   subtle/transparent buttons on the WinUI desktop app. */
+fluent-button[appearance="lightweight"] {
+  --neutral-fill-stealth-rest: transparent;
+  --neutral-fill-stealth-hover: var(--surface-1);
+  --neutral-fill-stealth-active: var(--surface-2);
+  --neutral-foreground-rest: var(--text-primary);
+  --neutral-foreground-hover: var(--text-primary);
+  --neutral-foreground-active: var(--text-primary);
+  --accent-foreground-rest: var(--text-primary);
+  --accent-foreground-hover: var(--text-primary);
+  --accent-foreground-active: var(--text-primary);
 }
 
 fluent-text-field {
   display: block;
+  /* Fluent UI defaults to system blue (#0078D4) for the focus underline.
+     Override every accent token the field consumes so focus reads as WinBit purple. */
+  --accent-fill-rest: var(--accent);
+  --accent-fill-hover: var(--accent-light);
+  --accent-fill-active: var(--accent-dark);
+  --accent-foreground-rest: var(--accent);
+  --accent-foreground-hover: var(--accent-light);
+  --accent-foreground-active: var(--accent-dark);
+  --accent-foreground-cut-rest: var(--accent);
+  --neutral-foreground-focus: var(--accent);
 }
 fluent-text-field::part(root) {
   border-radius: var(--radius-sm);
   font-family: inherit;
   font-size: 13px;
+}
+
+/* Segoe Fluent Icons utility — matches the desktop app's icon font.
+   Apply via class="fi" or as ::before/::after. */
+.fi {
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets";
+  font-style: normal;
+  font-weight: normal;
+  display: inline-block;
+  line-height: 1;
 }
 
 fluent-dialog::part(overlay) {

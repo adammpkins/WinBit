@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using WinBit.Core.Logging;
@@ -12,6 +13,8 @@ public sealed class AppEndpointsTests : IAsyncLifetime
 {
     private readonly WebUiService _service;
     private HttpClient _client = null!;
+    private readonly CookieContainer _cookies = new();
+    private HttpClientHandler _handler = null!;
 
     public AppEndpointsTests()
     {
@@ -19,7 +22,7 @@ public sealed class AppEndpointsTests : IAsyncLifetime
         settings.Current.WebUi.Enabled = true;
         settings.Current.WebUi.Port = 0;
         settings.Current.Downloads.DefaultSavePath = @"C:\winbit\downloads";
-        _service = new WebUiService(settings, new WebUiAuthService(settings), new Helpers.StubTorrentSession(), new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new Helpers.StubTorrentStateStore(), Helpers.TestPaths.Ambient);
+        _service = new WebUiService(settings, new WebUiAuthService(settings), new Helpers.StubTorrentSession(), new NoopLog(), new PeerLogService(), new Helpers.StubCategoryService(), new Helpers.StubTagService(), new Helpers.StubRssService(), new Helpers.StubAutoDownloaderService(), new Helpers.StubRssArticleCache(), new Helpers.StubRssRefresher(), new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()), new Helpers.StubTorrentStateStore(), Helpers.TestPaths.Ambient, new Helpers.StubSearchPluginHost());
         Settings = settings;
     }
 
@@ -28,12 +31,15 @@ public sealed class AppEndpointsTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await _service.StartAsync(CancellationToken.None);
-        _client = new HttpClient { BaseAddress = new Uri($"http://localhost:{_service.BoundPort}") };
+        _handler = new HttpClientHandler { CookieContainer = _cookies, UseCookies = true };
+        _client = new HttpClient(_handler) { BaseAddress = new Uri($"http://localhost:{_service.BoundPort}") };
+        await Login();
     }
 
     public async Task DisposeAsync()
     {
         _client.Dispose();
+        _handler.Dispose();
         await _service.StopAsync(CancellationToken.None);
     }
 
@@ -83,6 +89,38 @@ public sealed class AppEndpointsTests : IAsyncLifetime
         Settings.Current.Downloads.DefaultSavePath = null;
         var body = await _client.GetStringAsync("/api/v2/app/defaultSavePath");
         body.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task TransfersGridHiddenColumns_roundtrips_through_setPreferences_and_getPreferences()
+    {
+        // POST hidden columns via form-urlencoded json= param (qBittorrent compat path).
+        var payload = new FormUrlEncodedContent(new[]
+        {
+            new KeyValuePair<string, string>("json",
+                """{"transfers_hidden_columns":["size","ratio"]}"""),
+        });
+        var postResponse = await _client.PostAsync("/api/v2/app/setPreferences", payload);
+        postResponse.EnsureSuccessStatusCode();
+
+        // GET preferences and assert the persisted list is exactly what was sent.
+        var getResponse = await _client.GetAsync("/api/v2/app/preferences");
+        getResponse.EnsureSuccessStatusCode();
+
+        var root = JsonDocument.Parse(await getResponse.Content.ReadAsStringAsync()).RootElement;
+        root.TryGetProperty("transfers_hidden_columns", out var hiddenProp).Should().BeTrue();
+        var hidden = hiddenProp.EnumerateArray().Select(e => e.GetString()).ToList();
+        hidden.Should().BeEquivalentTo(new[] { "size", "ratio" }, options => options.WithStrictOrdering());
+    }
+
+    private async Task Login()
+    {
+        await _client.PostAsync("/api/v2/auth/login",
+            new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("username", "admin"),
+                new KeyValuePair<string, string>("password", "adminadmin"),
+            }));
     }
 
     public sealed class InMemorySettings : ISettingsService

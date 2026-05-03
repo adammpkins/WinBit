@@ -29,7 +29,7 @@
                 <controls:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE774;" />
                 </controls:SettingsCard.HeaderIcon>
-                <ToggleSwitch x:Name="WebUiEnabledToggle" />
+                <ToggleSwitch x:Name="WebUiEnabledToggle" Toggled="OnEnabledToggled" />
             </controls:SettingsCard>
 
             <controls:SettingsCard Header="Port"
@@ -39,7 +39,8 @@
                            Minimum="1"
                            Maximum="65535"
                            SpinButtonPlacementMode="Compact"
-                           MinWidth="140" />
+                           MinWidth="140"
+                           ValueChanged="OnPortChanged" />
             </controls:SettingsCard>
 
             <controls:SettingsCard Header="Use HTTPS"
@@ -47,7 +48,7 @@
                 <controls:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE72E;" />
                 </controls:SettingsCard.HeaderIcon>
-                <ToggleSwitch x:Name="WebUiHttpsToggle" />
+                <ToggleSwitch x:Name="WebUiHttpsToggle" Toggled="OnHttpsToggled" />
             </controls:SettingsCard>
         </StackPanel>
         </Grid>

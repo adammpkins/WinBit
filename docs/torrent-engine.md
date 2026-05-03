@@ -4,6 +4,8 @@ How WinBit wraps libtorrent-rasterbar via LibtorrentSharp and how qBittorrent co
 
 ## Choice and rationale
 
+Engine: **libtorrent-rasterbar** (C++, BSD-3-Clause), via `LibTorrentSessionService` implementing `ITorrentSessionService`. The C# binding (`libtorrentsharp/`, `LibtorrentSharp` project) wraps the native library over a C ABI + P/Invoke and is incubated in-repo as a future standalone NuGet. `ITorrentSessionService` is the stable contract — it emerged from real need (testability + engine swap), not premature abstraction. See [`libtorrent-binding.md`](./libtorrent-binding.md) for binding architecture.
+
 ## Engine alternatives evaluation (2026-04)
 
 ### Scope

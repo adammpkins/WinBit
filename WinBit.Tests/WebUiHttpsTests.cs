@@ -24,7 +24,7 @@ public sealed class WebUiHttpsTests
             new StubRssService(), new StubAutoDownloaderService(),
             new StubRssArticleCache(), new StubRssRefresher(),
             new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()),
-            new StubTorrentStateStore(), paths);
+            new StubTorrentStateStore(), paths, new StubSearchPluginHost());
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -68,7 +68,7 @@ public sealed class WebUiHttpsTests
             new StubRssService(), new StubAutoDownloaderService(),
             new StubRssArticleCache(), new StubRssRefresher(),
             new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()),
-            new StubTorrentStateStore(), paths);
+            new StubTorrentStateStore(), paths, new StubSearchPluginHost());
 
         await service.StartAsync(CancellationToken.None);
         try
@@ -107,7 +107,7 @@ public sealed class WebUiHttpsTests
             new StubRssService(), new StubAutoDownloaderService(),
             new StubRssArticleCache(), new StubRssRefresher(),
             new WinBit.Core.BitTorrent.TorrentCreatorQueue(new WinBit.Core.BitTorrent.TorrentCreatorService()),
-            new StubTorrentStateStore(), paths);
+            new StubTorrentStateStore(), paths, new StubSearchPluginHost());
 
         await service.StartAsync(CancellationToken.None);
         try
