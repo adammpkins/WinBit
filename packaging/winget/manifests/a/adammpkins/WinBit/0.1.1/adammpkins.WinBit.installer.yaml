@@ -20,10 +20,14 @@ MinimumOSVersion: 10.0.17763.0
 InstallerType: msix
 Scope: user
 UpgradeBehavior: install
-# Captured via `(Get-AppxPackage WinBit).PackageFamilyName`. The hash component
-# is derived from the manifest's Publisher CN ("CN=Adam M. Perkins"), not from
-# the signing cert thumbprint, so it stays stable across certs as long as the
-# CN doesn't change. SignPath issuance won't shift it; a Publisher CN edit will.
+# PackageFamilyName for the actual v0.1.1 MSIX as released (Publisher CN was
+# "CN=Adam M. Perkins" at release time). Confirmed via `(Get-AppxPackage
+# WinBit).PackageFamilyName` on a machine with v0.1.1 installed.
+#
+# v0.1.2+ will use a new Publisher CN ("CN=Idiom Studio, O=Idiom Studio, ...")
+# matching the SignPath cert, so the family-name hash component changes to
+# `_36b301njz0zyp`. New manifests must regenerate via `Get-AppxPackage` (or
+# the publisher-hash algorithm in packaging/winget/README.md).
 PackageFamilyName: a0cad295-f80d-4e90-a69c-81963a583a9f_473tsqspv067t
 Installers:
 - Architecture: x64

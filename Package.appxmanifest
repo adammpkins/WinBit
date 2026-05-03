@@ -11,14 +11,14 @@
 
   <Identity
     Name="a0cad295-f80d-4e90-a69c-81963a583a9f"
-    Publisher="CN=Adam M. Perkins"
+    Publisher="CN=Idiom Studio, O=Idiom Studio, C=US, S=MI, L=Detroit, E=adammpkins@gmail.com"
     Version="0.1.1.0" />
 
   <mp:PhoneIdentity PhoneProductId="a0cad295-f80d-4e90-a69c-81963a583a9f" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
     <DisplayName>WinBit</DisplayName>
-    <PublisherDisplayName>Adam M. Perkins</PublisherDisplayName>
+    <PublisherDisplayName>Idiom Studio</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 

@@ -4,6 +4,7 @@ qbittorrent/
 # .NET build outputs
 bin/
 obj/
+AppPackages/
 *.user
 *.suo
 .vs/

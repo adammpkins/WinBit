@@ -65,8 +65,12 @@ jobs:
         id: cert
         shell: pwsh
         run: |
+          # Subject DN must match Package.appxmanifest's Publisher attribute
+          # exactly, or signtool refuses to sign. When SignPath Foundation issues
+          # the real cert, this whole step is replaced by a SignPath GitHub Action
+          # — see packaging/winget/README.md.
           $cert = New-SelfSignedCertificate `
-              -Subject "CN=Adam M. Perkins" `
+              -Subject "CN=Idiom Studio, O=Idiom Studio, C=US, S=MI, L=Detroit, E=adammpkins@gmail.com" `
               -Type CodeSigningCert `
               -CertStoreLocation Cert:\CurrentUser\My `
               -KeyUsage DigitalSignature `
