@@ -76,6 +76,14 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
     // opportunistically by TorrentStatusAlert; entries drop on TorrentRemovedAlert or RemoveAsync.
     private readonly ConcurrentDictionary<TorrentId, LibtorrentSharp.TorrentHandle> _handles = new();
 
+    // Removal tombstones. RemoveAsync inserts here BEFORE TryRemove on _handles/_magnets,
+    // and the alert pump checks this set before refreshing _handles in TorrentStatusAlert.
+    // Without it, libtorrent's post-detach status alerts (which keep firing for a few ticks
+    // until peer connections wind down) re-insert the just-removed handle and the row
+    // resurrects in the UI. Cleared when TorrentRemovedAlert acks the libtorrent-side removal,
+    // or when AddAsync re-adds the same hash (rare but legal).
+    private readonly ConcurrentDictionary<TorrentId, byte> _recentlyRemoved = new();
+
     // Magnet-added torrents (LibtorrentSession.Add with MagnetUri source). The current LibtorrentSharp surface
     // does not promote these to TorrentManagers when metadata resolves, so they live in a
     // parallel map. Both are walked by Torrents and RemoveAsync.
@@ -461,12 +469,12 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
             case TorrentStatusAlert statusAlert when statusAlert.Subject is { } manager:
                 if (TryMakeTorrentId(manager, out var statusId))
                 {
-                    // Only refresh the handle for torrents we still know about.
-                    // libtorrent keeps emitting status alerts for a few ticks
-                    // after DetachTorrent until the seed connections wind down;
-                    // an unconditional `_handles[id] = manager` would resurrect
-                    // a torrent the user just removed.
-                    if (_handles.ContainsKey(statusId))
+                    // libtorrent keeps emitting status alerts for several ticks after
+                    // DetachTorrent (until seed connections wind down). The tombstone
+                    // check stops those late alerts from resurrecting a just-removed
+                    // entry in _handles. ContainsKey alone is racy: another thread
+                    // could TryRemove between the check and the assignment.
+                    if (!_recentlyRemoved.ContainsKey(statusId))
                     {
                         _handles[statusId] = manager;
                     }
@@ -477,6 +485,7 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                 if (TryMakeTorrentId(removedManager, out var removedId))
                 {
                     _handles.TryRemove(removedId, out _);
+                    _recentlyRemoved.TryRemove(removedId, out _);
                 }
                 break;
 
@@ -1211,6 +1220,7 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                 if (!loadedFromResume)
                 {
                     var manager = client.Add(new LibtorrentSharp.AddTorrentParams { TorrentInfo = info, SavePath = parameters.SavePath }).Torrent!;
+                    _recentlyRemoved.TryRemove(addedId, out _);
                     _handles[addedId] = manager;
                     if (!_pexEnabled)
                         manager.SetFlags(TorrentFlags.DisablePex);
@@ -1281,6 +1291,10 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
 
         try
         {
+            // Tombstone BEFORE TryRemove so any in-flight TorrentStatusAlert on the
+            // alert pump can see the tombstone and skip its _handles refresh.
+            _recentlyRemoved[id] = 0;
+
             if (_magnets.TryRemove(id, out var magnet))
             {
                 client.DetachMagnet(magnet);
@@ -1292,6 +1306,7 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                 Interlocked.Exchange(ref _pendingPublish, 1);
                 _ = _customNames.RemoveNameAsync(id);
                 _ = _stateStore.RemoveTorrentAsync(id, CancellationToken.None);
+                _log.Write($"Removed magnet {id.Value[..8]}", LogSeverity.Info);
                 return Task.FromResult(Result.Success());
             }
 
@@ -1305,8 +1320,13 @@ public sealed class LibTorrentSessionService : ITorrentSessionService, IAsyncDis
                 Interlocked.Exchange(ref _pendingPublish, 1);
                 _ = _customNames.RemoveNameAsync(id);
                 _ = _stateStore.RemoveTorrentAsync(id, CancellationToken.None);
+                _log.Write($"Removed torrent {id.Value[..8]} (deleteContent={deleteContent})", LogSeverity.Info);
                 return Task.FromResult(Result.Success());
             }
+
+            // Nothing to remove — clear the speculative tombstone so a future add of
+            // the same hash isn't accidentally suppressed.
+            _recentlyRemoved.TryRemove(id, out _);
 
             return Task.FromResult(Result.Failure($"No torrent with info-hash {id.Value} is currently loaded."));
         }
