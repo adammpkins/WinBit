@@ -1,0 +1,141 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (must already exist, e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-msix:
+    name: Build signed MSIX
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Resolve release tag
+        id: tag
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+              '${{ github.event.inputs.tag }}'
+          } else {
+              '${{ github.ref_name }}'
+          }
+          $version = $tag.TrimStart('v')
+          "tag=$tag" | Out-File $env:GITHUB_OUTPUT -Append
+          "version=$version" | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "Tag=$tag Version=$version"
+
+      - name: Verify Package.appxmanifest version matches tag
+        shell: pwsh
+        run: |
+          $manifest = [xml](Get-Content Package.appxmanifest)
+          $manifestVersion = $manifest.Package.Identity.Version
+          $expected = '${{ steps.tag.outputs.version }}'
+          # Manifest is always 4-part (X.Y.Z.W); tag version may be 3-part — normalize
+          $normalized = if (($expected -split '\.').Count -eq 3) { "$expected.0" } else { $expected }
+          if ($manifestVersion -ne $normalized) {
+              Write-Error "Package.appxmanifest Version='$manifestVersion' does not match tag '$expected' (normalized '$normalized'). Bump the manifest before tagging."
+              exit 1
+          }
+          Write-Host "Manifest version matches tag: $manifestVersion"
+
+      - name: Generate self-signed code-signing certificate
+        id: cert
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate `
+              -Subject "CN=Adam M. Perkins" `
+              -Type CodeSigningCert `
+              -CertStoreLocation Cert:\CurrentUser\My `
+              -KeyUsage DigitalSignature `
+              -KeyExportPolicy Exportable `
+              -NotAfter (Get-Date).AddYears(2)
+          Write-Host "Generated cert thumbprint: $($cert.Thumbprint)"
+          "thumbprint=$($cert.Thumbprint)" | Out-File $env:GITHUB_OUTPUT -Append
+          # Export the public .cer for sideload trust
+          $cerPath = "WinBit-${{ steps.tag.outputs.tag }}.cer"
+          Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
+          "cer_path=$cerPath" | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Restore
+        run: dotnet restore WinBit.slnx
+
+      - name: Build solution
+        run: dotnet build WinBit.slnx -c Release -p:Platform=x64 --no-restore
+
+      - name: Run unit tests (smoke gate)
+        run: dotnet test WinBit.Tests/WinBit.Tests.csproj -c Release --no-build --logger "console;verbosity=normal"
+
+      - name: Build signed MSIX
+        shell: pwsh
+        run: |
+          dotnet publish WinBit.csproj -c Release -r win-x64 `
+            -p:Platform=x64 `
+            -p:GenerateAppxPackageOnBuild=true `
+            -p:AppxPackageSigningEnabled=true `
+            -p:PackageCertificateThumbprint='${{ steps.cert.outputs.thumbprint }}' `
+            -p:AppxBundle=Never `
+            -p:UapAppxPackageBuildMode=SideloadOnly `
+            --no-restore
+
+      - name: Locate MSIX
+        id: artifact
+        shell: pwsh
+        run: |
+          $appPackages = Get-ChildItem -Recurse -Filter '*.msix' -Path 'bin' -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match 'AppPackages' -and $_.Name -notmatch '\.appxsym|\.appxupload' } |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+          if (-not $appPackages) {
+              Write-Error "No MSIX artifact found under bin/**/AppPackages"
+              Get-ChildItem -Recurse -Filter '*.msix*' -Path 'bin' | ForEach-Object { Write-Host $_.FullName }
+              exit 1
+          }
+          $msixPath = $appPackages.FullName
+          $msixName = "WinBit-${{ steps.tag.outputs.tag }}-x64.msix"
+          Copy-Item $msixPath $msixName
+          Write-Host "MSIX: $msixName ($($appPackages.Length) bytes)"
+          "msix_path=$msixName" | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: WinBit ${{ steps.tag.outputs.tag }}
+          draft: true
+          prerelease: ${{ startsWith(steps.tag.outputs.version, '0.') }}
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            1. Download `WinBit-${{ steps.tag.outputs.tag }}.cer` and trust it: right-click → Install Certificate → Local Machine → "Trusted Root Certification Authorities". (One-time per machine; required because the MSIX is self-signed.)
+            2. Download `WinBit-${{ steps.tag.outputs.tag }}-x64.msix` and double-click to install, or run `Add-AppxPackage WinBit-${{ steps.tag.outputs.tag }}-x64.msix` from PowerShell.
+
+            ## Notes
+
+            Built from tag `${{ steps.tag.outputs.tag }}`. See the auto-generated changelog below for changes.
+          files: |
+            ${{ steps.artifact.outputs.msix_path }}
+            ${{ steps.cert.outputs.cer_path }}
