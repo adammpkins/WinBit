@@ -33,11 +33,6 @@
     <EmbeddedResource Include="Persistence\SqlMigrations\*.sql" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- WinBit Vue SPA — built by Vite into WinBitApp/, served by WinBitAppAssets. -->
-    <EmbeddedResource Include="WebUi\WinBitApp\**\*.*" />
-  </ItemGroup>
-
   <!--
     Build the Vue SPA before compilation so embedded resources are up-to-date.
     Set SkipVueBuild=true (e.g. in CI that builds the frontend separately) to skip.
@@ -62,5 +57,17 @@
           Condition="!Exists('$(SolutionDir)webui\node_modules')" />
     <Exec Command="set &quot;PATH=$(NodejsDir);%PATH%&quot; &amp;&amp; &quot;$(NodejsDir)\npm.cmd&quot; run build"
           WorkingDirectory="$(SolutionDir)webui" />
+  </Target>
+
+  <!--
+    Embed the Vue SPA assets into WinBit.Core.dll. Done in a target (not a static
+    ItemGroup) so the glob is re-evaluated AFTER BuildVueSpa has populated
+    WebUi\WinBitApp\. A static <EmbeddedResource Include="..."/> evaluates at
+    project-load time and would match zero files on a clean CI checkout.
+  -->
+  <Target Name="EmbedVueSpa" AfterTargets="BuildVueSpa" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <EmbeddedResource Include="WebUi\WinBitApp\**\*.*" />
+    </ItemGroup>
   </Target>
 </Project>
