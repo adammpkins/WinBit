@@ -81,6 +81,7 @@ More detail (packaging, MSIX) in [`docs/development.md`](./docs/development.md).
 - [`docs/webui-api.md`](./docs/webui-api.md) — REST surface (qBittorrent v2 parity).
 - [`docs/rss-autodownloader.md`](./docs/rss-autodownloader.md) — rule semantics.
 - [`docs/development.md`](./docs/development.md) — build, run, test, package, troubleshoot.
+- [`docs/privacy.md`](./docs/privacy.md) — what WinBit does over the network and what it doesn't collect.
 
 ## License
 
