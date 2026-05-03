@@ -6,6 +6,10 @@ A modern, beautiful, Windows-native BitTorrent client. WinBit is a ground-up reb
 
 ![WinBit transfer list with the Peers tab open on a seeding Ubuntu ISO](./docs/images/winbit-main.png)
 
+WinBit also ships an embedded **Web UI** — a native Vue SPA served by an in-process Kestrel host on the same machine, qBittorrent v2 API-compatible so existing third-party clients (Sonarr, Radarr, `qbittorrent-api`, etc.) work unchanged.
+
+![WinBit Web UI showing the Transfers page with the Peers properties tab populated](./docs/images/winbit-webui.png)
+
 ## Why
 
 qBittorrent is functionally excellent but visually dated — it wears its Qt heritage and optimizes for cross-platform pragmatism over native feel. WinBit keeps the feature set and rebuilds the experience around Windows 11: Mica backdrops, extended title bars, Segoe Fluent iconography, tasteful motion, dark/light theming, and controls that feel at home next to Settings and File Explorer.
