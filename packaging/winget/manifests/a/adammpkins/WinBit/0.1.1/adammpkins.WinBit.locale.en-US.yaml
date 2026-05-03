@@ -1,0 +1,40 @@
+# Created with: hand-authored
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+
+PackageIdentifier: adammpkins.WinBit
+PackageVersion: 0.1.1
+PackageLocale: en-US
+Publisher: Adam M. Perkins
+PublisherUrl: https://github.com/adammpkins
+PublisherSupportUrl: https://github.com/adammpkins/WinBit/issues
+Author: Adam M. Perkins
+PackageName: WinBit
+PackageUrl: https://github.com/adammpkins/WinBit
+License: GPL-2.0-or-later
+LicenseUrl: https://github.com/adammpkins/WinBit/blob/main/LICENSE
+Copyright: Copyright (C) 2026 Adam M. Perkins
+CopyrightUrl: https://github.com/adammpkins/WinBit/blob/main/LICENSE
+ShortDescription: A modern, beautiful, Windows-native BitTorrent client built on libtorrent.
+Description: |-
+  WinBit is a ground-up Windows 11 BitTorrent client built in C# and WinUI 3, aimed
+  at feature parity with qBittorrent. The torrent engine wraps libtorrent-rasterbar
+  through LibtorrentSharp (an in-repo .NET binding), and the UI uses Fluent Design —
+  Mica backdrop, Segoe Fluent icons, dark/light theming, extended title bar.
+
+  WinBit also ships an embedded Web UI (a native Vue SPA served by an in-process
+  Kestrel host) that's qBittorrent v2 API-compatible, so existing third-party
+  clients (Sonarr, Radarr, qbittorrent-api, etc.) work unchanged.
+Moniker: winbit
+Tags:
+- bittorrent
+- torrent
+- libtorrent
+- p2p
+- qbittorrent-compatible
+- winui3
+- fluent
+ReleaseNotes: |-
+  See the GitHub Release for the full changelog.
+ReleaseNotesUrl: https://github.com/adammpkins/WinBit/releases/tag/v0.1.1
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

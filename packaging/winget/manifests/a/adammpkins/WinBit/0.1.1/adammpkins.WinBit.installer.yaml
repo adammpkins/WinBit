@@ -1,0 +1,34 @@
+# Created with: hand-authored
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+#
+# PROVISIONAL — DO NOT SUBMIT THIS FILE AS-IS.
+#
+# The MSIX hash + signature hash below are for the v0.1.1 self-signed build.
+# microsoft/winget-pkgs validation rejects MSIX whose signing chain is not
+# publicly trusted, so this version cannot ship to winget. The real first
+# winget release will be the next version (e.g. v0.1.2) signed via SignPath
+# Foundation. When that lands:
+#   - Re-compute InstallerSha256 from the SignPath-signed MSIX.
+#   - Re-compute SignatureSha256 from the AppxSignature.p7x inside the new MSIX.
+#   - Replace PackageFamilyName with the value from
+#     `(Get-AppxPackage WinBit).PackageFamilyName` after a local install.
+#   - Update InstallerUrl to point at the new release tag.
+
+PackageIdentifier: adammpkins.WinBit
+PackageVersion: 0.1.1
+MinimumOSVersion: 10.0.17763.0
+InstallerType: msix
+Scope: user
+UpgradeBehavior: install
+# Captured via `(Get-AppxPackage WinBit).PackageFamilyName`. The hash component
+# is derived from the manifest's Publisher CN ("CN=Adam M. Perkins"), not from
+# the signing cert thumbprint, so it stays stable across certs as long as the
+# CN doesn't change. SignPath issuance won't shift it; a Publisher CN edit will.
+PackageFamilyName: a0cad295-f80d-4e90-a69c-81963a583a9f_473tsqspv067t
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/adammpkins/WinBit/releases/download/v0.1.1/WinBit-v0.1.1-x64.msix
+  InstallerSha256: 40ED5FE43E9C95078E1A98ACBFAF18B34DB7099F78A9AF52F8650E501911E522
+  SignatureSha256: C8BD260C10993750F2F6257D40467A37E88A670B188BF12110AE276B06D9784B
+ManifestType: installer
+ManifestVersion: 1.6.0
