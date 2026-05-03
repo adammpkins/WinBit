@@ -6,15 +6,16 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (must already exist, e.g. v0.1.0)'
+        description: 'Tag to release (must already exist, e.g. v0.1.2)'
         required: true
 
 permissions:
   contents: write
+  id-token: write   # required for SignPath OIDC trusted-build verification
 
 jobs:
   build-msix:
-    name: Build signed MSIX
+    name: Build MSIX and sign via SignPath
     runs-on: windows-latest
     timeout-minutes: 45
 
@@ -61,28 +62,6 @@ jobs:
           }
           Write-Host "Manifest version matches tag: $manifestVersion"
 
-      - name: Generate self-signed code-signing certificate
-        id: cert
-        shell: pwsh
-        run: |
-          # Subject DN must match Package.appxmanifest's Publisher attribute
-          # exactly, or signtool refuses to sign. When SignPath Foundation issues
-          # the real cert, this whole step is replaced by a SignPath GitHub Action
-          # — see packaging/winget/README.md.
-          $cert = New-SelfSignedCertificate `
-              -Subject "CN=Idiom Studio, O=Idiom Studio, C=US, S=MI, L=Detroit, E=adammpkins@gmail.com" `
-              -Type CodeSigningCert `
-              -CertStoreLocation Cert:\CurrentUser\My `
-              -KeyUsage DigitalSignature `
-              -KeyExportPolicy Exportable `
-              -NotAfter (Get-Date).AddYears(2)
-          Write-Host "Generated cert thumbprint: $($cert.Thumbprint)"
-          "thumbprint=$($cert.Thumbprint)" | Out-File $env:GITHUB_OUTPUT -Append
-          # Export the public .cer for sideload trust
-          $cerPath = "WinBit-${{ steps.tag.outputs.tag }}.cer"
-          Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
-          "cer_path=$cerPath" | Out-File $env:GITHUB_OUTPUT -Append
-
       - name: Restore
         run: dotnet restore WinBit.slnx
 
@@ -97,25 +76,24 @@ jobs:
       # on the windows-latest runner (tracked in TASKS.md), and a flaky test
       # shouldn't block a release whose CI already passed.
 
-      - name: Build signed MSIX
+      - name: Build unsigned MSIX
         shell: pwsh
         run: |
-          # Restore happens implicitly because publish needs win-x64 RID assets
-          # that the earlier slnx-level restore may not have produced.
+          # AppxPackageSigningEnabled=false ⇒ MSBuild produces an unsigned .msix.
+          # Signing is delegated to SignPath downstream so the cert + private key
+          # never touch the runner. Restore happens implicitly because publish
+          # needs win-x64 RID assets that the slnx-level restore may not have.
           dotnet publish WinBit.csproj -c Release -r win-x64 `
             -p:Platform=x64 `
             -p:GenerateAppxPackageOnBuild=true `
-            -p:AppxPackageSigningEnabled=true `
-            -p:PackageCertificateThumbprint='${{ steps.cert.outputs.thumbprint }}' `
+            -p:AppxPackageSigningEnabled=false `
             -p:AppxBundle=Never `
             -p:UapAppxPackageBuildMode=SideloadOnly
 
-      - name: Locate MSIX
-        id: artifact
+      - name: Locate unsigned MSIX
+        id: unsigned
         shell: pwsh
         run: |
-          # The single-project MSIX tooling drops the package at
-          # <repo-root>\AppPackages\WinBit_<version>_<arch>_Test\WinBit_<version>_<arch>.msix
           $msix = Get-ChildItem -Recurse -Filter '*.msix' -Path 'AppPackages' -ErrorAction SilentlyContinue |
               Where-Object { $_.Name -notmatch '\.appxsym|\.appxupload' } |
               Sort-Object LastWriteTime -Descending |
@@ -126,10 +104,86 @@ jobs:
                   ForEach-Object { Write-Host $_.FullName }
               exit 1
           }
-          $msixName = "WinBit-${{ steps.tag.outputs.tag }}-x64.msix"
-          Copy-Item $msix.FullName $msixName
-          Write-Host "MSIX: $msixName ($($msix.Length) bytes)"
-          "msix_path=$msixName" | Out-File $env:GITHUB_OUTPUT -Append
+          # Stage under runner.temp with the final release filename so SignPath
+          # round-trips the same name end-to-end.
+          $stagedName = "WinBit-${{ steps.tag.outputs.tag }}-x64.msix"
+          $stagedPath = Join-Path $env:RUNNER_TEMP $stagedName
+          Copy-Item $msix.FullName $stagedPath
+          Write-Host "Unsigned MSIX: $stagedPath ($($msix.Length) bytes)"
+          "msix_path=$stagedPath"   | Out-File $env:GITHUB_OUTPUT -Append
+          "msix_name=$stagedName"   | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Upload unsigned MSIX as workflow artifact
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinBit-unsigned
+          path: ${{ steps.unsigned.outputs.msix_path }}
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Submit MSIX to SignPath for signing
+        id: signpath
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: 7d49de31-8b0f-4a88-94e0-4a66b6a6f2b6
+          project-slug: winbit
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: ${{ runner.temp }}/signed
+
+      - name: Locate signed MSIX
+        id: signed
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem -Path "$env:RUNNER_TEMP/signed" -Filter '*.msix' -Recurse |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+          if (-not $signed) {
+              Write-Error "SignPath returned no .msix in $env:RUNNER_TEMP/signed"
+              Get-ChildItem -Recurse -Path "$env:RUNNER_TEMP/signed" |
+                  ForEach-Object { Write-Host $_.FullName }
+              exit 1
+          }
+          # Sanity: confirm the signature is real (chain may still terminate at
+          # the SignPath test cert until Foundation approval, which is fine).
+          $sig = Get-AuthenticodeSignature $signed.FullName
+          Write-Host "SignerCertificate.Subject: $($sig.SignerCertificate.Subject)"
+          Write-Host "Status: $($sig.Status)"
+          if ($sig.Status -ne 'Valid' -and $sig.Status -ne 'UnknownError') {
+              # 'UnknownError' is what Get-AuthenticodeSignature returns for an
+              # MSIX whose chain root isn't in the local Trusted Root store —
+              # expected with the SignPath test cert until Foundation lands.
+              Write-Warning "Signature status is $($sig.Status); inspect manually"
+          }
+          $finalName = "WinBit-${{ steps.tag.outputs.tag }}-x64.msix"
+          $finalPath = Join-Path $PWD $finalName
+          Copy-Item $signed.FullName $finalPath -Force
+          "msix_path=$finalPath" | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Stage public test certificate (if committed)
+        id: testcert
+        shell: pwsh
+        run: |
+          # Until the SignPath Foundation cert is issued, releases are signed by
+          # the SignPath test cert (still self-signed — chain terminates at
+          # CN=Idiom Studio). End users must trust the cert before Add-AppxPackage
+          # works. The public .cer lives at packaging/signpath-test.cer and is
+          # downloaded by the maintainer from the SignPath dashboard.
+          # When the Foundation cert lands, delete that .cer file and this step
+          # becomes a no-op (publicly trusted certs need no manual trust).
+          $src = Join-Path $PWD 'packaging/signpath-test.cer'
+          if (Test-Path $src) {
+              $dst = Join-Path $PWD "WinBit-${{ steps.tag.outputs.tag }}.cer"
+              Copy-Item $src $dst
+              "cer_path=$dst" | Out-File $env:GITHUB_OUTPUT -Append
+              Write-Host "Test cert staged for release attachment: $dst"
+          } else {
+              Write-Host "No packaging/signpath-test.cer found — skipping cer attachment"
+              "cer_path=" | Out-File $env:GITHUB_OUTPUT -Append
+          }
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -142,12 +196,18 @@ jobs:
           body: |
             ## Install
 
-            1. Download `WinBit-${{ steps.tag.outputs.tag }}.cer` and trust it: right-click → Install Certificate → Local Machine → "Trusted Root Certification Authorities". (One-time per machine; required because the MSIX is self-signed.)
-            2. Download `WinBit-${{ steps.tag.outputs.tag }}-x64.msix` and double-click to install, or run `Add-AppxPackage WinBit-${{ steps.tag.outputs.tag }}-x64.msix` from PowerShell.
+            1. **Trust the signing cert** (one-time per machine, only needed until SignPath Foundation OSS cert is issued). Download `WinBit-${{ steps.tag.outputs.tag }}.cer`, then in an admin PowerShell:
+               ```pwsh
+               Import-Certificate -FilePath WinBit-${{ steps.tag.outputs.tag }}.cer -CertStoreLocation Cert:\LocalMachine\Root
+               ```
+            2. **Install the MSIX**: download `WinBit-${{ steps.tag.outputs.tag }}-x64.msix`, double-click, or:
+               ```pwsh
+               Add-AppxPackage WinBit-${{ steps.tag.outputs.tag }}-x64.msix
+               ```
 
             ## Notes
 
-            Built from tag `${{ steps.tag.outputs.tag }}`. See the auto-generated changelog below for changes.
+            Built from tag `${{ steps.tag.outputs.tag }}`. Signed via SignPath. See the auto-generated changelog below.
           files: |
-            ${{ steps.artifact.outputs.msix_path }}
-            ${{ steps.cert.outputs.cer_path }}
+            ${{ steps.signed.outputs.msix_path }}
+            ${{ steps.testcert.outputs.cer_path }}
