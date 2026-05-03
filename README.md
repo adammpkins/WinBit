@@ -2,6 +2,8 @@
 
 A modern, beautiful, Windows-native BitTorrent client. WinBit is a ground-up rebuild aimed at feature parity with [qBittorrent](https://www.qbittorrent.org/), built in C# / WinUI 3 with a Fluent Design front end.
 
+![WinBit transfer list with the Peers tab open on a seeding Ubuntu ISO](./docs/images/winbit-main.png)
+
 ## Why
 
 qBittorrent is functionally excellent but visually dated — it wears its Qt heritage and optimizes for cross-platform pragmatism over native feel. WinBit keeps the feature set and rebuilds the experience around Windows 11: Mica backdrops, extended title bars, Segoe Fluent iconography, tasteful motion, dark/light theming, and controls that feel at home next to Settings and File Explorer.
