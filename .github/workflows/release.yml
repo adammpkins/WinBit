@@ -110,19 +110,21 @@ jobs:
         id: artifact
         shell: pwsh
         run: |
-          $appPackages = Get-ChildItem -Recurse -Filter '*.msix' -Path 'bin' -ErrorAction SilentlyContinue |
-              Where-Object { $_.FullName -match 'AppPackages' -and $_.Name -notmatch '\.appxsym|\.appxupload' } |
+          # The single-project MSIX tooling drops the package at
+          # <repo-root>\AppPackages\WinBit_<version>_<arch>_Test\WinBit_<version>_<arch>.msix
+          $msix = Get-ChildItem -Recurse -Filter '*.msix' -Path 'AppPackages' -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -notmatch '\.appxsym|\.appxupload' } |
               Sort-Object LastWriteTime -Descending |
               Select-Object -First 1
-          if (-not $appPackages) {
-              Write-Error "No MSIX artifact found under bin/**/AppPackages"
-              Get-ChildItem -Recurse -Filter '*.msix*' -Path 'bin' | ForEach-Object { Write-Host $_.FullName }
+          if (-not $msix) {
+              Write-Error "No MSIX artifact found under AppPackages/"
+              Get-ChildItem -Recurse -Filter '*.msix*' -ErrorAction SilentlyContinue |
+                  ForEach-Object { Write-Host $_.FullName }
               exit 1
           }
-          $msixPath = $appPackages.FullName
           $msixName = "WinBit-${{ steps.tag.outputs.tag }}-x64.msix"
-          Copy-Item $msixPath $msixName
-          Write-Host "MSIX: $msixName ($($appPackages.Length) bytes)"
+          Copy-Item $msix.FullName $msixName
+          Write-Host "MSIX: $msixName ($($msix.Length) bytes)"
           "msix_path=$msixName" | Out-File $env:GITHUB_OUTPUT -Append
 
       - name: Create GitHub Release
